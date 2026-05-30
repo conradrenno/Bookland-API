@@ -1,4 +1,4 @@
-package com.devrenno.bookland.auth.application.controller;
+package com.devrenno.bookland.auth.application.service;
 
 import com.devrenno.bookland.auth.application.annotation.UseCase;
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
@@ -14,7 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 @UseCase
 @RequiredArgsConstructor
-public class AuthApplicationController implements LoginUseCase {
+public class LoginService implements LoginUseCase {
 
     private final UserLookupPort userLookupPort;
     private final TokenProviderPort tokenProviderPort;

@@ -1,6 +1,5 @@
-package com.devrenno.bookland.auth.application;
+package com.devrenno.bookland.auth.application.service;
 
-import com.devrenno.bookland.auth.application.controller.AuthApplicationController;
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.auth.application.dto.LoginCommand;
 import com.devrenno.bookland.auth.application.dto.TokenResponse;
@@ -25,15 +24,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class AuthApplicationControllerTest {
+class LoginServiceTest {
 
     @Mock private UserLookupPort userLookupPort;
     @Mock private TokenProviderPort tokenProviderPort;
     @Mock private PasswordEncoder passwordEncoder;
-    @InjectMocks private AuthApplicationController controller;
+    @InjectMocks private LoginService loginService;
 
     @Test
-    void login_shouldReturnToken_whenCredentialsAreValid() {
+    void execute_shouldReturnToken_whenCredentialsAreValid() {
         UUID userId = UUID.randomUUID();
         AuthUserDto user = new AuthUserDto(userId, "alice@test.com", "hashed", "CUSTOMER");
         Token token = new Token("jwt-value", Instant.now().plusSeconds(3600), userId, "alice@test.com", "CUSTOMER");
@@ -42,29 +41,29 @@ class AuthApplicationControllerTest {
         when(passwordEncoder.matches("secret", "hashed")).thenReturn(true);
         when(tokenProviderPort.generate(any(), any(), any())).thenReturn(token);
 
-        TokenResponse result = controller.execute(new LoginCommand("alice@test.com", "secret"));
+        TokenResponse result = loginService.execute(new LoginCommand("alice@test.com", "secret"));
 
         assertThat(result.token()).isEqualTo("jwt-value");
         assertThat(result.tokenType()).isEqualTo("Bearer");
     }
 
     @Test
-    void login_shouldThrow_whenUserNotFound() {
+    void execute_shouldThrow_whenUserNotFound() {
         when(userLookupPort.findByEmail("unknown@test.com")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> controller.execute(new LoginCommand("unknown@test.com", "pass")))
+        assertThatThrownBy(() -> loginService.execute(new LoginCommand("unknown@test.com", "pass")))
                 .isInstanceOf(InvalidCredentialsException.class);
     }
 
     @Test
-    void login_shouldThrow_whenPasswordDoesNotMatch() {
+    void execute_shouldThrow_whenPasswordDoesNotMatch() {
         UUID userId = UUID.randomUUID();
         AuthUserDto user = new AuthUserDto(userId, "alice@test.com", "hashed", "CUSTOMER");
 
         when(userLookupPort.findByEmail("alice@test.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
 
-        assertThatThrownBy(() -> controller.execute(new LoginCommand("alice@test.com", "wrong")))
+        assertThatThrownBy(() -> loginService.execute(new LoginCommand("alice@test.com", "wrong")))
                 .isInstanceOf(InvalidCredentialsException.class);
     }
 }
