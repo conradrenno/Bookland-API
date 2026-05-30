@@ -1,0 +1,35 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: bookland-app/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_USER: ${POSTGRES_USER:-bookland}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
+      JWT_SECRET: ${JWT_SECRET:-ZmY0YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTY=}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: bookland
+      POSTGRES_USER: ${POSTGRES_USER:-bookland}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
+    volumes:
+      - bookland-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookland} -d bookland"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  bookland-pgdata:

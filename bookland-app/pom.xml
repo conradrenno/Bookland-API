@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.devrenno</groupId>
+        <artifactId>bookland</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>bookland-app</artifactId>
+    <name>Bookland - Application Bootstrap</name>
+
+    <dependencies>
+        <!-- Domain modules -->
+        <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-user</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-auth</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-catalog</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-orders</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-reviews</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-inventory</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-wishlist</artifactId>
+        </dependency>
+
+        <!-- SpringDoc -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

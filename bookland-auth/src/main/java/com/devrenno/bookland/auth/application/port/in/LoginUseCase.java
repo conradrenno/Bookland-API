@@ -1,0 +1,8 @@
+package com.devrenno.bookland.auth.application.port.in;
+
+import com.devrenno.bookland.auth.application.dto.LoginCommand;
+import com.devrenno.bookland.auth.application.dto.TokenResponse;
+
+public interface LoginUseCase {
+    TokenResponse execute(LoginCommand command);
+}
