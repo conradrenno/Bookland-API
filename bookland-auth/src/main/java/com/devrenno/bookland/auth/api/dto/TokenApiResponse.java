@@ -3,7 +3,9 @@ package com.devrenno.bookland.auth.api.dto;
 import java.time.Instant;
 
 public record TokenApiResponse(
-        String token,
+        String accessToken,
         String tokenType,
-        Instant expiresAt
+        Instant accessTokenExpiresAt,
+        String refreshToken,
+        Instant refreshTokenExpiresAt
 ) {}

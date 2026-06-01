@@ -30,6 +30,7 @@ bookland:
   jwt:
     secret: ZmY0YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTY=
     expiration-ms: 86400000
+    refresh-token-expiration-ms: 604800000
 
 springdoc:
   api-docs:
@@ -59,3 +60,4 @@ bookland:
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}

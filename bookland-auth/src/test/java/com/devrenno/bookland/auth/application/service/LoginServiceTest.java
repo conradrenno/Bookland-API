@@ -3,10 +3,14 @@ package com.devrenno.bookland.auth.application.service;
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.auth.application.dto.LoginCommand;
 import com.devrenno.bookland.auth.application.dto.TokenResponse;
+import com.devrenno.bookland.auth.application.port.out.RefreshTokenPersistencePort;
 import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
 import com.devrenno.bookland.auth.application.port.out.UserLookupPort;
+import com.devrenno.bookland.auth.domain.entity.RefreshToken;
 import com.devrenno.bookland.auth.domain.exception.InvalidCredentialsException;
 import com.devrenno.bookland.auth.domain.valueobject.Token;
+import com.devrenno.bookland.auth.infrastructure.config.JwtProperties;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,6 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,10 +34,18 @@ class LoginServiceTest {
     @Mock private UserLookupPort userLookupPort;
     @Mock private TokenProviderPort tokenProviderPort;
     @Mock private PasswordEncoder passwordEncoder;
+    @Mock private RefreshTokenPersistencePort refreshTokenPersistencePort;
+    @Mock private JwtProperties jwtProperties;
     @InjectMocks private LoginService loginService;
 
+    @BeforeEach
+    void setUp() {
+        lenient().when(jwtProperties.getRefreshTokenExpirationMs()).thenReturn(604800000L);
+        lenient().when(refreshTokenPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    }
+
     @Test
-    void execute_shouldReturnToken_whenCredentialsAreValid() {
+    void execute_shouldReturnTokenPair_whenCredentialsAreValid() {
         UUID userId = UUID.randomUUID();
         AuthUserDto user = new AuthUserDto(userId, "alice@test.com", "hashed", "CUSTOMER");
         Token token = new Token("jwt-value", Instant.now().plusSeconds(3600), userId, "alice@test.com", "CUSTOMER");
@@ -43,8 +56,10 @@ class LoginServiceTest {
 
         TokenResponse result = loginService.execute(new LoginCommand("alice@test.com", "secret"));
 
-        assertThat(result.token()).isEqualTo("jwt-value");
+        assertThat(result.accessToken()).isEqualTo("jwt-value");
         assertThat(result.tokenType()).isEqualTo("Bearer");
+        assertThat(result.refreshToken()).isNotBlank();
+        assertThat(result.refreshTokenExpiresAt()).isAfter(Instant.now());
     }
 
     @Test

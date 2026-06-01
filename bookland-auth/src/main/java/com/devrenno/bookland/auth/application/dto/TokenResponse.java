@@ -3,11 +3,14 @@ package com.devrenno.bookland.auth.application.dto;
 import java.time.Instant;
 
 public record TokenResponse(
-        String token,
+        String accessToken,
         String tokenType,
-        Instant expiresAt
+        Instant accessTokenExpiresAt,
+        String refreshToken,
+        Instant refreshTokenExpiresAt
 ) {
-    public static TokenResponse bearer(String token, Instant expiresAt) {
-        return new TokenResponse(token, "Bearer", expiresAt);
+    public static TokenResponse bearer(String accessToken, Instant accessTokenExpiresAt,
+                                        String refreshToken, Instant refreshTokenExpiresAt) {
+        return new TokenResponse(accessToken, "Bearer", accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt);
     }
 }

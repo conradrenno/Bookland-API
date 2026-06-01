@@ -2,42 +2,34 @@ package com.devrenno.bookland.auth.application.service;
 
 import com.devrenno.bookland.auth.application.annotation.UseCase;
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
-import com.devrenno.bookland.auth.application.dto.LoginCommand;
+import com.devrenno.bookland.auth.application.dto.RegisterCommand;
 import com.devrenno.bookland.auth.application.dto.TokenResponse;
-import com.devrenno.bookland.auth.application.port.in.LoginUseCase;
+import com.devrenno.bookland.auth.application.port.in.RegisterUseCase;
 import com.devrenno.bookland.auth.application.port.out.RefreshTokenPersistencePort;
 import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
-import com.devrenno.bookland.auth.application.port.out.UserLookupPort;
+import com.devrenno.bookland.auth.application.port.out.UserRegistrationPort;
 import com.devrenno.bookland.auth.domain.entity.RefreshToken;
-import com.devrenno.bookland.auth.domain.exception.InvalidCredentialsException;
 import com.devrenno.bookland.auth.domain.valueobject.Token;
 import com.devrenno.bookland.auth.infrastructure.config.JwtProperties;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 @UseCase
 @RequiredArgsConstructor
-public class LoginService implements LoginUseCase {
+public class RegisterService implements RegisterUseCase {
 
-    private final UserLookupPort userLookupPort;
+    private final UserRegistrationPort userRegistrationPort;
     private final TokenProviderPort tokenProviderPort;
-    private final PasswordEncoder passwordEncoder;
     private final RefreshTokenPersistencePort refreshTokenPersistencePort;
     private final JwtProperties jwtProperties;
 
     @Override
-    public TokenResponse execute(LoginCommand command) {
-        AuthUserDto user = userLookupPort.findByEmail(command.email())
-                .orElseThrow(InvalidCredentialsException::new);
-
-        if (!passwordEncoder.matches(command.rawPassword(), user.passwordHash())) {
-            throw new InvalidCredentialsException();
-        }
+    public TokenResponse execute(RegisterCommand command) {
+        AuthUserDto user = userRegistrationPort.register(
+                command.name(), command.email(), command.rawPassword()
+        );
 
         Token accessToken = tokenProviderPort.generate(
-                user.id().toString(),
-                user.email(),
-                user.role()
+                user.id().toString(), user.email(), user.role()
         );
 
         RefreshToken refreshToken = RefreshToken.create(
