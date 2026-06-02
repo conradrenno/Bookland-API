@@ -58,8 +58,7 @@ public class Order {
         if (status != OrderStatus.AWAITING_PAYMENT && status != OrderStatus.CONFIRMED) {
             throw new OrderCancellationNotAllowedException(id, status);
         }
-        this.status = OrderStatus.CANCELLED;
-        this.updatedAt = LocalDateTime.now();
+        transitionStatus(OrderStatus.CANCELLED, requesterId);
     }
 
     public void transitionStatus(OrderStatus newStatus, UUID changedBy) {

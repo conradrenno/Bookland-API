@@ -15,6 +15,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -42,21 +45,14 @@ public class OrderPersistenceAdapter implements OrderPersistencePort {
         entity.setStatus(order.getStatus().name());
         entity.setUpdatedAt(order.getUpdatedAt());
 
-        entity.getItems().clear();
-        List<OrderItemJpaEntity> itemEntities = order.getItems().stream()
-                .map(i -> OrderItemJpaEntity.builder()
-                        .id(UUID.randomUUID())
-                        .order(entity)
-                        .bookId(i.getBookId())
-                        .title(i.getTitle())
-                        .quantity(i.getQuantity())
-                        .unitPrice(i.getUnitPrice())
-                        .build())
-                .toList();
-        entity.getItems().addAll(itemEntities);
+        // Items are immutable after order creation — never touch them on update.
+        // Status transitions are append-only — add only entries not already persisted.
+        Set<UUID> existingTransitionIds = entity.getStatusHistory().stream()
+                .map(StatusTransitionJpaEntity::getId)
+                .collect(Collectors.toSet());
 
-        entity.getStatusHistory().clear();
-        List<StatusTransitionJpaEntity> historyEntities = order.getStatusHistory().stream()
+        order.getStatusHistory().stream()
+                .filter(t -> !existingTransitionIds.contains(t.getId()))
                 .map(t -> StatusTransitionJpaEntity.builder()
                         .id(t.getId())
                         .order(entity)
@@ -65,8 +61,7 @@ public class OrderPersistenceAdapter implements OrderPersistencePort {
                         .changedAt(t.getChangedAt())
                         .changedBy(t.getChangedBy())
                         .build())
-                .toList();
-        entity.getStatusHistory().addAll(historyEntities);
+                .forEach(entity.getStatusHistory()::add);
 
         return toDomain(orderRepository.save(entity));
     }
