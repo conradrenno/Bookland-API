@@ -16,4 +16,5 @@ public interface BookPersistencePort {
     boolean existsByIsbn(String isbn);
     Page<Book> search(BookSearchQuery query);
     Page<Book> findByCategoryId(UUID categoryId, Pageable pageable);
+    Page<Book> findLowStock(int threshold, Pageable pageable);
 }

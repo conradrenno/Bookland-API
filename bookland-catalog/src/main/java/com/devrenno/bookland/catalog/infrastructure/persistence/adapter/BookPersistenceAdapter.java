@@ -58,4 +58,10 @@ public class BookPersistenceAdapter implements BookPersistencePort {
         return bookRepository.findByCategory_IdAndActiveTrue(categoryId, pageable)
                 .map(mapper::toDomain);
     }
+
+    @Override
+    public Page<Book> findLowStock(int threshold, Pageable pageable) {
+        return bookRepository.findByStockQuantityLessThanEqualAndActiveTrue(threshold, pageable)
+                .map(mapper::toDomain);
+    }
 }

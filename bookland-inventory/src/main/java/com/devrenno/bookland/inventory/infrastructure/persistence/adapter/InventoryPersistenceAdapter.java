@@ -1,0 +1,39 @@
+package com.devrenno.bookland.inventory.infrastructure.persistence.adapter;
+
+import com.devrenno.bookland.inventory.application.port.out.InventoryPersistencePort;
+import com.devrenno.bookland.inventory.domain.entity.InventoryEntry;
+import com.devrenno.bookland.inventory.infrastructure.persistence.mapper.InventoryPersistenceMapper;
+import com.devrenno.bookland.inventory.infrastructure.persistence.repository.InventoryEntryJpaRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+@RequiredArgsConstructor
+public class InventoryPersistenceAdapter implements InventoryPersistencePort {
+
+    private final InventoryEntryJpaRepository repository;
+    private final InventoryPersistenceMapper mapper;
+
+    @Override
+    public InventoryEntry save(InventoryEntry entry) {
+        return mapper.toDomain(repository.save(mapper.toEntity(entry)));
+    }
+
+    @Override
+    public Page<InventoryEntry> findByBookId(UUID bookId, Pageable pageable) {
+        return repository.findByBookIdOrderByAdjustedAtDesc(bookId, pageable)
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public Optional<LocalDateTime> findLastAdjustmentTime(UUID bookId) {
+        return repository.findFirstByBookIdOrderByAdjustedAtDesc(bookId)
+                .map(e -> e.getAdjustedAt());
+    }
+}

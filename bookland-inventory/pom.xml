@@ -11,8 +11,17 @@
     <name>Bookland - Inventory Domain</name>
     <dependencies>
         <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-catalog</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

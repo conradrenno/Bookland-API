@@ -30,8 +30,13 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
+                        // Inventory admin routes (must be before the broad GET permitAll for books)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/books/*/inventory/history").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/inventory/low-stock").hasRole("ADMIN")
+                        // Catalog public routes
                         .requestMatchers(HttpMethod.GET, "/api/v1/books/**", "/api/v1/books").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/categories/**", "/api/v1/categories").permitAll()
+                        // Catalog admin routes
                         .requestMatchers(HttpMethod.POST, "/api/v1/books").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/books/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/books/**").hasRole("ADMIN")

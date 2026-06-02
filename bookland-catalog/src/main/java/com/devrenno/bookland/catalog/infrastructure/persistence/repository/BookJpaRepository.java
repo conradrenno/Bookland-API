@@ -16,4 +16,6 @@ public interface BookJpaRepository extends JpaRepository<BookJpaEntity, UUID>, J
     boolean existsByIsbn(String isbn);
 
     Page<BookJpaEntity> findByCategory_IdAndActiveTrue(UUID categoryId, Pageable pageable);
+
+    Page<BookJpaEntity> findByStockQuantityLessThanEqualAndActiveTrue(int threshold, Pageable pageable);
 }
