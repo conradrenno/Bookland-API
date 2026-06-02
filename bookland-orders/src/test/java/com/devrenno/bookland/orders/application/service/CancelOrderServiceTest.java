@@ -3,6 +3,7 @@ package com.devrenno.bookland.orders.application.service;
 import com.devrenno.bookland.orders.application.dto.OrderResponse;
 import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
+import com.devrenno.bookland.orders.application.port.out.RefundPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
@@ -32,14 +33,29 @@ class CancelOrderServiceTest {
 
     @Mock private OrderPersistencePort orderPersistencePort;
     @Mock private BookStockPort bookStockPort;
+    @Mock private RefundPort refundPort;
     @InjectMocks private CancelOrderService service;
 
     private final UUID customerId = UUID.randomUUID();
     private final UUID bookId = UUID.randomUUID();
 
     @Test
-    void execute_shouldCancelOrderAndRestoreStock_whenOrderIsPending() {
-        Order order = buildOrder(customerId, OrderStatus.PENDING);
+    void execute_shouldCancelWithoutRefund_whenOrderIsAwaitingPayment() {
+        Order order = buildOrder(customerId, OrderStatus.AWAITING_PAYMENT);
+
+        when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderPersistencePort.save(any())).thenReturn(order);
+
+        OrderResponse response = service.execute(order.getId(), customerId);
+
+        assertThat(response).isNotNull();
+        verify(bookStockPort, never()).adjustStock(any(), anyInt());
+        verify(refundPort, never()).refund(any());
+    }
+
+    @Test
+    void execute_shouldRestoreStockAndRefund_whenOrderIsConfirmed() {
+        Order order = buildOrder(customerId, OrderStatus.CONFIRMED);
 
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderPersistencePort.save(any())).thenReturn(order);
@@ -48,6 +64,7 @@ class CancelOrderServiceTest {
 
         assertThat(response).isNotNull();
         verify(bookStockPort).adjustStock(bookId, 2);
+        verify(refundPort).refund(order.getId());
     }
 
     @Test
@@ -62,7 +79,7 @@ class CancelOrderServiceTest {
     @Test
     void execute_shouldThrowAccessDenied_whenRequesterIsNotOwner() {
         UUID otherCustomer = UUID.randomUUID();
-        Order order = buildOrder(customerId, OrderStatus.PENDING);
+        Order order = buildOrder(customerId, OrderStatus.AWAITING_PAYMENT);
 
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
 
@@ -73,8 +90,8 @@ class CancelOrderServiceTest {
     }
 
     @Test
-    void execute_shouldThrowCancellationNotAllowed_whenOrderIsNotPending() {
-        Order order = buildOrder(customerId, OrderStatus.CONFIRMED);
+    void execute_shouldThrowCancellationNotAllowed_whenOrderIsShipped() {
+        Order order = buildOrder(customerId, OrderStatus.SHIPPED);
 
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
 

@@ -8,12 +8,17 @@ import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
 import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
+import com.devrenno.bookland.orders.application.port.out.PaymentPort;
 import com.devrenno.bookland.orders.domain.entity.Cart;
 import com.devrenno.bookland.orders.domain.entity.CartItem;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
+import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
 import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
+import com.devrenno.bookland.orders.domain.exception.PaymentDeclinedException;
+import com.devrenno.bookland.payments.application.dto.PaymentResult;
+import com.devrenno.bookland.payments.domain.entity.PaymentMethod;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,10 +34,11 @@ public class CheckoutService implements CheckoutUseCase {
     private final OrderPersistencePort orderPersistencePort;
     private final BookInfoPort bookInfoPort;
     private final BookStockPort bookStockPort;
+    private final PaymentPort paymentPort;
 
     @Override
     @Transactional
-    public OrderResponse execute(UUID customerId) {
+    public OrderResponse execute(UUID customerId, PaymentMethod paymentMethod) {
         Cart cart = cartPersistencePort.findByCustomerId(customerId)
                 .orElseThrow(() -> new CartNotFoundException(customerId));
 
@@ -62,12 +68,23 @@ public class CheckoutService implements CheckoutUseCase {
         }
 
         Order order = Order.fromCart(customerId, orderItems);
-        for (OrderItem item : orderItems) {
-            bookStockPort.adjustStock(item.getBookId(), -item.getQuantity());
-        }
         Order saved = orderPersistencePort.save(order);
-        cartPersistencePort.deleteByCustomerId(customerId);
 
-        return OrderResponseMapper.toOrderResponse(saved);
+        PaymentResult result = paymentPort.processPayment(
+                saved.getId(), customerId, saved.getTotalAmount(), paymentMethod);
+
+        if (result.approved()) {
+            for (OrderItem item : orderItems) {
+                bookStockPort.adjustStock(item.getBookId(), -item.getQuantity());
+            }
+            saved.transitionStatus(OrderStatus.CONFIRMED, customerId);
+            Order confirmed = orderPersistencePort.save(saved);
+            cartPersistencePort.deleteByCustomerId(customerId);
+            return OrderResponseMapper.toOrderResponse(confirmed);
+        } else {
+            saved.transitionStatus(OrderStatus.PAYMENT_FAILED, customerId);
+            orderPersistencePort.save(saved);
+            throw new PaymentDeclinedException(result.declineReason());
+        }
     }
 }

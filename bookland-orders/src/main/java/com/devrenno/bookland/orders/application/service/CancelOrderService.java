@@ -5,7 +5,9 @@ import com.devrenno.bookland.orders.application.dto.OrderResponse;
 import com.devrenno.bookland.orders.application.port.in.CancelOrderUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
+import com.devrenno.bookland.orders.application.port.out.RefundPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
+import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 import com.devrenno.bookland.orders.domain.exception.OrderNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,16 +20,24 @@ public class CancelOrderService implements CancelOrderUseCase {
 
     private final OrderPersistencePort orderPersistencePort;
     private final BookStockPort bookStockPort;
+    private final RefundPort refundPort;
 
     @Override
     @Transactional
     public OrderResponse execute(UUID orderId, UUID customerId) {
         Order order = orderPersistencePort.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        OrderStatus previousStatus = order.getStatus();
         order.cancel(customerId);
-        for (var item : order.getItems()) {
-            bookStockPort.adjustStock(item.getBookId(), item.getQuantity());
+
+        if (previousStatus == OrderStatus.CONFIRMED) {
+            for (var item : order.getItems()) {
+                bookStockPort.adjustStock(item.getBookId(), item.getQuantity());
+            }
+            refundPort.refund(orderId);
         }
+
         return OrderResponseMapper.toOrderResponse(orderPersistencePort.save(order));
     }
 }

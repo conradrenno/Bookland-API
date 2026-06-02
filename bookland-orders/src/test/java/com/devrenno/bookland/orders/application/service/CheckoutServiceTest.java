@@ -6,12 +6,15 @@ import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
 import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
+import com.devrenno.bookland.orders.application.port.out.PaymentPort;
 import com.devrenno.bookland.orders.domain.entity.Cart;
 import com.devrenno.bookland.orders.domain.entity.CartItem;
 import com.devrenno.bookland.orders.domain.entity.Order;
-import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
 import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
+import com.devrenno.bookland.orders.domain.exception.PaymentDeclinedException;
+import com.devrenno.bookland.payments.application.dto.PaymentResult;
+import com.devrenno.bookland.payments.domain.entity.PaymentMethod;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -37,26 +40,48 @@ class CheckoutServiceTest {
     @Mock private OrderPersistencePort orderPersistencePort;
     @Mock private BookInfoPort bookInfoPort;
     @Mock private BookStockPort bookStockPort;
+    @Mock private PaymentPort paymentPort;
     @InjectMocks private CheckoutService service;
 
     private final UUID customerId = UUID.randomUUID();
     private final UUID bookId = UUID.randomUUID();
 
     @Test
-    void execute_shouldCreateOrderAndClearCart_whenStockIsSufficient() {
+    void execute_shouldCreateOrderClearCartAndDecrementStock_whenPaymentApproved() {
         Cart cart = buildCart(bookId, 2, BigDecimal.valueOf(29.90));
         BookInfo book = new BookInfo(bookId, "Clean Code", BigDecimal.valueOf(29.90), 10);
-        Order savedOrder = Order.fromCart(customerId, List.of());
+        Order awaitingOrder = Order.fromCart(customerId, List.of());
 
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
         when(bookInfoPort.getBookInfo(bookId)).thenReturn(book);
-        when(orderPersistencePort.save(any())).thenReturn(savedOrder);
+        when(orderPersistencePort.save(any())).thenReturn(awaitingOrder);
+        when(paymentPort.processPayment(any(), any(), any(), any()))
+                .thenReturn(new PaymentResult(true, "SIM-001", null));
 
-        OrderResponse response = service.execute(customerId);
+        OrderResponse response = service.execute(customerId, PaymentMethod.CREDIT_CARD);
 
         assertThat(response).isNotNull();
         verify(bookStockPort).adjustStock(bookId, -2);
         verify(cartPersistencePort).deleteByCustomerId(customerId);
+    }
+
+    @Test
+    void execute_shouldSaveOrderAsPaymentFailed_whenPaymentDeclined() {
+        Cart cart = buildCart(bookId, 2, BigDecimal.valueOf(29.90));
+        BookInfo book = new BookInfo(bookId, "Clean Code", BigDecimal.valueOf(29.90), 10);
+        Order awaitingOrder = Order.fromCart(customerId, List.of());
+
+        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
+        when(bookInfoPort.getBookInfo(bookId)).thenReturn(book);
+        when(orderPersistencePort.save(any())).thenReturn(awaitingOrder);
+        when(paymentPort.processPayment(any(), any(), any(), any()))
+                .thenReturn(new PaymentResult(false, null, "insufficient funds"));
+
+        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
+                .isInstanceOf(PaymentDeclinedException.class);
+
+        verify(bookStockPort, never()).adjustStock(any(), anyInt());
+        verify(cartPersistencePort, never()).deleteByCustomerId(any());
     }
 
     @Test
@@ -67,7 +92,7 @@ class CheckoutServiceTest {
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
         when(bookInfoPort.getBookInfo(bookId)).thenReturn(book);
 
-        assertThatThrownBy(() -> service.execute(customerId))
+        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
                 .isInstanceOf(CartItemUnavailableException.class);
 
         verify(orderPersistencePort, never()).save(any());
@@ -78,7 +103,7 @@ class CheckoutServiceTest {
     void execute_shouldThrowCartNotFound_whenCartDoesNotExist() {
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.execute(customerId))
+        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
                 .isInstanceOf(CartNotFoundException.class);
     }
 

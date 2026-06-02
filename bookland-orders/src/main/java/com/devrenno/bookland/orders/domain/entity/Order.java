@@ -19,11 +19,12 @@ import java.util.UUID;
 public class Order {
 
     private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
-            OrderStatus.PENDING,    Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
-            OrderStatus.CONFIRMED,  Set.of(OrderStatus.SHIPPED),
-            OrderStatus.SHIPPED,    Set.of(OrderStatus.DELIVERED),
-            OrderStatus.DELIVERED,  Set.of(),
-            OrderStatus.CANCELLED,  Set.of()
+            OrderStatus.AWAITING_PAYMENT, Set.of(OrderStatus.CONFIRMED, OrderStatus.PAYMENT_FAILED, OrderStatus.CANCELLED),
+            OrderStatus.CONFIRMED,        Set.of(OrderStatus.SHIPPED, OrderStatus.CANCELLED),
+            OrderStatus.SHIPPED,          Set.of(OrderStatus.DELIVERED),
+            OrderStatus.DELIVERED,        Set.of(),
+            OrderStatus.CANCELLED,        Set.of(),
+            OrderStatus.PAYMENT_FAILED,   Set.of()
     );
 
     private final UUID id;
@@ -44,7 +45,7 @@ public class Order {
                 .id(UUID.randomUUID())
                 .customerId(customerId)
                 .items(new ArrayList<>(items))
-                .status(OrderStatus.PENDING)
+                .status(OrderStatus.AWAITING_PAYMENT)
                 .totalAmount(total)
                 .statusHistory(new ArrayList<>())
                 .createdAt(LocalDateTime.now())
@@ -54,7 +55,9 @@ public class Order {
 
     public void cancel(UUID requesterId) {
         if (!customerId.equals(requesterId)) throw new OrderAccessDeniedException(id);
-        if (status != OrderStatus.PENDING) throw new OrderCancellationNotAllowedException(id, status);
+        if (status != OrderStatus.AWAITING_PAYMENT && status != OrderStatus.CONFIRMED) {
+            throw new OrderCancellationNotAllowedException(id, status);
+        }
         this.status = OrderStatus.CANCELLED;
         this.updatedAt = LocalDateTime.now();
     }

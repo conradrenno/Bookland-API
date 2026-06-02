@@ -7,6 +7,7 @@ import com.devrenno.bookland.orders.domain.exception.InvalidOrderStatusTransitio
 import com.devrenno.bookland.orders.domain.exception.OrderAccessDeniedException;
 import com.devrenno.bookland.orders.domain.exception.OrderCancellationNotAllowedException;
 import com.devrenno.bookland.orders.domain.exception.OrderNotFoundException;
+import com.devrenno.bookland.orders.domain.exception.PaymentDeclinedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -48,5 +49,10 @@ public class OrderExceptionHandler {
     @ExceptionHandler(InvalidOrderStatusTransitionException.class)
     public ProblemDetail handleInvalidTransition(InvalidOrderStatusTransitionException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(PaymentDeclinedException.class)
+    public ProblemDetail handlePaymentDeclined(PaymentDeclinedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.PAYMENT_REQUIRED, ex.getMessage());
     }
 }

@@ -1,5 +1,5 @@
 package com.devrenno.bookland.orders.domain.entity;
 
 public enum OrderStatus {
-    PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
+    AWAITING_PAYMENT, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, PAYMENT_FAILED
 }

@@ -1,6 +1,7 @@
 package com.devrenno.bookland.orders.api.controller;
 
 import com.devrenno.bookland.orders.api.dto.request.AddCartItemRequest;
+import com.devrenno.bookland.orders.api.dto.request.CheckoutRequest;
 import com.devrenno.bookland.orders.api.dto.request.UpdateCartItemRequest;
 import com.devrenno.bookland.orders.application.dto.AddCartItemCommand;
 import com.devrenno.bookland.orders.application.dto.CartResponse;
@@ -70,8 +71,11 @@ public class CartController {
     }
 
     @PostMapping("/checkout")
-    public ResponseEntity<OrderResponse> checkout(Principal principal) {
-        return ResponseEntity.ok(checkoutUseCase.execute(extractUserId(principal)));
+    public ResponseEntity<OrderResponse> checkout(
+            @Valid @RequestBody CheckoutRequest request,
+            Principal principal
+    ) {
+        return ResponseEntity.ok(checkoutUseCase.execute(extractUserId(principal), request.paymentMethod()));
     }
 
     private UUID extractUserId(Principal principal) {
