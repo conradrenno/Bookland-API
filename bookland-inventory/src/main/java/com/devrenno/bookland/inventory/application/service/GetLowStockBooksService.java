@@ -12,7 +12,7 @@ import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-@UseCase
+@UseCase("inventoryGetLowStockBooksService")
 @RequiredArgsConstructor
 public class GetLowStockBooksService implements GetLowStockBooksUseCase {
 
