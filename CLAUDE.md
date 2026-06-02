@@ -85,7 +85,7 @@ com.devrenno.bookland.{domain}/
 │   └── exception/      ← Domain-specific exceptions
 ├── application/
 │   ├── annotation/     ← @UseCase (meta-annotation for @Service)
-│   ├── controller/     ← *ApplicationController: implements use-case interfaces, orchestrates domain
+│   ├── service/        ← *Service: implements use-case interfaces, orchestrates domain
 │   ├── dto/            ← Commands and responses (application-layer DTOs)
 │   └── port/
 │       ├── in/         ← Use-case interfaces (e.g. RegisterUserUseCase)
@@ -103,9 +103,9 @@ com.devrenno.bookland.{domain}/
 
 ### Key Design Rules
 
-**Two controller types, two roles:**
-- `*ApplicationController` — annotated `@UseCase`; implements all use-case `port/in` interfaces; contains actual business orchestration. The domain's only entry point for logic.
-- `*Controller` (`@RestController`) — HTTP adapter only; maps HTTP → use-case call → HTTP response. Must depend only on `port/in` interfaces, never on `*ApplicationController` directly.
+**Two types, two roles:**
+- `*Service` — annotated `@UseCase`; implements all use-case `port/in` interfaces; contains actual business orchestration. The domain's only entry point for logic.
+- `*Controller` (`@RestController`) — HTTP adapter only; maps HTTP → use-case call → HTTP response. Must depend only on `port/in` interfaces, never on `*Service` directly.
 
 **Domain layer has zero Spring/JPA dependencies.** Domain entities and services are plain Java. They are wired in `infrastructure/config` via `@Bean` methods (e.g., `UserDomainConfig`).
 
@@ -115,7 +115,7 @@ com.devrenno.bookland.{domain}/
 
 ### Auth Flow
 
-`bookland-auth` handles JWT: `POST /api/v1/auth/login` → `AuthController` → `LoginUseCase` → `AuthApplicationController` → validates credentials via `UserLookupPort` + `PasswordEncoder` → issues JWT via `TokenProviderPort`. The `JwtAuthenticationFilter` (in `bookland-auth`) intercepts every request and populates `SecurityContextHolder`. Security config lives in `bookland-auth`'s `SecurityConfig`.
+`bookland-auth` handles JWT: `POST /api/v1/auth/login` → `AuthController` → `LoginUseCase` → `AuthService` → validates credentials via `UserLookupPort` + `PasswordEncoder` → issues JWT via `TokenProviderPort`. The `JwtAuthenticationFilter` (in `bookland-auth`) intercepts every request and populates `SecurityContextHolder`. Security config lives in `bookland-auth`'s `SecurityConfig`.
 
 Public endpoints: `POST /api/v1/auth/**`, `POST /api/v1/users`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`.
 
