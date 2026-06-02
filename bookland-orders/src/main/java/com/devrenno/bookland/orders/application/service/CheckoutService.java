@@ -37,7 +37,7 @@ public class CheckoutService implements CheckoutUseCase {
     private final PaymentPort paymentPort;
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = PaymentDeclinedException.class)
     public OrderResponse execute(UUID customerId, PaymentMethod paymentMethod) {
         Cart cart = cartPersistencePort.findByCustomerId(customerId)
                 .orElseThrow(() -> new CartNotFoundException(customerId));
@@ -68,22 +68,21 @@ public class CheckoutService implements CheckoutUseCase {
         }
 
         Order order = Order.fromCart(customerId, orderItems);
-        Order saved = orderPersistencePort.save(order);
 
         PaymentResult result = paymentPort.processPayment(
-                saved.getId(), customerId, saved.getTotalAmount(), paymentMethod);
+                order.getId(), customerId, order.getTotalAmount(), paymentMethod);
 
         if (result.approved()) {
             for (OrderItem item : orderItems) {
                 bookStockPort.adjustStock(item.getBookId(), -item.getQuantity());
             }
-            saved.transitionStatus(OrderStatus.CONFIRMED, customerId);
-            Order confirmed = orderPersistencePort.save(saved);
+            order.transitionStatus(OrderStatus.CONFIRMED, customerId);
+            Order saved = orderPersistencePort.save(order);
             cartPersistencePort.deleteByCustomerId(customerId);
-            return OrderResponseMapper.toOrderResponse(confirmed);
+            return OrderResponseMapper.toOrderResponse(saved);
         } else {
-            saved.transitionStatus(OrderStatus.PAYMENT_FAILED, customerId);
-            orderPersistencePort.save(saved);
+            order.transitionStatus(OrderStatus.PAYMENT_FAILED, customerId);
+            orderPersistencePort.save(order);
             throw new PaymentDeclinedException(result.declineReason());
         }
     }

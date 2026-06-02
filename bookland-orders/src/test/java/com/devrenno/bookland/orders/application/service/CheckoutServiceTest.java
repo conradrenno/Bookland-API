@@ -80,6 +80,7 @@ class CheckoutServiceTest {
         assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
                 .isInstanceOf(PaymentDeclinedException.class);
 
+        verify(orderPersistencePort).save(any());
         verify(bookStockPort, never()).adjustStock(any(), anyInt());
         verify(cartPersistencePort, never()).deleteByCustomerId(any());
     }
