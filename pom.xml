@@ -26,6 +26,7 @@
         <module>bookland-reviews</module>
         <module>bookland-inventory</module>
         <module>bookland-wishlist</module>
+        <module>bookland-payments</module>
     </modules>
 
     <properties>
@@ -72,6 +73,11 @@
             <dependency>
                 <groupId>com.devrenno</groupId>
                 <artifactId>bookland-wishlist</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.devrenno</groupId>
+                <artifactId>bookland-payments</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

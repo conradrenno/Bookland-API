@@ -42,6 +42,10 @@
             <groupId>com.devrenno</groupId>
             <artifactId>bookland-wishlist</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-payments</artifactId>
+        </dependency>
 
         <!-- SpringDoc -->
         <dependency>

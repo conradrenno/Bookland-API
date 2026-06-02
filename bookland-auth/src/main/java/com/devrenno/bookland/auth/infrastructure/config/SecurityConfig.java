@@ -46,6 +46,9 @@ public class SecurityConfig {
                         // Cart and order routes (authenticated customers)
                         .requestMatchers("/api/v1/cart/**").authenticated()
                         .requestMatchers("/api/v1/orders/**").authenticated()
+                        // Payment routes
+                        .requestMatchers(HttpMethod.POST, "/api/v1/admin/payments/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/payments/**").authenticated()
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**",
