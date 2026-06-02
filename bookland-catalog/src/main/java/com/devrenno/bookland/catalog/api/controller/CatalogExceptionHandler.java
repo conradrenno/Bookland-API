@@ -3,6 +3,7 @@ package com.devrenno.bookland.catalog.api.controller;
 import com.devrenno.bookland.catalog.domain.exception.BookHasActiveOrdersException;
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.catalog.domain.exception.CategoryNotFoundException;
+import com.devrenno.bookland.catalog.domain.exception.InsufficientStockException;
 import com.devrenno.bookland.catalog.domain.exception.IsbnAlreadyExistsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -33,6 +34,11 @@ public class CatalogExceptionHandler {
     @ExceptionHandler(BookHasActiveOrdersException.class)
     public ProblemDetail handleBookHasActiveOrders(BookHasActiveOrdersException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(InsufficientStockException.class)
+    public ProblemDetail handleInsufficientStock(InsufficientStockException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

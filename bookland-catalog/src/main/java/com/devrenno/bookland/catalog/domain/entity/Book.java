@@ -1,5 +1,6 @@
 package com.devrenno.bookland.catalog.domain.entity;
 
+import com.devrenno.bookland.catalog.domain.exception.InsufficientStockException;
 import com.devrenno.bookland.catalog.domain.valueobject.BookId;
 import com.devrenno.bookland.catalog.domain.valueobject.CategoryId;
 import com.devrenno.bookland.catalog.domain.valueobject.ISBN;
@@ -81,6 +82,20 @@ public class Book {
         if (price != null) this.price = price;
         if (stockQuantity >= 0) this.stockQuantity = stockQuantity;
         if (categoryId != null) this.categoryId = categoryId;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void adjustStock(int delta) {
+        int newQty = this.stockQuantity + delta;
+        if (newQty < 0) {
+            throw new InsufficientStockException(this.id.value(), this.stockQuantity, delta);
+        }
+        this.stockQuantity = newQty;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateAverageRating(double newAvgRating) {
+        this.avgRating = newAvgRating;
         this.updatedAt = LocalDateTime.now();
     }
 
