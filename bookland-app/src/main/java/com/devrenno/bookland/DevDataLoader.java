@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -18,6 +19,7 @@ import java.util.UUID;
 
 @Component
 @Profile("dev")
+@Order(2)
 public class DevDataLoader implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DevDataLoader.class);
@@ -43,10 +45,8 @@ public class DevDataLoader implements ApplicationRunner {
 
     private void seedUsers() {
         registerUserUseCase.execute(new CreateUserCommand(
-                "Admin Bookland", "admin@bookland.com", "admin1234", UserRole.ADMIN));
-        registerUserUseCase.execute(new CreateUserCommand(
                 "João Silva", "joao@bookland.com", "joao1234", UserRole.CUSTOMER));
-        log.info("[DEV] Users seeded — admin@bookland.com (admin1234) | joao@bookland.com (joao1234)");
+        log.info("[DEV] Users seeded — joao@bookland.com (joao1234)");
     }
 
     private void seedBooks() {

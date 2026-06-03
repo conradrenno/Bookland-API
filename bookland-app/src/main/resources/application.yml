@@ -31,6 +31,9 @@ bookland:
     secret: ZmY0YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTY=
     expiration-ms: 86400000
     refresh-token-expiration-ms: 604800000
+  admin:
+    email: admin@bookland.com
+    password: admin1234
 
 springdoc:
   api-docs:
@@ -61,3 +64,6 @@ bookland:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
     refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+  admin:
+    email: ${ADMIN_EMAIL}
+    password: ${ADMIN_PASSWORD}
