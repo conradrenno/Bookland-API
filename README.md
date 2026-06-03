@@ -316,7 +316,7 @@ All endpoints are documented interactively at **`/swagger-ui.html`** when the ap
 
 ```bash
 # Clone the repository
-git clone https://github.com/conradrenno/bookland.git
+git clone https://github.com/conradrenno/Bookland-API.git
 cd bookland
 
 # Run in dev profile (H2 in-memory database, seed data loaded automatically)
