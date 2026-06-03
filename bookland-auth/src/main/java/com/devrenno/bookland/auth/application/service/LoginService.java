@@ -37,11 +37,11 @@ public class LoginService implements LoginUseCase {
         Token accessToken = tokenProviderPort.generate(
                 user.id().toString(),
                 user.email(),
-                user.role()
+                user.role().name()
         );
 
         RefreshToken refreshToken = RefreshToken.create(
-                user.id(), user.email(), user.role(),
+                user.id(), user.email(), user.role().name(),
                 jwtProperties.getRefreshTokenExpirationMs()
         );
         refreshTokenPersistencePort.save(refreshToken);

@@ -2,6 +2,7 @@ package com.devrenno.bookland.auth.application.service;
 
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.auth.application.dto.RegisterCommand;
+import com.devrenno.bookland.user.domain.entity.UserRole;
 import com.devrenno.bookland.auth.application.dto.TokenResponse;
 import com.devrenno.bookland.auth.application.port.out.RefreshTokenPersistencePort;
 import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
@@ -43,7 +44,7 @@ class RegisterServiceTest {
 
     @Test
     void execute_shouldReturnTokenPair_afterSuccessfulRegistration() {
-        AuthUserDto user = new AuthUserDto(userId, "bob@test.com", "hashed", "CUSTOMER");
+        AuthUserDto user = new AuthUserDto(userId, "bob@test.com", "hashed", UserRole.CUSTOMER);
         Token accessToken = new Token("access-jwt", Instant.now().plusSeconds(3600), userId, "bob@test.com", "CUSTOMER");
 
         when(userRegistrationPort.register("Bob", "bob@test.com", "password1")).thenReturn(user);

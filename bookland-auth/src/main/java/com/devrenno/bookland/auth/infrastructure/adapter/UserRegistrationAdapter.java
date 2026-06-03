@@ -19,6 +19,6 @@ public class UserRegistrationAdapter implements UserRegistrationPort {
         var response = registerUserUseCase.execute(
                 new CreateUserCommand(name, email, rawPassword, UserRole.CUSTOMER)
         );
-        return new AuthUserDto(response.id(), response.email(), response.passwordHash(), response.role().name());
+        return new AuthUserDto(response.id(), response.email(), response.passwordHash(), response.role());
     }
 }

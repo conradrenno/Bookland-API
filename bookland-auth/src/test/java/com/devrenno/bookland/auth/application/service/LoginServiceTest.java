@@ -2,6 +2,7 @@ package com.devrenno.bookland.auth.application.service;
 
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.auth.application.dto.LoginCommand;
+import com.devrenno.bookland.user.domain.entity.UserRole;
 import com.devrenno.bookland.auth.application.dto.TokenResponse;
 import com.devrenno.bookland.auth.application.port.out.RefreshTokenPersistencePort;
 import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
@@ -47,7 +48,7 @@ class LoginServiceTest {
     @Test
     void execute_shouldReturnTokenPair_whenCredentialsAreValid() {
         UUID userId = UUID.randomUUID();
-        AuthUserDto user = new AuthUserDto(userId, "alice@test.com", "hashed", "CUSTOMER");
+        AuthUserDto user = new AuthUserDto(userId, "alice@test.com", "hashed", UserRole.CUSTOMER);
         Token token = new Token("jwt-value", Instant.now().plusSeconds(3600), userId, "alice@test.com", "CUSTOMER");
 
         when(userLookupPort.findByEmail("alice@test.com")).thenReturn(Optional.of(user));
@@ -73,7 +74,7 @@ class LoginServiceTest {
     @Test
     void execute_shouldThrow_whenPasswordDoesNotMatch() {
         UUID userId = UUID.randomUUID();
-        AuthUserDto user = new AuthUserDto(userId, "alice@test.com", "hashed", "CUSTOMER");
+        AuthUserDto user = new AuthUserDto(userId, "alice@test.com", "hashed", UserRole.CUSTOMER);
 
         when(userLookupPort.findByEmail("alice@test.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);

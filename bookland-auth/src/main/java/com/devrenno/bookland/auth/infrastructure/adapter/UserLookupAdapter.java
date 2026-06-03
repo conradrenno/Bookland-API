@@ -25,7 +25,7 @@ public class UserLookupAdapter implements UserLookupPort {
                     response.id(),
                     response.email(),
                     response.passwordHash(),
-                    response.role().name()
+                    response.role()
             ));
         } catch (UserNotFoundException | IllegalArgumentException e) {
             return Optional.empty();
