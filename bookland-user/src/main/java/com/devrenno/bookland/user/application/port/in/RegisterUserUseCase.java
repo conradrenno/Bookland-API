@@ -1,8 +1,8 @@
 package com.devrenno.bookland.user.application.port.in;
 
 import com.devrenno.bookland.user.application.dto.CreateUserCommand;
-import com.devrenno.bookland.user.application.dto.UserResponse;
+import com.devrenno.bookland.user.domain.entity.User;
 
 public interface RegisterUserUseCase {
-    UserResponse execute(CreateUserCommand command);
+    User execute(CreateUserCommand command);
 }

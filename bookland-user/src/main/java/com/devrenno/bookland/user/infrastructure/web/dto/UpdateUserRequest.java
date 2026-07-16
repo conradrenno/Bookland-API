@@ -1,4 +1,4 @@
-package com.devrenno.bookland.user.api.dto.request;
+package com.devrenno.bookland.user.infrastructure.web.dto;
 
 import jakarta.validation.constraints.NotBlank;
 

@@ -7,12 +7,24 @@ import com.devrenno.bookland.user.infrastructure.persistence.entity.UserJpaEntit
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "spring", imports = {UserId.class, Email.class})
+@Mapper(componentModel = "spring")
 public interface UserPersistenceMapper {
 
-    @Mapping(target = "id", expression = "java(UserId.of(entity.getId()))")
-    @Mapping(target = "email", expression = "java(Email.of(entity.getEmail()))")
-    User toDomain(UserJpaEntity entity);
+    default User toDomain(UserJpaEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        return User.reconstitute(
+                UserId.of(entity.getId()),
+                entity.getName(),
+                Email.of(entity.getEmail()),
+                entity.getPasswordHash(),
+                entity.getRole(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt(),
+                entity.isActive()
+        );
+    }
 
     @Mapping(target = "id", expression = "java(user.getId().value())")
     @Mapping(target = "email", expression = "java(user.getEmail().value())")

@@ -1,4 +1,4 @@
-package com.devrenno.bookland.user.api.controller;
+package com.devrenno.bookland.user.infrastructure.web;
 
 import com.devrenno.bookland.user.domain.exception.EmailAlreadyExistsException;
 import com.devrenno.bookland.user.domain.exception.UserNotFoundException;

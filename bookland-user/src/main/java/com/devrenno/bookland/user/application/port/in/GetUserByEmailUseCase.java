@@ -1,8 +1,8 @@
 package com.devrenno.bookland.user.application.port.in;
 
-import com.devrenno.bookland.user.application.dto.UserResponse;
+import com.devrenno.bookland.user.domain.entity.User;
 import com.devrenno.bookland.user.domain.valueobject.Email;
 
 public interface GetUserByEmailUseCase {
-    UserResponse execute(Email email);
+    User execute(Email email);
 }

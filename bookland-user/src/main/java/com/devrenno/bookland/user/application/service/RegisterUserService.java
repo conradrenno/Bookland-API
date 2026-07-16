@@ -1,28 +1,35 @@
 package com.devrenno.bookland.user.application.service;
 
-import com.devrenno.bookland.user.application.annotation.UseCase;
 import com.devrenno.bookland.user.application.dto.CreateUserCommand;
-import com.devrenno.bookland.user.application.dto.UserResponse;
-import com.devrenno.bookland.user.application.mapper.UserApplicationMapper;
 import com.devrenno.bookland.user.application.port.in.RegisterUserUseCase;
 import com.devrenno.bookland.user.application.port.out.PasswordEncoderPort;
 import com.devrenno.bookland.user.application.port.out.UserPersistencePort;
 import com.devrenno.bookland.user.domain.entity.User;
 import com.devrenno.bookland.user.domain.service.UserDomainService;
 import com.devrenno.bookland.user.domain.valueobject.Email;
-import lombok.RequiredArgsConstructor;
 
-@UseCase
-@RequiredArgsConstructor
 public class RegisterUserService implements RegisterUserUseCase {
 
     private final UserDomainService domainService;
     private final UserPersistencePort persistencePort;
     private final PasswordEncoderPort passwordEncoderPort;
-    private final UserApplicationMapper mapper;
+
+    private RegisterUserService(UserDomainService domainService,
+                                UserPersistencePort persistencePort,
+                                PasswordEncoderPort passwordEncoderPort) {
+        this.domainService = domainService;
+        this.persistencePort = persistencePort;
+        this.passwordEncoderPort = passwordEncoderPort;
+    }
+
+    public static RegisterUserService create(UserDomainService domainService,
+                                             UserPersistencePort persistencePort,
+                                             PasswordEncoderPort passwordEncoderPort) {
+        return new RegisterUserService(domainService, persistencePort, passwordEncoderPort);
+    }
 
     @Override
-    public UserResponse execute(CreateUserCommand command) {
+    public User execute(CreateUserCommand command) {
         Email email = Email.of(command.email());
         boolean emailExists = persistencePort.existsByEmail(email);
 
@@ -34,6 +41,6 @@ public class RegisterUserService implements RegisterUserUseCase {
         );
         domainService.validateForCreation(user, emailExists);
 
-        return mapper.toResponse(persistencePort.save(user));
+        return persistencePort.save(user);
     }
 }
