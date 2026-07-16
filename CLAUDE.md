@@ -75,7 +75,7 @@ bookland/               ← Parent POM (dependency management)
 
 Each domain module follows **four** layers. **Domain, Application and Adapters are framework-free** (Lombok is allowed — it is source-only and leaves no bytecode trace). Only **Infrastructure** may touch Spring / JPA / Jackson. Dependencies always point inward: `infrastructure → adapters → application → domain`.
 
-> **Migration status:** `bookland-user` is the reference implementation of this model. Other modules are being migrated from the previous 3-layer (`@UseCase` + `api/`) layout — follow the `bookland-user` shape for all new/changed code. See `.claude/plans/` for the migration plan.
+> All 8 domain modules follow this model (migration from the previous 3-layer `@UseCase` + `api/` layout completed in July 2026). `bookland-user` is the reference implementation — follow its shape for all new code.
 
 ```
 com.devrenno.bookland.{domain}/
@@ -114,7 +114,13 @@ com.devrenno.bookland.{domain}/
 
 **Manual wiring (composition root), no `@UseCase`/`@Service` on inner classes.** Infrastructure creates only the outbound-port adapters (`@Repository`/`@Component`) and exposes **one `@Bean`** per module entry point that calls `*Controller.create(ports)`. Inner classes are never Spring beans and never self-annotate. Never instantiate an infrastructure adapter from inside an inner layer.
 
-**Transactions are framework-free** via `TransactionPort` (outbound port, `inTransaction(Supplier<T>)`) implemented in infrastructure with `TransactionTemplate`. Do **not** put `@Transactional` on application services (breaks framework-freedom and does not work without a Spring proxy under manual wiring).
+**Cross-module use cases must be explicit `@Bean`s.** A use case consumed by another module (e.g. orders' `VerifyPurchaseUseCase` → reviews, `AddCartItemUseCase` → wishlist, catalog's `GetBookByIdUseCase` → orders/reviews/wishlist) must be exposed as its own `@Bean` in the module's `*BeansConfig` — forgetting one fails context startup in the consumer's adapter.
+
+**Bean names must be unique across modules.** Adapters duplicated per module with the same simple class name (e.g. `TransactionAdapter` in wishlist and orders) collide under component scanning — give the later one an explicit name: `@Component("ordersTransactionAdapter")`.
+
+**Transactions are framework-free** via `TransactionPort` (outbound port, `inTransaction(Supplier<T>)`) implemented in infrastructure with `TransactionTemplate`. Do **not** put `@Transactional` on application services (breaks framework-freedom and does not work without a Spring proxy under manual wiring). No-rollback semantics (e.g. checkout must commit the `PAYMENT_FAILED` order on a declined payment) are expressed by **returning** an outcome from the transaction and throwing the exception after the commit — see `CheckoutService`.
+
+**Pagination is framework-free** via `PageQuery`(page, size) and `PageResult<T>` in each module's `application/common/` (deliberately duplicated per module — no shared kernel). Persistence adapters translate `PageQuery ↔ PageRequest` and `Page ↔ PageResult`; fixed sort orders live in the adapter. `PageResult<ViewModel>` is also the paged HTTP response envelope (content/page/size/totalElements/totalPages).
 
 **Port/Adapter pattern for all I/O:** persistence, password encoding, JWT generation, transactions and cross-module lookup are all accessed through interfaces in `application/port/out/`; infrastructure adapters implement them.
 
