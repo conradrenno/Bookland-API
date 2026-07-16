@@ -1,11 +1,11 @@
 package com.devrenno.bookland.inventory.application.port.in;
 
-import com.devrenno.bookland.inventory.application.dto.InventoryEntryResponse;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.devrenno.bookland.inventory.application.common.PageQuery;
+import com.devrenno.bookland.inventory.application.common.PageResult;
+import com.devrenno.bookland.inventory.domain.entity.InventoryEntry;
 
 import java.util.UUID;
 
 public interface GetInventoryHistoryUseCase {
-    Page<InventoryEntryResponse> execute(UUID bookId, Pageable pageable);
+    PageResult<InventoryEntry> execute(UUID bookId, PageQuery pageQuery);
 }

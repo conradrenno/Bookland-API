@@ -1,9 +1,9 @@
-package com.devrenno.bookland.inventory.application.dto;
+package com.devrenno.bookland.inventory.adapters.viewmodel;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record InventoryEntryResponse(
+public record InventoryEntryViewModel(
         UUID id,
         UUID bookId,
         int previousQuantity,

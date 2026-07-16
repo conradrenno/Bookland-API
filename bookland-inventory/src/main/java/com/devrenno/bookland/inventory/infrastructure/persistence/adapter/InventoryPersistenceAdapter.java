@@ -1,12 +1,14 @@
 package com.devrenno.bookland.inventory.infrastructure.persistence.adapter;
 
+import com.devrenno.bookland.inventory.application.common.PageQuery;
+import com.devrenno.bookland.inventory.application.common.PageResult;
 import com.devrenno.bookland.inventory.application.port.out.InventoryPersistencePort;
 import com.devrenno.bookland.inventory.domain.entity.InventoryEntry;
 import com.devrenno.bookland.inventory.infrastructure.persistence.mapper.InventoryPersistenceMapper;
 import com.devrenno.bookland.inventory.infrastructure.persistence.repository.InventoryEntryJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -26,9 +28,14 @@ public class InventoryPersistenceAdapter implements InventoryPersistencePort {
     }
 
     @Override
-    public Page<InventoryEntry> findByBookId(UUID bookId, Pageable pageable) {
-        return repository.findByBookIdOrderByAdjustedAtDesc(bookId, pageable)
+    public PageResult<InventoryEntry> findByBookId(UUID bookId, PageQuery pageQuery) {
+        Page<InventoryEntry> page = repository
+                .findByBookIdOrderByAdjustedAtDesc(bookId, PageRequest.of(pageQuery.page(), pageQuery.size()))
                 .map(mapper::toDomain);
+        return new PageResult<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages()
+        );
     }
 
     @Override

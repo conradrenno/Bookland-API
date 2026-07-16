@@ -1,4 +1,4 @@
-package com.devrenno.bookland.inventory.api.dto.request;
+package com.devrenno.bookland.inventory.infrastructure.web.dto;
 
 import jakarta.validation.constraints.NotNull;
 

@@ -3,17 +3,15 @@ package com.devrenno.bookland.inventory.application.service;
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.catalog.domain.exception.InsufficientStockException;
 import com.devrenno.bookland.inventory.application.dto.AdjustInventoryCommand;
-import com.devrenno.bookland.inventory.application.dto.InventoryEntryResponse;
 import com.devrenno.bookland.inventory.application.port.out.BookStockAdjustmentPort;
 import com.devrenno.bookland.inventory.application.port.out.InventoryPersistencePort;
 import com.devrenno.bookland.inventory.domain.entity.InventoryEntry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,10 +24,16 @@ class AdjustInventoryServiceTest {
 
     @Mock private BookStockAdjustmentPort bookStockAdjustmentPort;
     @Mock private InventoryPersistencePort inventoryPersistencePort;
-    @InjectMocks private AdjustInventoryService service;
+
+    private AdjustInventoryService service;
+
+    @BeforeEach
+    void setUp() {
+        service = AdjustInventoryService.create(bookStockAdjustmentPort, inventoryPersistencePort);
+    }
 
     @Test
-    void execute_shouldRecordEntryAndReturnResponse_whenDeltaIsValid() {
+    void execute_shouldRecordEntryAndReturnIt_whenDeltaIsValid() {
         UUID bookId = UUID.randomUUID();
         UUID adminId = UUID.randomUUID();
         AdjustInventoryCommand command = new AdjustInventoryCommand(bookId, 10, "Restock", adminId);
@@ -38,11 +42,11 @@ class AdjustInventoryServiceTest {
         when(bookStockAdjustmentPort.adjustStock(bookId, 10)).thenReturn(15);
         when(inventoryPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        InventoryEntryResponse response = service.execute(command);
+        InventoryEntry result = service.execute(command);
 
-        assertThat(response.previousQuantity()).isEqualTo(5);
-        assertThat(response.newQuantity()).isEqualTo(15);
-        assertThat(response.delta()).isEqualTo(10);
+        assertThat(result.getPreviousQuantity()).isEqualTo(5);
+        assertThat(result.getNewQuantity()).isEqualTo(15);
+        assertThat(result.getDelta()).isEqualTo(10);
         verify(inventoryPersistencePort).save(any(InventoryEntry.class));
     }
 

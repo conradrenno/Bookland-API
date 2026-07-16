@@ -1,34 +1,34 @@
 package com.devrenno.bookland.inventory.application.service;
 
-import com.devrenno.bookland.inventory.application.annotation.UseCase;
-import com.devrenno.bookland.inventory.application.dto.LowStockBookResponse;
+import com.devrenno.bookland.inventory.application.common.PageQuery;
+import com.devrenno.bookland.inventory.application.common.PageResult;
+import com.devrenno.bookland.inventory.application.dto.LowStockBook;
 import com.devrenno.bookland.inventory.application.port.in.GetLowStockBooksUseCase;
 import com.devrenno.bookland.inventory.application.port.out.InventoryPersistencePort;
 import com.devrenno.bookland.inventory.application.port.out.LowStockBooksPort;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
-
-@UseCase("inventoryGetLowStockBooksService")
-@RequiredArgsConstructor
 public class GetLowStockBooksService implements GetLowStockBooksUseCase {
 
     private final LowStockBooksPort lowStockBooksPort;
     private final InventoryPersistencePort inventoryPersistencePort;
 
+    private GetLowStockBooksService(LowStockBooksPort lowStockBooksPort,
+                                   InventoryPersistencePort inventoryPersistencePort) {
+        this.lowStockBooksPort = lowStockBooksPort;
+        this.inventoryPersistencePort = inventoryPersistencePort;
+    }
+
+    public static GetLowStockBooksService create(LowStockBooksPort lowStockBooksPort,
+                                                 InventoryPersistencePort inventoryPersistencePort) {
+        return new GetLowStockBooksService(lowStockBooksPort, inventoryPersistencePort);
+    }
+
     @Override
-    public Page<LowStockBookResponse> execute(int threshold, Pageable pageable) {
-        return lowStockBooksPort.getLowStockBooks(threshold, pageable)
-                .map(info -> {
-                    Optional<LocalDateTime> lastMovement =
-                            inventoryPersistencePort.findLastAdjustmentTime(info.id());
-                    return new LowStockBookResponse(
-                            info.id(), info.title(), info.isbn(),
-                            info.stockQuantity(), lastMovement.orElse(null)
-                    );
-                });
+    public PageResult<LowStockBook> execute(int threshold, PageQuery pageQuery) {
+        return lowStockBooksPort.getLowStockBooks(threshold, pageQuery)
+                .map(info -> new LowStockBook(
+                        info.id(), info.title(), info.isbn(), info.stockQuantity(),
+                        inventoryPersistencePort.findLastAdjustmentTime(info.id()).orElse(null)
+                ));
     }
 }

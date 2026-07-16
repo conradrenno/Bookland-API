@@ -1,13 +1,11 @@
 package com.devrenno.bookland.inventory.domain.entity;
 
-import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
-@Builder
 public class InventoryEntry {
 
     private final UUID id;
@@ -19,16 +17,35 @@ public class InventoryEntry {
     private final UUID adjustedBy;
     private final LocalDateTime adjustedAt;
 
+    private InventoryEntry(UUID id, UUID bookId, int previousQuantity, int newQuantity, int delta,
+                          String reason, UUID adjustedBy, LocalDateTime adjustedAt) {
+        this.id = id;
+        this.bookId = bookId;
+        this.previousQuantity = previousQuantity;
+        this.newQuantity = newQuantity;
+        this.delta = delta;
+        this.reason = reason;
+        this.adjustedBy = adjustedBy;
+        this.adjustedAt = adjustedAt;
+    }
+
+    /** Records a new stock adjustment; delta is derived from the quantities. */
     public static InventoryEntry create(UUID bookId, int previousQty, int newQty, String reason, UUID adjustedBy) {
-        return InventoryEntry.builder()
-                .id(UUID.randomUUID())
-                .bookId(bookId)
-                .previousQuantity(previousQty)
-                .newQuantity(newQty)
-                .delta(newQty - previousQty)
-                .reason(reason)
-                .adjustedBy(adjustedBy)
-                .adjustedAt(LocalDateTime.now())
-                .build();
+        return new InventoryEntry(
+                UUID.randomUUID(),
+                bookId,
+                previousQty,
+                newQty,
+                newQty - previousQty,
+                reason,
+                adjustedBy,
+                LocalDateTime.now()
+        );
+    }
+
+    /** Rehydrates an entry from persisted state. */
+    public static InventoryEntry reconstitute(UUID id, UUID bookId, int previousQuantity, int newQuantity, int delta,
+                                              String reason, UUID adjustedBy, LocalDateTime adjustedAt) {
+        return new InventoryEntry(id, bookId, previousQuantity, newQuantity, delta, reason, adjustedBy, adjustedAt);
     }
 }
