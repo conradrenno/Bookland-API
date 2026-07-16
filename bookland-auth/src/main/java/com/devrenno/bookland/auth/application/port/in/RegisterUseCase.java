@@ -1,8 +1,8 @@
 package com.devrenno.bookland.auth.application.port.in;
 
 import com.devrenno.bookland.auth.application.dto.RegisterCommand;
-import com.devrenno.bookland.auth.application.dto.TokenResponse;
+import com.devrenno.bookland.auth.domain.valueobject.AuthTokens;
 
 public interface RegisterUseCase {
-    TokenResponse execute(RegisterCommand command);
+    AuthTokens execute(RegisterCommand command);
 }

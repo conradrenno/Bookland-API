@@ -1,29 +1,42 @@
 package com.devrenno.bookland.auth.application.service;
 
-import com.devrenno.bookland.auth.application.annotation.UseCase;
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.auth.application.dto.RegisterCommand;
-import com.devrenno.bookland.auth.application.dto.TokenResponse;
 import com.devrenno.bookland.auth.application.port.in.RegisterUseCase;
 import com.devrenno.bookland.auth.application.port.out.RefreshTokenPersistencePort;
 import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
 import com.devrenno.bookland.auth.application.port.out.UserRegistrationPort;
 import com.devrenno.bookland.auth.domain.entity.RefreshToken;
+import com.devrenno.bookland.auth.domain.valueobject.AuthTokens;
 import com.devrenno.bookland.auth.domain.valueobject.Token;
-import com.devrenno.bookland.auth.infrastructure.config.JwtProperties;
-import lombok.RequiredArgsConstructor;
 
-@UseCase
-@RequiredArgsConstructor
 public class RegisterService implements RegisterUseCase {
 
     private final UserRegistrationPort userRegistrationPort;
     private final TokenProviderPort tokenProviderPort;
     private final RefreshTokenPersistencePort refreshTokenPersistencePort;
-    private final JwtProperties jwtProperties;
+    private final long refreshTokenExpirationMs;
+
+    private RegisterService(UserRegistrationPort userRegistrationPort,
+                            TokenProviderPort tokenProviderPort,
+                            RefreshTokenPersistencePort refreshTokenPersistencePort,
+                            long refreshTokenExpirationMs) {
+        this.userRegistrationPort = userRegistrationPort;
+        this.tokenProviderPort = tokenProviderPort;
+        this.refreshTokenPersistencePort = refreshTokenPersistencePort;
+        this.refreshTokenExpirationMs = refreshTokenExpirationMs;
+    }
+
+    public static RegisterService create(UserRegistrationPort userRegistrationPort,
+                                         TokenProviderPort tokenProviderPort,
+                                         RefreshTokenPersistencePort refreshTokenPersistencePort,
+                                         long refreshTokenExpirationMs) {
+        return new RegisterService(userRegistrationPort, tokenProviderPort,
+                refreshTokenPersistencePort, refreshTokenExpirationMs);
+    }
 
     @Override
-    public TokenResponse execute(RegisterCommand command) {
+    public AuthTokens execute(RegisterCommand command) {
         AuthUserDto user = userRegistrationPort.register(
                 command.name(), command.email(), command.rawPassword()
         );
@@ -33,14 +46,10 @@ public class RegisterService implements RegisterUseCase {
         );
 
         RefreshToken refreshToken = RefreshToken.create(
-                user.id(), user.email(), user.role().name(),
-                jwtProperties.getRefreshTokenExpirationMs()
+                user.id(), user.email(), user.role().name(), refreshTokenExpirationMs
         );
         refreshTokenPersistencePort.save(refreshToken);
 
-        return TokenResponse.bearer(
-                accessToken.value(), accessToken.expiresAt(),
-                refreshToken.getTokenValue(), refreshToken.getExpiresAt()
-        );
+        return new AuthTokens(accessToken, refreshToken);
     }
 }

@@ -1,7 +1,7 @@
 package com.devrenno.bookland.auth.application.port.in;
 
-import com.devrenno.bookland.auth.application.dto.TokenResponse;
+import com.devrenno.bookland.auth.domain.valueobject.AuthTokens;
 
 public interface RefreshAccessTokenUseCase {
-    TokenResponse execute(String refreshTokenValue);
+    AuthTokens execute(String refreshTokenValue);
 }

@@ -1,36 +1,52 @@
 package com.devrenno.bookland.auth.application.service;
 
-import com.devrenno.bookland.auth.application.annotation.UseCase;
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.auth.application.dto.LoginCommand;
-import com.devrenno.bookland.auth.application.dto.TokenResponse;
 import com.devrenno.bookland.auth.application.port.in.LoginUseCase;
+import com.devrenno.bookland.auth.application.port.out.PasswordEncoderPort;
 import com.devrenno.bookland.auth.application.port.out.RefreshTokenPersistencePort;
 import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
 import com.devrenno.bookland.auth.application.port.out.UserLookupPort;
 import com.devrenno.bookland.auth.domain.entity.RefreshToken;
 import com.devrenno.bookland.auth.domain.exception.InvalidCredentialsException;
+import com.devrenno.bookland.auth.domain.valueobject.AuthTokens;
 import com.devrenno.bookland.auth.domain.valueobject.Token;
-import com.devrenno.bookland.auth.infrastructure.config.JwtProperties;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
-@UseCase
-@RequiredArgsConstructor
 public class LoginService implements LoginUseCase {
 
     private final UserLookupPort userLookupPort;
     private final TokenProviderPort tokenProviderPort;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordEncoderPort passwordEncoderPort;
     private final RefreshTokenPersistencePort refreshTokenPersistencePort;
-    private final JwtProperties jwtProperties;
+    private final long refreshTokenExpirationMs;
+
+    private LoginService(UserLookupPort userLookupPort,
+                         TokenProviderPort tokenProviderPort,
+                         PasswordEncoderPort passwordEncoderPort,
+                         RefreshTokenPersistencePort refreshTokenPersistencePort,
+                         long refreshTokenExpirationMs) {
+        this.userLookupPort = userLookupPort;
+        this.tokenProviderPort = tokenProviderPort;
+        this.passwordEncoderPort = passwordEncoderPort;
+        this.refreshTokenPersistencePort = refreshTokenPersistencePort;
+        this.refreshTokenExpirationMs = refreshTokenExpirationMs;
+    }
+
+    public static LoginService create(UserLookupPort userLookupPort,
+                                      TokenProviderPort tokenProviderPort,
+                                      PasswordEncoderPort passwordEncoderPort,
+                                      RefreshTokenPersistencePort refreshTokenPersistencePort,
+                                      long refreshTokenExpirationMs) {
+        return new LoginService(userLookupPort, tokenProviderPort, passwordEncoderPort,
+                refreshTokenPersistencePort, refreshTokenExpirationMs);
+    }
 
     @Override
-    public TokenResponse execute(LoginCommand command) {
+    public AuthTokens execute(LoginCommand command) {
         AuthUserDto user = userLookupPort.findByEmail(command.email())
                 .orElseThrow(InvalidCredentialsException::new);
 
-        if (!passwordEncoder.matches(command.rawPassword(), user.passwordHash())) {
+        if (!passwordEncoderPort.matches(command.rawPassword(), user.passwordHash())) {
             throw new InvalidCredentialsException();
         }
 
@@ -41,14 +57,10 @@ public class LoginService implements LoginUseCase {
         );
 
         RefreshToken refreshToken = RefreshToken.create(
-                user.id(), user.email(), user.role().name(),
-                jwtProperties.getRefreshTokenExpirationMs()
+                user.id(), user.email(), user.role().name(), refreshTokenExpirationMs
         );
         refreshTokenPersistencePort.save(refreshToken);
 
-        return TokenResponse.bearer(
-                accessToken.value(), accessToken.expiresAt(),
-                refreshToken.getTokenValue(), refreshToken.getExpiresAt()
-        );
+        return new AuthTokens(accessToken, refreshToken);
     }
 }

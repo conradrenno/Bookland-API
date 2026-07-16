@@ -2,8 +2,8 @@ package com.devrenno.bookland.auth.infrastructure.adapter;
 
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.auth.application.port.out.UserLookupPort;
-import com.devrenno.bookland.user.application.dto.UserResponse;
 import com.devrenno.bookland.user.application.port.in.GetUserByEmailUseCase;
+import com.devrenno.bookland.user.domain.entity.User;
 import com.devrenno.bookland.user.domain.exception.UserNotFoundException;
 import com.devrenno.bookland.user.domain.valueobject.Email;
 import lombok.RequiredArgsConstructor;
@@ -20,12 +20,12 @@ public class UserLookupAdapter implements UserLookupPort {
     @Override
     public Optional<AuthUserDto> findByEmail(String email) {
         try {
-            UserResponse response = getUserByEmailUseCase.execute(Email.of(email));
+            User user = getUserByEmailUseCase.execute(Email.of(email));
             return Optional.of(new AuthUserDto(
-                    response.id(),
-                    response.email(),
-                    response.passwordHash(),
-                    response.role()
+                    user.getId().value(),
+                    user.getEmail().value(),
+                    user.getPasswordHash(),
+                    user.getRole()
             ));
         } catch (UserNotFoundException | IllegalArgumentException e) {
             return Optional.empty();

@@ -2,22 +2,19 @@ package com.devrenno.bookland.auth.application.service;
 
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.auth.application.dto.LoginCommand;
-import com.devrenno.bookland.user.domain.entity.UserRole;
-import com.devrenno.bookland.auth.application.dto.TokenResponse;
+import com.devrenno.bookland.auth.application.port.out.PasswordEncoderPort;
 import com.devrenno.bookland.auth.application.port.out.RefreshTokenPersistencePort;
 import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
 import com.devrenno.bookland.auth.application.port.out.UserLookupPort;
-import com.devrenno.bookland.auth.domain.entity.RefreshToken;
 import com.devrenno.bookland.auth.domain.exception.InvalidCredentialsException;
+import com.devrenno.bookland.auth.domain.valueobject.AuthTokens;
 import com.devrenno.bookland.auth.domain.valueobject.Token;
-import com.devrenno.bookland.auth.infrastructure.config.JwtProperties;
+import com.devrenno.bookland.user.domain.entity.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -32,16 +29,19 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class LoginServiceTest {
 
+    private static final long REFRESH_TTL_MS = 604800000L;
+
     @Mock private UserLookupPort userLookupPort;
     @Mock private TokenProviderPort tokenProviderPort;
-    @Mock private PasswordEncoder passwordEncoder;
+    @Mock private PasswordEncoderPort passwordEncoderPort;
     @Mock private RefreshTokenPersistencePort refreshTokenPersistencePort;
-    @Mock private JwtProperties jwtProperties;
-    @InjectMocks private LoginService loginService;
+
+    private LoginService loginService;
 
     @BeforeEach
     void setUp() {
-        lenient().when(jwtProperties.getRefreshTokenExpirationMs()).thenReturn(604800000L);
+        loginService = LoginService.create(userLookupPort, tokenProviderPort, passwordEncoderPort,
+                refreshTokenPersistencePort, REFRESH_TTL_MS);
         lenient().when(refreshTokenPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -52,15 +52,14 @@ class LoginServiceTest {
         Token token = new Token("jwt-value", Instant.now().plusSeconds(3600), userId, "alice@test.com", "CUSTOMER");
 
         when(userLookupPort.findByEmail("alice@test.com")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("secret", "hashed")).thenReturn(true);
+        when(passwordEncoderPort.matches("secret", "hashed")).thenReturn(true);
         when(tokenProviderPort.generate(any(), any(), any())).thenReturn(token);
 
-        TokenResponse result = loginService.execute(new LoginCommand("alice@test.com", "secret"));
+        AuthTokens result = loginService.execute(new LoginCommand("alice@test.com", "secret"));
 
-        assertThat(result.accessToken()).isEqualTo("jwt-value");
-        assertThat(result.tokenType()).isEqualTo("Bearer");
-        assertThat(result.refreshToken()).isNotBlank();
-        assertThat(result.refreshTokenExpiresAt()).isAfter(Instant.now());
+        assertThat(result.accessToken().value()).isEqualTo("jwt-value");
+        assertThat(result.refreshToken().getTokenValue()).isNotBlank();
+        assertThat(result.refreshToken().getExpiresAt()).isAfter(Instant.now());
     }
 
     @Test
@@ -77,7 +76,7 @@ class LoginServiceTest {
         AuthUserDto user = new AuthUserDto(userId, "alice@test.com", "hashed", UserRole.CUSTOMER);
 
         when(userLookupPort.findByEmail("alice@test.com")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
+        when(passwordEncoderPort.matches("wrong", "hashed")).thenReturn(false);
 
         assertThatThrownBy(() -> loginService.execute(new LoginCommand("alice@test.com", "wrong")))
                 .isInstanceOf(InvalidCredentialsException.class);

@@ -1,4 +1,4 @@
-package com.devrenno.bookland.auth.api.dto;
+package com.devrenno.bookland.auth.infrastructure.web.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
