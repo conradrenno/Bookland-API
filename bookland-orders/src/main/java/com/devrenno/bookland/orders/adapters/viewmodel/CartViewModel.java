@@ -1,14 +1,14 @@
-package com.devrenno.bookland.orders.application.dto;
+package com.devrenno.bookland.orders.adapters.viewmodel;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-public record CartResponse(
+public record CartViewModel(
         UUID id,
         UUID customerId,
-        List<CartItemResponse> items,
+        List<CartItemViewModel> items,
         BigDecimal total,
         LocalDateTime updatedAt
 ) {}

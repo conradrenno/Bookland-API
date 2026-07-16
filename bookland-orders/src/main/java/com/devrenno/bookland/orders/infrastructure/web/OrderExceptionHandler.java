@@ -1,4 +1,4 @@
-package com.devrenno.bookland.orders.api.controller;
+package com.devrenno.bookland.orders.infrastructure.web;
 
 import com.devrenno.bookland.orders.domain.exception.BookNotInCartException;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;

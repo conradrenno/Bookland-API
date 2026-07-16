@@ -3,7 +3,6 @@ package com.devrenno.bookland.orders.domain.entity;
 import com.devrenno.bookland.orders.domain.exception.InvalidOrderStatusTransitionException;
 import com.devrenno.bookland.orders.domain.exception.OrderAccessDeniedException;
 import com.devrenno.bookland.orders.domain.exception.OrderCancellationNotAllowedException;
-import lombok.Builder;
 import lombok.Getter;
 
 import java.math.BigDecimal;
@@ -15,7 +14,6 @@ import java.util.Set;
 import java.util.UUID;
 
 @Getter
-@Builder
 public class Order {
 
     private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
@@ -32,25 +30,37 @@ public class Order {
     private final List<OrderItem> items;
     private OrderStatus status;
     private final BigDecimal totalAmount;
-    @Builder.Default
-    private List<StatusTransition> statusHistory = new ArrayList<>();
+    private final List<StatusTransition> statusHistory;
     private final LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private Order(UUID id, UUID customerId, List<OrderItem> items, OrderStatus status,
+                  BigDecimal totalAmount, List<StatusTransition> statusHistory,
+                  LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.customerId = customerId;
+        this.items = items;
+        this.status = status;
+        this.totalAmount = totalAmount;
+        this.statusHistory = statusHistory;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
 
     public static Order fromCart(UUID customerId, List<OrderItem> items) {
         BigDecimal total = items.stream()
                 .map(OrderItem::subtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return Order.builder()
-                .id(UUID.randomUUID())
-                .customerId(customerId)
-                .items(new ArrayList<>(items))
-                .status(OrderStatus.AWAITING_PAYMENT)
-                .totalAmount(total)
-                .statusHistory(new ArrayList<>())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        LocalDateTime now = LocalDateTime.now();
+        return new Order(UUID.randomUUID(), customerId, new ArrayList<>(items),
+                OrderStatus.AWAITING_PAYMENT, total, new ArrayList<>(), now, now);
+    }
+
+    public static Order reconstitute(UUID id, UUID customerId, List<OrderItem> items, OrderStatus status,
+                                     BigDecimal totalAmount, List<StatusTransition> statusHistory,
+                                     LocalDateTime createdAt, LocalDateTime updatedAt) {
+        return new Order(id, customerId, new ArrayList<>(items), status, totalAmount,
+                new ArrayList<>(statusHistory), createdAt, updatedAt);
     }
 
     public void cancel(UUID requesterId) {

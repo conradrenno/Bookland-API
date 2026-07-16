@@ -60,14 +60,11 @@ public class CartPersistenceAdapter implements CartPersistencePort {
 
     private Cart toDomain(CartJpaEntity entity) {
         List<CartItem> items = entity.getItems().stream()
-                .map(i -> new CartItem(i.getBookId(), i.getQuantity(), i.getUnitPriceAtAddition()))
+                .map(i -> CartItem.of(i.getBookId(), i.getQuantity(), i.getUnitPriceAtAddition()))
                 .toList();
-        return Cart.builder()
-                .id(entity.getId())
-                .customerId(entity.getCustomerId())
-                .items(new java.util.ArrayList<>(items))
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
+        return Cart.reconstitute(
+                entity.getId(), entity.getCustomerId(), items,
+                entity.getCreatedAt(), entity.getUpdatedAt()
+        );
     }
 }

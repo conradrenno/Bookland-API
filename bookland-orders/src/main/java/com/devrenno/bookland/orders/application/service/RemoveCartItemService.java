@@ -1,26 +1,29 @@
 package com.devrenno.bookland.orders.application.service;
 
-import com.devrenno.bookland.orders.application.annotation.UseCase;
-import com.devrenno.bookland.orders.application.dto.CartResponse;
 import com.devrenno.bookland.orders.application.port.in.RemoveCartItemUseCase;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.domain.entity.Cart;
 import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
-import lombok.RequiredArgsConstructor;
 
 import java.util.UUID;
 
-@UseCase
-@RequiredArgsConstructor
 public class RemoveCartItemService implements RemoveCartItemUseCase {
 
     private final CartPersistencePort cartPersistencePort;
 
+    private RemoveCartItemService(CartPersistencePort cartPersistencePort) {
+        this.cartPersistencePort = cartPersistencePort;
+    }
+
+    public static RemoveCartItemService create(CartPersistencePort cartPersistencePort) {
+        return new RemoveCartItemService(cartPersistencePort);
+    }
+
     @Override
-    public CartResponse execute(UUID customerId, UUID bookId) {
+    public Cart execute(UUID customerId, UUID bookId) {
         Cart cart = cartPersistencePort.findByCustomerId(customerId)
                 .orElseThrow(() -> new CartNotFoundException(customerId));
         cart.removeItem(bookId);
-        return OrderResponseMapper.toCartResponse(cartPersistencePort.save(cart));
+        return cartPersistencePort.save(cart);
     }
 }

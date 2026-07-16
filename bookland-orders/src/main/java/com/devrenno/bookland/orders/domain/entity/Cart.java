@@ -2,7 +2,6 @@ package com.devrenno.bookland.orders.domain.entity;
 
 import com.devrenno.bookland.orders.domain.exception.BookNotInCartException;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
-import lombok.Builder;
 import lombok.Getter;
 
 import java.math.BigDecimal;
@@ -12,24 +11,31 @@ import java.util.List;
 import java.util.UUID;
 
 @Getter
-@Builder
 public class Cart {
 
     private final UUID id;
     private final UUID customerId;
-    @Builder.Default
-    private List<CartItem> items = new ArrayList<>();
+    private final List<CartItem> items;
     private final LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    private Cart(UUID id, UUID customerId, List<CartItem> items,
+                 LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.customerId = customerId;
+        this.items = items;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
     public static Cart createFor(UUID customerId) {
-        return Cart.builder()
-                .id(UUID.randomUUID())
-                .customerId(customerId)
-                .items(new ArrayList<>())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        LocalDateTime now = LocalDateTime.now();
+        return new Cart(UUID.randomUUID(), customerId, new ArrayList<>(), now, now);
+    }
+
+    public static Cart reconstitute(UUID id, UUID customerId, List<CartItem> items,
+                                    LocalDateTime createdAt, LocalDateTime updatedAt) {
+        return new Cart(id, customerId, new ArrayList<>(items), createdAt, updatedAt);
     }
 
     public void addOrUpdateItem(UUID bookId, BigDecimal price, int requestedQty, int availableStock) {
@@ -44,7 +50,7 @@ public class Cart {
             if (requestedQty > availableStock) {
                 throw new CartItemUnavailableException(bookId, availableStock);
             }
-            items.add(new CartItem(bookId, requestedQty, price));
+            items.add(CartItem.of(bookId, requestedQty, price));
         }
         this.updatedAt = LocalDateTime.now();
     }

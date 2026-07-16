@@ -1,4 +1,4 @@
-package com.devrenno.bookland.orders.application.dto;
+package com.devrenno.bookland.orders.adapters.viewmodel;
 
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 
@@ -7,13 +7,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-public record OrderResponse(
+public record OrderViewModel(
         UUID id,
         UUID customerId,
-        List<OrderItemResponse> items,
+        List<OrderItemViewModel> items,
         OrderStatus status,
         BigDecimal totalAmount,
-        List<StatusTransitionResponse> statusHistory,
+        List<StatusTransitionViewModel> statusHistory,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}

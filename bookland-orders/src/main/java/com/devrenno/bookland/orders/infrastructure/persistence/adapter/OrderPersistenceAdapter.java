@@ -1,6 +1,9 @@
 package com.devrenno.bookland.orders.infrastructure.persistence.adapter;
 
+import com.devrenno.bookland.orders.application.common.PageQuery;
+import com.devrenno.bookland.orders.application.common.PageResult;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
+import com.devrenno.bookland.orders.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
@@ -12,20 +15,19 @@ import com.devrenno.bookland.orders.infrastructure.persistence.repository.OrderJ
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
-public class OrderPersistenceAdapter implements OrderPersistencePort {
+public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVerificationPort {
 
     private final OrderJpaRepository orderRepository;
     private final EntityManager entityManager;
@@ -109,40 +111,39 @@ public class OrderPersistenceAdapter implements OrderPersistencePort {
     }
 
     @Override
-    public Page<Order> findByCustomerId(UUID customerId, Pageable pageable) {
-        return orderRepository.findByCustomerId(customerId, pageable).map(this::toDomain);
+    public PageResult<Order> findByCustomerId(UUID customerId, PageQuery pageQuery) {
+        Page<Order> page = orderRepository
+                .findByCustomerId(customerId, PageRequest.of(pageQuery.page(), pageQuery.size()))
+                .map(this::toDomain);
+        return new PageResult<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages()
+        );
+    }
+
+    @Override
+    public boolean existsDeliveredOrderWithBook(UUID customerId, UUID bookId) {
+        return orderRepository.existsByCustomerIdAndStatusAndItems_BookId(
+                customerId, OrderStatus.DELIVERED.name(), bookId
+        );
     }
 
     private Order toDomain(OrderJpaEntity entity) {
         List<OrderItem> items = entity.getItems().stream()
-                .map(i -> OrderItem.builder()
-                        .bookId(i.getBookId())
-                        .title(i.getTitle())
-                        .quantity(i.getQuantity())
-                        .unitPrice(i.getUnitPrice())
-                        .build())
+                .map(i -> OrderItem.of(i.getBookId(), i.getTitle(), i.getQuantity(), i.getUnitPrice()))
                 .toList();
 
         List<StatusTransition> history = entity.getStatusHistory().stream()
-                .map(t -> StatusTransition.builder()
-                        .id(t.getId())
-                        .orderId(entity.getId())
-                        .fromStatus(OrderStatus.valueOf(t.getFromStatus()))
-                        .toStatus(OrderStatus.valueOf(t.getToStatus()))
-                        .changedAt(t.getChangedAt())
-                        .changedBy(t.getChangedBy())
-                        .build())
+                .map(t -> StatusTransition.reconstitute(
+                        t.getId(), entity.getId(),
+                        OrderStatus.valueOf(t.getFromStatus()), OrderStatus.valueOf(t.getToStatus()),
+                        t.getChangedAt(), t.getChangedBy()))
                 .toList();
 
-        return Order.builder()
-                .id(entity.getId())
-                .customerId(entity.getCustomerId())
-                .status(OrderStatus.valueOf(entity.getStatus()))
-                .totalAmount(entity.getTotalAmount())
-                .items(new ArrayList<>(items))
-                .statusHistory(new ArrayList<>(history))
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
+        return Order.reconstitute(
+                entity.getId(), entity.getCustomerId(), items,
+                OrderStatus.valueOf(entity.getStatus()), entity.getTotalAmount(),
+                history, entity.getCreatedAt(), entity.getUpdatedAt()
+        );
     }
 }
