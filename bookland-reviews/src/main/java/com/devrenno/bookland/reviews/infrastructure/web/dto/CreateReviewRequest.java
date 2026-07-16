@@ -1,4 +1,4 @@
-package com.devrenno.bookland.reviews.api.dto.request;
+package com.devrenno.bookland.reviews.infrastructure.web.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

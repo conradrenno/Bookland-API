@@ -1,14 +1,12 @@
 package com.devrenno.bookland.reviews.domain.entity;
 
 import com.devrenno.bookland.reviews.domain.exception.ReviewAlreadyDeletedException;
-import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
-@Builder
 public class Review {
 
     private final UUID id;
@@ -19,16 +17,27 @@ public class Review {
     private final LocalDateTime createdAt;
     private boolean deleted;
 
+    private Review(UUID id, UUID bookId, UUID customerId, int rating, String comment,
+                   LocalDateTime createdAt, boolean deleted) {
+        this.id = id;
+        this.bookId = bookId;
+        this.customerId = customerId;
+        this.rating = rating;
+        this.comment = comment;
+        this.createdAt = createdAt;
+        this.deleted = deleted;
+    }
+
     public static Review create(UUID bookId, UUID customerId, int rating, String comment) {
-        return Review.builder()
-                .id(UUID.randomUUID())
-                .bookId(bookId)
-                .customerId(customerId)
-                .rating(rating)
-                .comment(comment)
-                .createdAt(LocalDateTime.now())
-                .deleted(false)
-                .build();
+        if (rating < 1 || rating > 5) {
+            throw new IllegalArgumentException("rating must be between 1 and 5");
+        }
+        return new Review(UUID.randomUUID(), bookId, customerId, rating, comment, LocalDateTime.now(), false);
+    }
+
+    public static Review reconstitute(UUID id, UUID bookId, UUID customerId, int rating, String comment,
+                                      LocalDateTime createdAt, boolean deleted) {
+        return new Review(id, bookId, customerId, rating, comment, createdAt, deleted);
     }
 
     public void softDelete() {

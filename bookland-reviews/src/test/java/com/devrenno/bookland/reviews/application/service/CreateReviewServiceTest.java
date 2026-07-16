@@ -2,7 +2,6 @@ package com.devrenno.bookland.reviews.application.service;
 
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
-import com.devrenno.bookland.reviews.application.dto.ReviewResponse;
 import com.devrenno.bookland.reviews.application.port.out.BookExistsPort;
 import com.devrenno.bookland.reviews.application.port.out.BookRatingUpdatePort;
 import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPort;
@@ -10,9 +9,9 @@ import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
 import com.devrenno.bookland.reviews.domain.exception.DuplicateReviewException;
 import com.devrenno.bookland.reviews.domain.exception.PurchaseRequiredException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,13 +32,20 @@ class CreateReviewServiceTest {
     @Mock private BookExistsPort bookExistsPort;
     @Mock private PurchaseVerificationPort purchaseVerificationPort;
     @Mock private BookRatingUpdatePort bookRatingUpdatePort;
-    @InjectMocks private CreateReviewService service;
+
+    private CreateReviewService service;
 
     private final UUID bookId = UUID.randomUUID();
     private final UUID customerId = UUID.randomUUID();
 
+    @BeforeEach
+    void setUp() {
+        service = CreateReviewService.create(reviewPersistencePort, bookExistsPort,
+                purchaseVerificationPort, bookRatingUpdatePort);
+    }
+
     @Test
-    void execute_shouldCreateReview_whenAllConditionsMet() {
+    void execute_shouldCreateReviewAndReturnIt_whenAllConditionsMet() {
         CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 5, "Great book!");
         Review saved = buildReview(5);
 
@@ -49,9 +55,9 @@ class CreateReviewServiceTest {
         when(reviewPersistencePort.save(any())).thenReturn(saved);
         when(reviewPersistencePort.findAllActiveByBookId(bookId)).thenReturn(List.of(saved));
 
-        ReviewResponse response = service.execute(command);
+        Review result = service.execute(command);
 
-        assertThat(response.rating()).isEqualTo(5);
+        assertThat(result.getRating()).isEqualTo(5);
         verify(bookRatingUpdatePort).updateRating(eq(bookId), anyDouble());
     }
 
@@ -90,13 +96,6 @@ class CreateReviewServiceTest {
     }
 
     private Review buildReview(int rating) {
-        return Review.builder()
-                .id(UUID.randomUUID())
-                .bookId(bookId)
-                .customerId(customerId)
-                .rating(rating)
-                .createdAt(LocalDateTime.now())
-                .deleted(false)
-                .build();
+        return Review.reconstitute(UUID.randomUUID(), bookId, customerId, rating, null, LocalDateTime.now(), false);
     }
 }

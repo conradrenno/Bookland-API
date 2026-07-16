@@ -1,8 +1,8 @@
 package com.devrenno.bookland.reviews.application.port.out;
 
+import com.devrenno.bookland.reviews.application.common.PageQuery;
+import com.devrenno.bookland.reviews.application.common.PageResult;
 import com.devrenno.bookland.reviews.domain.entity.Review;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +12,6 @@ public interface ReviewPersistencePort {
     Review save(Review review);
     Optional<Review> findById(UUID reviewId);
     Optional<Review> findByBookIdAndCustomerId(UUID bookId, UUID customerId);
-    Page<Review> findByBookId(UUID bookId, Pageable pageable);
+    PageResult<Review> findByBookId(UUID bookId, PageQuery pageQuery);
     List<Review> findAllActiveByBookId(UUID bookId);
 }

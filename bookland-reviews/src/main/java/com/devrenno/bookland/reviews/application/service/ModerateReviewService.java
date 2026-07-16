@@ -1,22 +1,29 @@
 package com.devrenno.bookland.reviews.application.service;
 
-import com.devrenno.bookland.reviews.application.annotation.UseCase;
 import com.devrenno.bookland.reviews.application.port.in.ModerateReviewUseCase;
 import com.devrenno.bookland.reviews.application.port.out.BookRatingUpdatePort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
 import com.devrenno.bookland.reviews.domain.exception.ReviewNotFoundException;
-import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 import java.util.UUID;
 
-@UseCase
-@RequiredArgsConstructor
 public class ModerateReviewService implements ModerateReviewUseCase {
 
     private final ReviewPersistencePort reviewPersistencePort;
     private final BookRatingUpdatePort bookRatingUpdatePort;
+
+    private ModerateReviewService(ReviewPersistencePort reviewPersistencePort,
+                                  BookRatingUpdatePort bookRatingUpdatePort) {
+        this.reviewPersistencePort = reviewPersistencePort;
+        this.bookRatingUpdatePort = bookRatingUpdatePort;
+    }
+
+    public static ModerateReviewService create(ReviewPersistencePort reviewPersistencePort,
+                                               BookRatingUpdatePort bookRatingUpdatePort) {
+        return new ModerateReviewService(reviewPersistencePort, bookRatingUpdatePort);
+    }
 
     @Override
     public void execute(UUID reviewId) {

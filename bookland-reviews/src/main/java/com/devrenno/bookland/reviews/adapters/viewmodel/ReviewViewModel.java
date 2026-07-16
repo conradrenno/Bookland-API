@@ -1,9 +1,9 @@
-package com.devrenno.bookland.reviews.application.dto;
+package com.devrenno.bookland.reviews.adapters.viewmodel;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record ReviewResponse(
+public record ReviewViewModel(
         UUID id,
         UUID bookId,
         UUID customerId,

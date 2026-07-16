@@ -1,4 +1,4 @@
-package com.devrenno.bookland.reviews.api.controller;
+package com.devrenno.bookland.reviews.infrastructure.web;
 
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.reviews.domain.exception.DuplicateReviewException;

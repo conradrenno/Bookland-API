@@ -1,12 +1,14 @@
 package com.devrenno.bookland.reviews.infrastructure.persistence.adapter;
 
+import com.devrenno.bookland.reviews.application.common.PageQuery;
+import com.devrenno.bookland.reviews.application.common.PageResult;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
 import com.devrenno.bookland.reviews.infrastructure.persistence.entity.ReviewJpaEntity;
 import com.devrenno.bookland.reviews.infrastructure.persistence.repository.ReviewJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -35,8 +37,14 @@ public class ReviewPersistenceAdapter implements ReviewPersistencePort {
     }
 
     @Override
-    public Page<Review> findByBookId(UUID bookId, Pageable pageable) {
-        return reviewRepository.findByBookIdAndDeletedFalse(bookId, pageable).map(this::toDomain);
+    public PageResult<Review> findByBookId(UUID bookId, PageQuery pageQuery) {
+        Page<Review> page = reviewRepository
+                .findByBookIdAndDeletedFalse(bookId, PageRequest.of(pageQuery.page(), pageQuery.size()))
+                .map(this::toDomain);
+        return new PageResult<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages()
+        );
     }
 
     @Override
@@ -57,14 +65,14 @@ public class ReviewPersistenceAdapter implements ReviewPersistencePort {
     }
 
     private Review toDomain(ReviewJpaEntity entity) {
-        return Review.builder()
-                .id(entity.getId())
-                .bookId(entity.getBookId())
-                .customerId(entity.getCustomerId())
-                .rating(entity.getRating())
-                .comment(entity.getComment())
-                .createdAt(entity.getCreatedAt())
-                .deleted(entity.isDeleted())
-                .build();
+        return Review.reconstitute(
+                entity.getId(),
+                entity.getBookId(),
+                entity.getCustomerId(),
+                entity.getRating(),
+                entity.getComment(),
+                entity.getCreatedAt(),
+                entity.isDeleted()
+        );
     }
 }

@@ -1,15 +1,13 @@
-package com.devrenno.bookland.reviews.api.controller;
+package com.devrenno.bookland.reviews.infrastructure.web;
 
-import com.devrenno.bookland.reviews.api.dto.request.CreateReviewRequest;
+import com.devrenno.bookland.reviews.adapters.controller.ReviewController;
+import com.devrenno.bookland.reviews.adapters.viewmodel.ReviewListViewModel;
+import com.devrenno.bookland.reviews.adapters.viewmodel.ReviewViewModel;
+import com.devrenno.bookland.reviews.application.common.PageQuery;
 import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
-import com.devrenno.bookland.reviews.application.dto.ReviewListResponse;
-import com.devrenno.bookland.reviews.application.dto.ReviewResponse;
-import com.devrenno.bookland.reviews.application.port.in.CreateReviewUseCase;
-import com.devrenno.bookland.reviews.application.port.in.ListReviewsUseCase;
-import com.devrenno.bookland.reviews.application.port.in.ModerateReviewUseCase;
+import com.devrenno.bookland.reviews.infrastructure.web.dto.CreateReviewRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,37 +19,34 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/books/{bookId}/reviews")
 @RequiredArgsConstructor
-public class BookReviewController {
+public class BookReviewApiController {
 
-    private final CreateReviewUseCase createReviewUseCase;
-    private final ListReviewsUseCase listReviewsUseCase;
-    private final ModerateReviewUseCase moderateReviewUseCase;
+    private final ReviewController reviewController;
 
     @PostMapping
-    public ResponseEntity<ReviewResponse> create(
+    public ResponseEntity<ReviewViewModel> create(
             @PathVariable UUID bookId,
             @Valid @RequestBody CreateReviewRequest request,
             Principal principal
     ) {
-        UUID customerId = extractUserId(principal);
-        ReviewResponse response = createReviewUseCase.execute(
-                new CreateReviewCommand(bookId, customerId, request.rating(), request.comment())
+        CreateReviewCommand command = new CreateReviewCommand(
+                bookId, extractUserId(principal), request.rating(), request.comment()
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(reviewController.create(command));
     }
 
     @GetMapping
-    public ResponseEntity<ReviewListResponse> list(
+    public ResponseEntity<ReviewListViewModel> list(
             @PathVariable UUID bookId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return ResponseEntity.ok(listReviewsUseCase.execute(bookId, PageRequest.of(page, size)));
+        return ResponseEntity.ok(reviewController.list(bookId, PageQuery.of(page, size)));
     }
 
     @DeleteMapping("/{reviewId}")
     public ResponseEntity<Void> moderate(@PathVariable UUID bookId, @PathVariable UUID reviewId) {
-        moderateReviewUseCase.execute(reviewId);
+        reviewController.moderate(reviewId);
         return ResponseEntity.noContent().build();
     }
 
