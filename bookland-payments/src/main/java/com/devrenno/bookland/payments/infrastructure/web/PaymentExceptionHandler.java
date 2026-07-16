@@ -1,4 +1,4 @@
-package com.devrenno.bookland.payments.api.controller;
+package com.devrenno.bookland.payments.infrastructure.web;
 
 import com.devrenno.bookland.payments.domain.exception.PaymentNotFoundException;
 import com.devrenno.bookland.payments.domain.exception.RefundNotAllowedException;

@@ -44,16 +44,16 @@ public class PaymentPersistenceAdapter implements PaymentPersistencePort {
     }
 
     private Payment toDomain(PaymentJpaEntity entity) {
-        return Payment.builder()
-                .id(entity.getId())
-                .orderId(entity.getOrderId())
-                .customerId(entity.getCustomerId())
-                .amount(entity.getAmount())
-                .method(PaymentMethod.valueOf(entity.getMethod()))
-                .status(PaymentStatus.valueOf(entity.getStatus()))
-                .gatewayTransactionId(entity.getGatewayTransactionId())
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
+        return Payment.reconstitute(
+                entity.getId(),
+                entity.getOrderId(),
+                entity.getCustomerId(),
+                entity.getAmount(),
+                PaymentMethod.valueOf(entity.getMethod()),
+                PaymentStatus.valueOf(entity.getStatus()),
+                entity.getGatewayTransactionId(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt()
+        );
     }
 }

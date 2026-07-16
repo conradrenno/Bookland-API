@@ -1,9 +1,9 @@
 package com.devrenno.bookland.payments.application.port.in;
 
-import com.devrenno.bookland.payments.application.dto.PaymentResponse;
+import com.devrenno.bookland.payments.domain.entity.Payment;
 
 import java.util.UUID;
 
 public interface GetPaymentByOrderIdUseCase {
-    PaymentResponse getByOrderId(UUID orderId);
+    Payment getByOrderId(UUID orderId);
 }
