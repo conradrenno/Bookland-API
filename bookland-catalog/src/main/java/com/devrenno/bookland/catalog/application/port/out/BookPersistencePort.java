@@ -1,10 +1,9 @@
 package com.devrenno.bookland.catalog.application.port.out;
 
+import com.devrenno.bookland.catalog.application.common.PageQuery;
+import com.devrenno.bookland.catalog.application.common.PageResult;
 import com.devrenno.bookland.catalog.application.dto.BookSearchQuery;
 import com.devrenno.bookland.catalog.domain.entity.Book;
-import com.devrenno.bookland.catalog.domain.valueobject.BookId;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -14,7 +13,7 @@ public interface BookPersistencePort {
     Optional<Book> findById(UUID id);
     Optional<Book> findByIsbn(String isbn);
     boolean existsByIsbn(String isbn);
-    Page<Book> search(BookSearchQuery query);
-    Page<Book> findByCategoryId(UUID categoryId, Pageable pageable);
-    Page<Book> findLowStock(int threshold, Pageable pageable);
+    PageResult<Book> search(BookSearchQuery query);
+    PageResult<Book> findByCategoryId(UUID categoryId, PageQuery pageQuery);
+    PageResult<Book> findLowStock(int threshold, PageQuery pageQuery);
 }

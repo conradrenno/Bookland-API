@@ -1,9 +1,9 @@
 package com.devrenno.bookland.catalog.application.port.in;
 
-import com.devrenno.bookland.catalog.application.dto.BookResponse;
+import com.devrenno.bookland.catalog.application.common.PageResult;
 import com.devrenno.bookland.catalog.application.dto.BookSearchQuery;
-import org.springframework.data.domain.Page;
+import com.devrenno.bookland.catalog.domain.entity.Book;
 
 public interface SearchBooksUseCase {
-    Page<BookResponse> execute(BookSearchQuery query);
+    PageResult<Book> execute(BookSearchQuery query);
 }

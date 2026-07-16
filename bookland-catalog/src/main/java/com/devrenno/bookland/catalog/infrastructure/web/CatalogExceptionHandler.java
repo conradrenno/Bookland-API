@@ -1,4 +1,4 @@
-package com.devrenno.bookland.catalog.api.controller;
+package com.devrenno.bookland.catalog.infrastructure.web;
 
 import com.devrenno.bookland.catalog.domain.exception.BookHasActiveOrdersException;
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;

@@ -1,9 +1,6 @@
 package com.devrenno.bookland.catalog.application.service;
 
-import com.devrenno.bookland.catalog.application.annotation.UseCase;
-import com.devrenno.bookland.catalog.application.dto.BookResponse;
 import com.devrenno.bookland.catalog.application.dto.CreateBookCommand;
-import com.devrenno.bookland.catalog.application.mapper.CatalogApplicationMapper;
 import com.devrenno.bookland.catalog.application.port.in.CreateBookUseCase;
 import com.devrenno.bookland.catalog.application.port.out.BookPersistencePort;
 import com.devrenno.bookland.catalog.application.port.out.CategoryPersistencePort;
@@ -13,21 +10,29 @@ import com.devrenno.bookland.catalog.domain.service.CatalogDomainService;
 import com.devrenno.bookland.catalog.domain.valueobject.CategoryId;
 import com.devrenno.bookland.catalog.domain.valueobject.ISBN;
 import com.devrenno.bookland.catalog.domain.valueobject.Price;
-import lombok.RequiredArgsConstructor;
 
-import java.math.BigDecimal;
-
-@UseCase
-@RequiredArgsConstructor
 public class CreateBookService implements CreateBookUseCase {
 
     private final CatalogDomainService domainService;
     private final BookPersistencePort bookPersistencePort;
     private final CategoryPersistencePort categoryPersistencePort;
-    private final CatalogApplicationMapper mapper;
+
+    private CreateBookService(CatalogDomainService domainService,
+                              BookPersistencePort bookPersistencePort,
+                              CategoryPersistencePort categoryPersistencePort) {
+        this.domainService = domainService;
+        this.bookPersistencePort = bookPersistencePort;
+        this.categoryPersistencePort = categoryPersistencePort;
+    }
+
+    public static CreateBookService create(CatalogDomainService domainService,
+                                           BookPersistencePort bookPersistencePort,
+                                           CategoryPersistencePort categoryPersistencePort) {
+        return new CreateBookService(domainService, bookPersistencePort, categoryPersistencePort);
+    }
 
     @Override
-    public BookResponse execute(CreateBookCommand command) {
+    public Book execute(CreateBookCommand command) {
         categoryPersistencePort.findById(command.categoryId())
                 .orElseThrow(() -> new CategoryNotFoundException(command.categoryId()));
 
@@ -47,6 +52,6 @@ public class CreateBookService implements CreateBookUseCase {
                 CategoryId.of(command.categoryId())
         );
 
-        return mapper.toResponse(bookPersistencePort.save(book));
+        return bookPersistencePort.save(book);
     }
 }

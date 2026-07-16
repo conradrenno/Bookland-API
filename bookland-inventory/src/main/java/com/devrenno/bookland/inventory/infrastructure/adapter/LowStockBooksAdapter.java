@@ -1,14 +1,12 @@
 package com.devrenno.bookland.inventory.infrastructure.adapter;
 
 import com.devrenno.bookland.catalog.application.port.in.GetLowStockBooksUseCase;
+import com.devrenno.bookland.catalog.domain.entity.Book;
 import com.devrenno.bookland.inventory.application.common.PageQuery;
 import com.devrenno.bookland.inventory.application.common.PageResult;
 import com.devrenno.bookland.inventory.application.dto.LowStockBookInfo;
 import com.devrenno.bookland.inventory.application.port.out.LowStockBooksPort;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -19,14 +17,19 @@ public class LowStockBooksAdapter implements LowStockBooksPort {
 
     @Override
     public PageResult<LowStockBookInfo> getLowStockBooks(int threshold, PageQuery pageQuery) {
-        PageRequest pageable = PageRequest.of(
-                pageQuery.page(), pageQuery.size(), Sort.by("stockQuantity").ascending()
+        var result = getLowStockBooksUseCase.execute(
+                threshold,
+                com.devrenno.bookland.catalog.application.common.PageQuery.of(pageQuery.page(), pageQuery.size())
         );
-        Page<LowStockBookInfo> page = getLowStockBooksUseCase.execute(threshold, pageable)
-                .map(r -> new LowStockBookInfo(r.id(), r.title(), r.isbn(), r.stockQuantity()));
         return new PageResult<>(
-                page.getContent(), page.getNumber(), page.getSize(),
-                page.getTotalElements(), page.getTotalPages()
+                result.content().stream().map(LowStockBooksAdapter::toInfo).toList(),
+                result.page(), result.size(), result.totalElements(), result.totalPages()
+        );
+    }
+
+    private static LowStockBookInfo toInfo(Book book) {
+        return new LowStockBookInfo(
+                book.getId().value(), book.getTitle(), book.getIsbn().value(), book.getStockQuantity()
         );
     }
 }

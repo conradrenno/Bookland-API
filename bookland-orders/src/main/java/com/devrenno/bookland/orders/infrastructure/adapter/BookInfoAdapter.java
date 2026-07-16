@@ -17,6 +17,7 @@ public class BookInfoAdapter implements BookInfoPort {
     @Override
     public BookInfo getBookInfo(UUID bookId) {
         var book = getBookByIdUseCase.execute(bookId);
-        return new BookInfo(book.id(), book.title(), book.price(), book.stockQuantity());
+        return new BookInfo(
+                book.getId().value(), book.getTitle(), book.getPrice().value(), book.getStockQuantity());
     }
 }

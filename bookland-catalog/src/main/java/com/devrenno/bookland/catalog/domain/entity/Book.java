@@ -5,14 +5,12 @@ import com.devrenno.bookland.catalog.domain.valueobject.BookId;
 import com.devrenno.bookland.catalog.domain.valueobject.CategoryId;
 import com.devrenno.bookland.catalog.domain.valueobject.ISBN;
 import com.devrenno.bookland.catalog.domain.valueobject.Price;
-import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
-@Builder
 public class Book {
 
     private final BookId id;
@@ -31,48 +29,45 @@ public class Book {
     private final LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static Book create(
-            String title,
-            ISBN isbn,
-            List<String> authors,
-            String publisher,
-            Integer publicationYear,
-            String edition,
-            String synopsis,
-            Price price,
-            int stockQuantity,
-            CategoryId categoryId
-    ) {
-        return Book.builder()
-                .id(BookId.generate())
-                .title(title)
-                .isbn(isbn)
-                .authors(authors)
-                .publisher(publisher)
-                .publicationYear(publicationYear)
-                .edition(edition)
-                .synopsis(synopsis)
-                .price(price)
-                .stockQuantity(stockQuantity)
-                .categoryId(categoryId)
-                .avgRating(0.0)
-                .active(true)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+    private Book(BookId id, String title, ISBN isbn, List<String> authors, String publisher,
+                 Integer publicationYear, String edition, String synopsis, Price price, int stockQuantity,
+                 CategoryId categoryId, double avgRating, boolean active,
+                 LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.title = title;
+        this.isbn = isbn;
+        this.authors = authors;
+        this.publisher = publisher;
+        this.publicationYear = publicationYear;
+        this.edition = edition;
+        this.synopsis = synopsis;
+        this.price = price;
+        this.stockQuantity = stockQuantity;
+        this.categoryId = categoryId;
+        this.avgRating = avgRating;
+        this.active = active;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 
-    public void update(
-            String title,
-            List<String> authors,
-            String publisher,
-            Integer publicationYear,
-            String edition,
-            String synopsis,
-            Price price,
-            int stockQuantity,
-            CategoryId categoryId
-    ) {
+    public static Book create(String title, ISBN isbn, List<String> authors, String publisher,
+                              Integer publicationYear, String edition, String synopsis, Price price,
+                              int stockQuantity, CategoryId categoryId) {
+        LocalDateTime now = LocalDateTime.now();
+        return new Book(BookId.generate(), title, isbn, authors, publisher, publicationYear, edition,
+                synopsis, price, stockQuantity, categoryId, 0.0, true, now, now);
+    }
+
+    public static Book reconstitute(BookId id, String title, ISBN isbn, List<String> authors, String publisher,
+                                    Integer publicationYear, String edition, String synopsis, Price price,
+                                    int stockQuantity, CategoryId categoryId, double avgRating, boolean active,
+                                    LocalDateTime createdAt, LocalDateTime updatedAt) {
+        return new Book(id, title, isbn, authors, publisher, publicationYear, edition, synopsis, price,
+                stockQuantity, categoryId, avgRating, active, createdAt, updatedAt);
+    }
+
+    public void update(String title, List<String> authors, String publisher, Integer publicationYear,
+                       String edition, String synopsis, Price price, int stockQuantity, CategoryId categoryId) {
         if (title != null) this.title = title;
         if (authors != null) this.authors = authors;
         if (publisher != null) this.publisher = publisher;

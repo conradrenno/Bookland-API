@@ -1,5 +1,8 @@
 package com.devrenno.bookland.catalog.infrastructure.persistence.adapter;
 
+import com.devrenno.bookland.catalog.application.common.BookSort;
+import com.devrenno.bookland.catalog.application.common.PageQuery;
+import com.devrenno.bookland.catalog.application.common.PageResult;
 import com.devrenno.bookland.catalog.application.dto.BookSearchQuery;
 import com.devrenno.bookland.catalog.application.port.out.BookPersistencePort;
 import com.devrenno.bookland.catalog.domain.entity.Book;
@@ -11,7 +14,8 @@ import com.devrenno.bookland.catalog.infrastructure.persistence.repository.Categ
 import com.devrenno.bookland.catalog.infrastructure.persistence.specification.BookSearchSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -48,20 +52,39 @@ public class BookPersistenceAdapter implements BookPersistencePort {
     }
 
     @Override
-    public Page<Book> search(BookSearchQuery query) {
-        return bookRepository.findAll(BookSearchSpecification.from(query), query.pageable())
-                .map(mapper::toDomain);
+    public PageResult<Book> search(BookSearchQuery query) {
+        PageRequest pageable = PageRequest.of(query.page(), query.size(), toSort(query.sort()));
+        return toPageResult(bookRepository.findAll(BookSearchSpecification.from(query), pageable)
+                .map(mapper::toDomain));
     }
 
     @Override
-    public Page<Book> findByCategoryId(UUID categoryId, Pageable pageable) {
-        return bookRepository.findByCategory_IdAndActiveTrue(categoryId, pageable)
-                .map(mapper::toDomain);
+    public PageResult<Book> findByCategoryId(UUID categoryId, PageQuery pageQuery) {
+        PageRequest pageable = PageRequest.of(pageQuery.page(), pageQuery.size(), Sort.by("title").ascending());
+        return toPageResult(bookRepository.findByCategory_IdAndActiveTrue(categoryId, pageable)
+                .map(mapper::toDomain));
     }
 
     @Override
-    public Page<Book> findLowStock(int threshold, Pageable pageable) {
-        return bookRepository.findByStockQuantityLessThanEqualAndActiveTrue(threshold, pageable)
-                .map(mapper::toDomain);
+    public PageResult<Book> findLowStock(int threshold, PageQuery pageQuery) {
+        PageRequest pageable = PageRequest.of(pageQuery.page(), pageQuery.size(), Sort.by("stockQuantity").ascending());
+        return toPageResult(bookRepository.findByStockQuantityLessThanEqualAndActiveTrue(threshold, pageable)
+                .map(mapper::toDomain));
+    }
+
+    private static Sort toSort(BookSort sort) {
+        return switch (sort) {
+            case PRICE_ASC -> Sort.by("price").ascending();
+            case PRICE_DESC -> Sort.by("price").descending();
+            case RATING_DESC -> Sort.by("avgRating").descending();
+            case TITLE -> Sort.by("title").ascending();
+        };
+    }
+
+    private static PageResult<Book> toPageResult(Page<Book> page) {
+        return new PageResult<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages()
+        );
     }
 }

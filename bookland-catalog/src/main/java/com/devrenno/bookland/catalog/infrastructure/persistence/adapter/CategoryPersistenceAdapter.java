@@ -1,6 +1,6 @@
 package com.devrenno.bookland.catalog.infrastructure.persistence.adapter;
 
-import com.devrenno.bookland.catalog.application.dto.CategoryResponse;
+import com.devrenno.bookland.catalog.application.dto.CategoryWithCount;
 import com.devrenno.bookland.catalog.application.port.out.CategoryPersistencePort;
 import com.devrenno.bookland.catalog.domain.entity.Category;
 import com.devrenno.bookland.catalog.infrastructure.persistence.mapper.CatalogPersistenceMapper;
@@ -25,9 +25,9 @@ public class CategoryPersistenceAdapter implements CategoryPersistencePort {
     }
 
     @Override
-    public List<CategoryResponse> findAllActiveWithBookCount() {
+    public List<CategoryWithCount> findAllActiveWithBookCount() {
         return categoryRepository.findAllActiveWithBookCount().stream()
-                .map(row -> new CategoryResponse(
+                .map(row -> new CategoryWithCount(
                         (UUID) row[0],
                         (String) row[1],
                         ((Number) row[2]).longValue()

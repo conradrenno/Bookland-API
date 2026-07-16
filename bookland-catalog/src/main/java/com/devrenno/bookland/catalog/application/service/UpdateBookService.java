@@ -1,9 +1,6 @@
 package com.devrenno.bookland.catalog.application.service;
 
-import com.devrenno.bookland.catalog.application.annotation.UseCase;
-import com.devrenno.bookland.catalog.application.dto.BookResponse;
 import com.devrenno.bookland.catalog.application.dto.UpdateBookCommand;
-import com.devrenno.bookland.catalog.application.mapper.CatalogApplicationMapper;
 import com.devrenno.bookland.catalog.application.port.in.UpdateBookUseCase;
 import com.devrenno.bookland.catalog.application.port.out.BookPersistencePort;
 import com.devrenno.bookland.catalog.application.port.out.CategoryPersistencePort;
@@ -12,20 +9,27 @@ import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.catalog.domain.exception.CategoryNotFoundException;
 import com.devrenno.bookland.catalog.domain.valueobject.CategoryId;
 import com.devrenno.bookland.catalog.domain.valueobject.Price;
-import lombok.RequiredArgsConstructor;
 
 import java.util.UUID;
 
-@UseCase
-@RequiredArgsConstructor
 public class UpdateBookService implements UpdateBookUseCase {
 
     private final BookPersistencePort bookPersistencePort;
     private final CategoryPersistencePort categoryPersistencePort;
-    private final CatalogApplicationMapper mapper;
+
+    private UpdateBookService(BookPersistencePort bookPersistencePort,
+                              CategoryPersistencePort categoryPersistencePort) {
+        this.bookPersistencePort = bookPersistencePort;
+        this.categoryPersistencePort = categoryPersistencePort;
+    }
+
+    public static UpdateBookService create(BookPersistencePort bookPersistencePort,
+                                           CategoryPersistencePort categoryPersistencePort) {
+        return new UpdateBookService(bookPersistencePort, categoryPersistencePort);
+    }
 
     @Override
-    public BookResponse execute(UUID bookId, UpdateBookCommand command) {
+    public Book execute(UUID bookId, UpdateBookCommand command) {
         Book book = bookPersistencePort.findById(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
 
@@ -46,6 +50,6 @@ public class UpdateBookService implements UpdateBookUseCase {
                 command.categoryId() != null ? CategoryId.of(command.categoryId()) : null
         );
 
-        return mapper.toResponse(bookPersistencePort.save(book));
+        return bookPersistencePort.save(book);
     }
 }

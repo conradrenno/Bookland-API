@@ -2,25 +2,40 @@ package com.devrenno.bookland.catalog.infrastructure.persistence.mapper;
 
 import com.devrenno.bookland.catalog.domain.entity.Book;
 import com.devrenno.bookland.catalog.domain.entity.Category;
+import com.devrenno.bookland.catalog.domain.valueobject.BookId;
+import com.devrenno.bookland.catalog.domain.valueobject.CategoryId;
+import com.devrenno.bookland.catalog.domain.valueobject.ISBN;
+import com.devrenno.bookland.catalog.domain.valueobject.Price;
 import com.devrenno.bookland.catalog.infrastructure.persistence.entity.BookJpaEntity;
 import com.devrenno.bookland.catalog.infrastructure.persistence.entity.CategoryJpaEntity;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "spring",
-        imports = {
-                com.devrenno.bookland.catalog.domain.valueobject.BookId.class,
-                com.devrenno.bookland.catalog.domain.valueobject.CategoryId.class,
-                com.devrenno.bookland.catalog.domain.valueobject.ISBN.class,
-                com.devrenno.bookland.catalog.domain.valueobject.Price.class
-        })
+@Mapper(componentModel = "spring")
 public interface CatalogPersistenceMapper {
 
-    @Mapping(target = "id", expression = "java(BookId.of(entity.getId()))")
-    @Mapping(target = "isbn", expression = "java(ISBN.of(entity.getIsbn()))")
-    @Mapping(target = "price", expression = "java(Price.of(entity.getPrice()))")
-    @Mapping(target = "categoryId", expression = "java(CategoryId.of(entity.getCategory().getId()))")
-    Book toDomain(BookJpaEntity entity);
+    default Book toDomain(BookJpaEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        return Book.reconstitute(
+                BookId.of(entity.getId()),
+                entity.getTitle(),
+                ISBN.of(entity.getIsbn()),
+                entity.getAuthors(),
+                entity.getPublisher(),
+                entity.getPublicationYear(),
+                entity.getEdition(),
+                entity.getSynopsis(),
+                Price.of(entity.getPrice()),
+                entity.getStockQuantity(),
+                CategoryId.of(entity.getCategory().getId()),
+                entity.getAvgRating(),
+                entity.isActive(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt()
+        );
+    }
 
     @Mapping(target = "id", expression = "java(book.getId().value())")
     @Mapping(target = "isbn", expression = "java(book.getIsbn().value())")
@@ -39,6 +54,10 @@ public interface CatalogPersistenceMapper {
     @Mapping(target = "updatedAt", source = "book.updatedAt")
     BookJpaEntity toEntity(Book book, CategoryJpaEntity category);
 
-    @Mapping(target = "id", expression = "java(CategoryId.of(entity.getId()))")
-    Category toDomain(CategoryJpaEntity entity);
+    default Category toDomain(CategoryJpaEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        return Category.of(CategoryId.of(entity.getId()), entity.getName(), entity.isActive());
+    }
 }

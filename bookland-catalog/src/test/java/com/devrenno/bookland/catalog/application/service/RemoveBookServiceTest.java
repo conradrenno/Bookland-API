@@ -8,10 +8,10 @@ import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.catalog.domain.valueobject.CategoryId;
 import com.devrenno.bookland.catalog.domain.valueobject.ISBN;
 import com.devrenno.bookland.catalog.domain.valueobject.Price;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -30,7 +30,13 @@ class RemoveBookServiceTest {
 
     @Mock private BookPersistencePort bookPersistencePort;
     @Mock private ActiveOrderCheckPort activeOrderCheckPort;
-    @InjectMocks private RemoveBookService removeBookService;
+
+    private RemoveBookService removeBookService;
+
+    @BeforeEach
+    void setUp() {
+        removeBookService = RemoveBookService.create(bookPersistencePort, activeOrderCheckPort);
+    }
 
     private Book buildBook() {
         return Book.create(

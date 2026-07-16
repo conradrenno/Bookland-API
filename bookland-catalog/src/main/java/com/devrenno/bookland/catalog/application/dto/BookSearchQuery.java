@@ -1,6 +1,6 @@
 package com.devrenno.bookland.catalog.application.dto;
 
-import org.springframework.data.domain.Pageable;
+import com.devrenno.bookland.catalog.application.common.BookSort;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -10,5 +10,7 @@ public record BookSearchQuery(
         UUID categoryId,
         BigDecimal minPrice,
         BigDecimal maxPrice,
-        Pageable pageable
+        int page,
+        int size,
+        BookSort sort
 ) {}

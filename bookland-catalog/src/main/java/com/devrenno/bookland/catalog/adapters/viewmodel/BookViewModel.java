@@ -1,10 +1,10 @@
-package com.devrenno.bookland.catalog.api.dto.response;
+package com.devrenno.bookland.catalog.adapters.viewmodel;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
-public record BookApiResponse(
+public record BookViewModel(
         UUID id,
         String title,
         String isbn,

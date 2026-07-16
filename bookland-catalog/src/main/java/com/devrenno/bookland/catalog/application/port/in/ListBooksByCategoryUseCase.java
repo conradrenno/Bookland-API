@@ -1,11 +1,11 @@
 package com.devrenno.bookland.catalog.application.port.in;
 
-import com.devrenno.bookland.catalog.application.dto.BookResponse;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.devrenno.bookland.catalog.application.common.PageQuery;
+import com.devrenno.bookland.catalog.application.common.PageResult;
+import com.devrenno.bookland.catalog.domain.entity.Book;
 
 import java.util.UUID;
 
 public interface ListBooksByCategoryUseCase {
-    Page<BookResponse> execute(UUID categoryId, Pageable pageable);
+    PageResult<Book> execute(UUID categoryId, PageQuery pageQuery);
 }

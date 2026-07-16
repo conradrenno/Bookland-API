@@ -1,4 +1,4 @@
-package com.devrenno.bookland.catalog.api.dto.request;
+package com.devrenno.bookland.catalog.infrastructure.web.dto;
 
 import jakarta.validation.constraints.*;
 
@@ -6,16 +6,10 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
-public record CreateBookRequest(
+public record UpdateBookRequest(
 
-        @NotBlank
         String title,
 
-        @NotBlank
-        @Pattern(regexp = "\\d{13}", message = "ISBN must be 13 digits")
-        String isbn,
-
-        @NotEmpty
         List<@NotBlank String> authors,
 
         String publisher,
@@ -28,13 +22,11 @@ public record CreateBookRequest(
 
         String synopsis,
 
-        @NotNull
         @DecimalMin(value = "0.01", message = "Price must be positive")
         BigDecimal price,
 
         @Min(0)
-        int stockQuantity,
+        Integer stockQuantity,
 
-        @NotNull
         UUID categoryId
 ) {}
