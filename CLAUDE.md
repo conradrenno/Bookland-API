@@ -66,52 +66,57 @@ All commits must follow **[Conventional Commits](https://www.conventionalcommits
 ```
 bookland/               ← Parent POM (dependency management)
 ├── bookland-app/       ← Spring Boot bootstrap only; imports all domain modules
-└── bookland-{domain}/  ← One module per domain (user, auth, catalog, orders, reviews, inventory, wishlist)
+└── bookland-{domain}/  ← One module per domain (user, auth, catalog, orders, reviews, inventory, wishlist, payments)
 ```
 
 `bookland-app` has no business logic — it exists solely to assemble all domain modules and host `application.yml`. The `spring-boot-maven-plugin` runs only here.
 
-### Layered Package Layout (per domain)
+### Layered Package Layout (per domain) — 4-layer Clean Architecture
 
-Each domain module (`bookland-user`, `bookland-auth`, etc.) follows strict Clean Architecture layers:
+Each domain module follows **four** layers. **Domain, Application and Adapters are framework-free** (Lombok is allowed — it is source-only and leaves no bytecode trace). Only **Infrastructure** may touch Spring / JPA / Jackson. Dependencies always point inward: `infrastructure → adapters → application → domain`.
+
+> **Migration status:** `bookland-user` is the reference implementation of this model. Other modules are being migrated from the previous 3-layer (`@UseCase` + `api/`) layout — follow the `bookland-user` shape for all new/changed code. See `.claude/plans/` for the migration plan.
 
 ```
 com.devrenno.bookland.{domain}/
-├── domain/
-│   ├── entity/         ← Pure Java domain objects (no framework annotations)
-│   ├── valueobject/    ← Immutable value types (e.g. Email, UserId)
-│   ├── service/        ← Domain rules; no I/O, no Spring
-│   ├── repository/     ← (marker/unused; ports preferred)
-│   └── exception/      ← Domain-specific exceptions
-├── application/
-│   ├── annotation/     ← @UseCase (meta-annotation for @Service)
-│   ├── service/        ← *Service: implements use-case interfaces, orchestrates domain
-│   ├── dto/            ← Commands and responses (application-layer DTOs)
+├── domain/                 [framework-free]
+│   ├── entity/             ← Pure Java; static factories (create/reconstitute) encapsulate intrinsic invariants; private ctor, no public setters
+│   ├── valueobject/        ← Immutable value types (e.g. Email, UserId)
+│   ├── service/            ← Domain rules needing cross-aggregate/lookup data (e.g. email uniqueness); no I/O, no Spring
+│   └── exception/          ← Domain-specific exceptions
+├── application/            [framework-free]
+│   ├── service/            ← *Service: implements port/in; RETURNS DOMAIN ENTITIES; private ctor + static create(...) factory (no @UseCase)
+│   ├── dto/               ← Input commands/queries only (no output DTOs — use cases return entities)
 │   └── port/
-│       ├── in/         ← Use-case interfaces (e.g. RegisterUserUseCase)
-│       └── out/        ← Outbound port interfaces (e.g. UserPersistencePort, PasswordEncoderPort)
-├── infrastructure/
-│   ├── config/         ← Spring @Configuration beans (wires domain services, security)
-│   ├── persistence/    ← JPA entities, Spring Data repos, adapters implementing out-ports
-│   ├── security/       ← JWT filter, BCrypt adapter
-│   └── adapter/        ← Other adapter implementations
-└── api/
-    ├── controller/     ← @RestController; delegates to use-case interfaces only
-    ├── dto/            ← HTTP request/response DTOs (separate from application DTOs)
-    └── mapper/         ← MapStruct mappers between API DTOs and application DTOs
+│       ├── in/             ← Use-case interfaces (e.g. RegisterUserUseCase) — return domain entities
+│       └── out/            ← Outbound ports (UserPersistencePort, PasswordEncoderPort, TransactionPort)
+├── adapters/               [framework-free]
+│   ├── controller/         ← Internal controller: orchestrates use cases + presenter; also the module's composition root (static create(ports) wires the inner graph)
+│   ├── presenter/          ← Plain-Java presenters: domain entity → ViewModel
+│   └── viewmodel/          ← Output DTOs (no Jackson); delivered as-is by the HTTP layer
+└── infrastructure/         [Spring]
+    ├── web/                ← @RestController (delegates to internal controller), request DTOs, request mappers (MapStruct), @RestControllerAdvice
+    ├── config/             ← Composition root beans: 1 @Bean per module entry point calling *Controller.create(ports) + cross-module use-case beans
+    ├── persistence/        ← JPA entities, Spring Data repos, adapters implementing out-ports
+    ├── mapper/             ← MapStruct/persistence mappers (JPA entity ⇄ domain via reconstitute)
+    └── security/           ← JWT filter, BCrypt adapter
 ```
 
 ### Key Design Rules
 
-**Two types, two roles:**
-- `*Service` — annotated `@UseCase`; implements all use-case `port/in` interfaces; contains actual business orchestration. The domain's only entry point for logic.
-- `*Controller` (`@RestController`) — HTTP adapter only; maps HTTP → use-case call → HTTP response. Must depend only on `port/in` interfaces, never on `*Service` directly.
+**Framework-free inner layers, enforced by ArchUnit.** Domain, Application and Adapters must not depend on `org.springframework..`, `jakarta.persistence..` or `com.fasterxml.jackson..`. Each module has an `ArchitectureRulesTest` (see `bookland-user`) that fails the build on violation, plus a `layeredArchitecture` rule enforcing the inward dependency direction. There is **no `@UseCase` annotation** — services are plain Java.
 
-**Domain layer has zero Spring/JPA dependencies.** Domain entities and services are plain Java. They are wired in `infrastructure/config` via `@Bean` methods (e.g., `UserDomainConfig`).
+**Two controllers, two roles:**
+- **Internal controller** (`adapters/controller`) — plain Java. Orchestrates `port/in` use cases and calls the Presenter to produce a `ViewModel`. Is also the module's **composition root**: its static `create(...)` factory receives the outbound ports (as interfaces) and manually wires the domain service + use cases + presenter.
+- **API controller** (`infrastructure/web`, `@RestController`) — HTTP adapter only. Maps HTTP → internal controller call → `ResponseEntity<ViewModel>`. Depends only on the internal controller, never on `*Service`.
 
-**Cross-domain dependencies are explicit and intentional:** `bookland-auth` depends on `bookland-user` to reuse the user model via `UserLookupPort` (adapts `GetUserByEmailUseCase`). No other cross-domain coupling exists.
+**Use cases return domain entities**, not DTOs. Output shaping happens in the Presenter (→ ViewModel). Cross-module consumers depend on the source module's `port/in` and receive its **domain entities** (e.g. `bookland-auth` maps the `User` entity from `GetUserByEmailUseCase`/`RegisterUserUseCase` into its own `AuthUserDto`).
 
-**Port/Adapter pattern for all I/O:** persistence, password encoding, JWT generation, and user lookup are all accessed through interfaces defined in `application/port/out/`. Infrastructure adapters implement those interfaces.
+**Manual wiring (composition root), no `@UseCase`/`@Service` on inner classes.** Infrastructure creates only the outbound-port adapters (`@Repository`/`@Component`) and exposes **one `@Bean`** per module entry point that calls `*Controller.create(ports)`. Inner classes are never Spring beans and never self-annotate. Never instantiate an infrastructure adapter from inside an inner layer.
+
+**Transactions are framework-free** via `TransactionPort` (outbound port, `inTransaction(Supplier<T>)`) implemented in infrastructure with `TransactionTemplate`. Do **not** put `@Transactional` on application services (breaks framework-freedom and does not work without a Spring proxy under manual wiring).
+
+**Port/Adapter pattern for all I/O:** persistence, password encoding, JWT generation, transactions and cross-module lookup are all accessed through interfaces in `application/port/out/`; infrastructure adapters implement them.
 
 ### Auth Flow
 
@@ -125,4 +130,5 @@ Public endpoints: `POST /api/v1/auth/**`, `POST /api/v1/users`, `/h2-console/**`
 - **MapStruct** for all struct-to-struct mapping (configured with `defaultComponentModel=spring`; Lombok binding order matters — Lombok processor must come before MapStruct in `annotationProcessorPaths`)
 - **H2** in dev (`spring.profiles.active=dev`), **PostgreSQL 16** in prod
 - **JJWT 0.12.6** for JWT; secret and expiration configured under `bookland.jwt.*`
+- **ArchUnit** (`archunit-junit5`, test scope) enforces framework-freedom of the inner layers and the inward dependency direction — one `ArchitectureRulesTest` per migrated module
 - All domain modules use `spring-boot-starter-webmvc-test` for slice testing (`@WebMvcTest`) plus `spring-boot-starter-test` (JUnit 5 + Mockito + AssertJ)
