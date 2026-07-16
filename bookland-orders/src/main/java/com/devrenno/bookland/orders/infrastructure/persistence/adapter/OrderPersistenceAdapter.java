@@ -128,6 +128,13 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
         );
     }
 
+    @Override
+    public boolean existsOrderWithBookInStatuses(UUID bookId, Set<OrderStatus> statuses) {
+        return orderRepository.existsByStatusInAndItems_BookId(
+                statuses.stream().map(OrderStatus::name).toList(), bookId
+        );
+    }
+
     private Order toDomain(OrderJpaEntity entity) {
         List<OrderItem> items = entity.getItems().stream()
                 .map(i -> OrderItem.of(i.getBookId(), i.getTitle(), i.getQuantity(), i.getUnitPrice()))

@@ -2,6 +2,7 @@ package com.devrenno.bookland.orders.infrastructure.config;
 
 import com.devrenno.bookland.orders.adapters.controller.OrdersController;
 import com.devrenno.bookland.orders.application.port.in.AddCartItemUseCase;
+import com.devrenno.bookland.orders.application.port.in.CheckActiveOrdersUseCase;
 import com.devrenno.bookland.orders.application.port.in.VerifyPurchaseUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
 import com.devrenno.bookland.orders.application.port.out.BookStockPort;
@@ -12,14 +13,16 @@ import com.devrenno.bookland.orders.application.port.out.PurchaseVerificationPor
 import com.devrenno.bookland.orders.application.port.out.RefundPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.application.service.AddCartItemService;
+import com.devrenno.bookland.orders.application.service.CheckActiveOrdersService;
 import com.devrenno.bookland.orders.application.service.VerifyPurchaseService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * Composition root of the orders module. Exposes the internal OrdersController (HTTP delivery)
- * plus the cross-module boundary use cases: VerifyPurchaseUseCase (consumed by reviews) and
- * AddCartItemUseCase (consumed by wishlist's move-to-cart).
+ * plus the cross-module boundary use cases: VerifyPurchaseUseCase (consumed by reviews),
+ * AddCartItemUseCase (consumed by wishlist's move-to-cart) and CheckActiveOrdersUseCase
+ * (backs the catalog's ActiveOrderCheckPort).
  */
 @Configuration
 public class OrderBeansConfig {
@@ -43,5 +46,10 @@ public class OrderBeansConfig {
     public AddCartItemUseCase addCartItemUseCase(CartPersistencePort cartPersistencePort,
                                                  BookInfoPort bookInfoPort) {
         return AddCartItemService.create(cartPersistencePort, bookInfoPort);
+    }
+
+    @Bean
+    public CheckActiveOrdersUseCase checkActiveOrdersUseCase(OrderPersistencePort orderPersistencePort) {
+        return CheckActiveOrdersService.create(orderPersistencePort);
     }
 }
