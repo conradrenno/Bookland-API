@@ -1,9 +1,9 @@
 package com.devrenno.bookland.wishlist.application.port.in;
 
-import com.devrenno.bookland.wishlist.application.dto.WishlistResponse;
+import com.devrenno.bookland.wishlist.application.dto.WishlistView;
 
 import java.util.UUID;
 
 public interface RemoveWishlistItemUseCase {
-    WishlistResponse execute(UUID customerId, UUID bookId);
+    WishlistView execute(UUID customerId, UUID bookId);
 }

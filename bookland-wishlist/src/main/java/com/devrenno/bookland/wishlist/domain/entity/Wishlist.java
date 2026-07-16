@@ -2,7 +2,6 @@ package com.devrenno.bookland.wishlist.domain.entity;
 
 import com.devrenno.bookland.wishlist.domain.exception.WishlistItemAlreadyExistsException;
 import com.devrenno.bookland.wishlist.domain.exception.WishlistItemNotFoundException;
-import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
@@ -11,20 +10,24 @@ import java.util.List;
 import java.util.UUID;
 
 @Getter
-@Builder
 public class Wishlist {
 
     private final UUID id;
     private final UUID customerId;
-    @Builder.Default
-    private List<WishlistItem> items = new ArrayList<>();
+    private final List<WishlistItem> items;
+
+    private Wishlist(UUID id, UUID customerId, List<WishlistItem> items) {
+        this.id = id;
+        this.customerId = customerId;
+        this.items = items;
+    }
 
     public static Wishlist createFor(UUID customerId) {
-        return Wishlist.builder()
-                .id(UUID.randomUUID())
-                .customerId(customerId)
-                .items(new ArrayList<>())
-                .build();
+        return new Wishlist(UUID.randomUUID(), customerId, new ArrayList<>());
+    }
+
+    public static Wishlist reconstitute(UUID id, UUID customerId, List<WishlistItem> items) {
+        return new Wishlist(id, customerId, new ArrayList<>(items));
     }
 
     public void addItem(UUID bookId) {

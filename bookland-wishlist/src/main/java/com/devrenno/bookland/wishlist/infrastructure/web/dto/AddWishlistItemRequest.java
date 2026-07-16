@@ -1,4 +1,4 @@
-package com.devrenno.bookland.wishlist.api.dto.request;
+package com.devrenno.bookland.wishlist.infrastructure.web.dto;
 
 import jakarta.validation.constraints.NotNull;
 

@@ -1,4 +1,4 @@
-package com.devrenno.bookland.wishlist.api.controller;
+package com.devrenno.bookland.wishlist.infrastructure.web;
 
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.wishlist.domain.exception.WishlistItemAlreadyExistsException;

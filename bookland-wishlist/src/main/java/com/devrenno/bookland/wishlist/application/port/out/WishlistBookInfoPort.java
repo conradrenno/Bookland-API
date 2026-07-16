@@ -1,9 +1,9 @@
 package com.devrenno.bookland.wishlist.application.port.out;
 
-import com.devrenno.bookland.catalog.application.dto.BookResponse;
+import com.devrenno.bookland.wishlist.application.dto.WishlistBookInfo;
 
 import java.util.UUID;
 
 public interface WishlistBookInfoPort {
-    BookResponse getBookInfo(UUID bookId);
+    WishlistBookInfo getBookInfo(UUID bookId);
 }

@@ -1,10 +1,10 @@
-package com.devrenno.bookland.wishlist.application.dto;
+package com.devrenno.bookland.wishlist.adapters.viewmodel;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record WishlistItemResponse(
+public record WishlistItemViewModel(
         UUID bookId,
         String title,
         BigDecimal price,

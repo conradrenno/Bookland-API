@@ -51,10 +51,6 @@ public class WishlistPersistenceAdapter implements WishlistPersistencePort {
         List<WishlistItem> items = entity.getItems().stream()
                 .map(i -> new WishlistItem(i.getBookId(), i.getAddedAt()))
                 .toList();
-        return Wishlist.builder()
-                .id(entity.getId())
-                .customerId(entity.getCustomerId())
-                .items(new ArrayList<>(items))
-                .build();
+        return Wishlist.reconstitute(entity.getId(), entity.getCustomerId(), new ArrayList<>(items));
     }
 }
