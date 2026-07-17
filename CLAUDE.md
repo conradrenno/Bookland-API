@@ -86,7 +86,8 @@ com.devrenno.bookland.{domain}/
 │   └── exception/          ← Domain-specific exceptions
 ├── application/            [framework-free]
 │   ├── service/            ← *Service: implements port/in; RETURNS DOMAIN ENTITIES; private ctor + static create(...) factory (no @UseCase)
-│   ├── dto/               ← Input commands/queries only (no output DTOs — use cases return entities)
+│   ├── dto/                ← Input commands + query read-models (no output DTOs — use cases return entities or read-models)
+│   ├── common/             ← PageQuery / PageResult (framework-free pagination, duplicated per module)
 │   └── port/
 │       ├── in/             ← Use-case interfaces (e.g. RegisterUserUseCase) — return domain entities
 │       └── out/            ← Outbound ports (UserPersistencePort, PasswordEncoderPort, TransactionPort)
@@ -97,9 +98,10 @@ com.devrenno.bookland.{domain}/
 └── infrastructure/         [Spring]
     ├── web/                ← @RestController (delegates to internal controller), request DTOs, request mappers (MapStruct), @RestControllerAdvice
     ├── config/             ← Composition root beans: 1 @Bean per module entry point calling *Controller.create(ports) + cross-module use-case beans
-    ├── persistence/        ← JPA entities, Spring Data repos, adapters implementing out-ports
-    ├── mapper/             ← MapStruct/persistence mappers (JPA entity ⇄ domain via reconstitute)
-    └── security/           ← JWT filter, BCrypt adapter
+    ├── persistence/        ← JPA entities, Spring Data repos, adapters implementing out-ports, persistence mappers (JPA entity ⇄ domain via reconstitute)
+    ├── adapter/            ← Cross-module adapters: implement this module's out-ports by calling other modules' in-port beans (or the reverse — e.g. orders implements catalog's ActiveOrderCheckPort)
+    ├── transaction/        ← TransactionAdapter (TransactionTemplate) implementing TransactionPort, where the module needs it
+    └── security/           ← JWT filter, BCrypt adapter (user/auth modules)
 ```
 
 ### Key Design Rules
@@ -126,15 +128,18 @@ com.devrenno.bookland.{domain}/
 
 ### Auth Flow
 
-`bookland-auth` handles JWT: `POST /api/v1/auth/login` → `AuthController` → `LoginUseCase` → `AuthService` → validates credentials via `UserLookupPort` + `PasswordEncoder` → issues JWT via `TokenProviderPort`. The `JwtAuthenticationFilter` (in `bookland-auth`) intercepts every request and populates `SecurityContextHolder`. Security config lives in `bookland-auth`'s `SecurityConfig`.
+`bookland-auth` owns authentication: `POST /api/v1/auth/login` → `AuthApiController` → internal `AuthController` → `LoginUseCase` (`LoginService`) → validates credentials via `UserLookupPort` (→ user module) + `PasswordEncoderPort` → issues an access JWT via `TokenProviderPort` **plus a persisted, opaque refresh token** (table `refresh_tokens`). `POST /auth/refresh` rotates the pair (single-use: the used refresh token is revoked); `POST /auth/logout` revokes it; `POST /auth/register` creates the user via the user module's `RegisterUserUseCase` (role always CUSTOMER) and authenticates immediately. There is no user-creation endpoint in the user module itself.
 
-Public endpoints: `POST /api/v1/auth/**`, `POST /api/v1/users`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`.
+The `JwtAuthenticationFilter` (in `bookland-auth`) intercepts every request, validates the Bearer token and populates `SecurityContextHolder` — with the **userId stored in `Authentication.getDetails()`**, which controllers read via `extractUserId(Principal)`. All authorization rules for every module live in `bookland-auth`'s `SecurityConfig` (rule order matters: specific admin routes are declared before broad permitAll patterns).
+
+Public endpoints: `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Admin-only (`ROLE_ADMIN`): book/inventory writes, `/api/v1/admin/**`. Everything else requires authentication.
 
 ### Technology Notes
 
 - **Java 21**, Spring Boot 4.0.6
 - **MapStruct** for all struct-to-struct mapping (configured with `defaultComponentModel=spring`; Lombok binding order matters — Lombok processor must come before MapStruct in `annotationProcessorPaths`)
 - **H2** in dev (`spring.profiles.active=dev`), **PostgreSQL 16** in prod
-- **JJWT 0.12.6** for JWT; secret and expiration configured under `bookland.jwt.*`
-- **ArchUnit** (`archunit-junit5`, test scope) enforces framework-freedom of the inner layers and the inward dependency direction — one `ArchitectureRulesTest` per migrated module
-- All domain modules use `spring-boot-starter-webmvc-test` for slice testing (`@WebMvcTest`) plus `spring-boot-starter-test` (JUnit 5 + Mockito + AssertJ)
+- **JJWT 0.12.6** for JWT; secret and expirations configured under `bookland.jwt.*`
+- **Admin bootstrap**: `AdminBootstrap` (bookland-app, `@Order(1)`, all profiles) guarantees exactly one admin user on startup — credentials under `bookland.admin.email/password` (prod: `ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars). `DevDataLoader` (`@Order(2)`, dev only) seeds a sample customer and books
+- **ArchUnit** (`archunit-junit5`, test scope) enforces framework-freedom of the inner layers and the inward dependency direction — one `ArchitectureRulesTest` per domain module
+- **Tests** are plain JUnit 5 + Mockito + AssertJ unit tests against mocked ports (`TransactionPort` is faked with a pass-through, not mocked); `BooklandApplicationTests` (bookland-app, `@SpringBootTest`) boots the full context and validates all composition-root wiring. There are no `@WebMvcTest` slices
