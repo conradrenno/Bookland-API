@@ -47,7 +47,8 @@ public class UpdateBookService implements UpdateBookUseCase {
                 command.synopsis(),
                 command.price() != null ? Price.of(command.price()) : null,
                 command.stockQuantity() != null ? command.stockQuantity() : -1,
-                command.categoryId() != null ? CategoryId.of(command.categoryId()) : null
+                command.categoryId() != null ? CategoryId.of(command.categoryId()) : null,
+                command.coverImageUrl()
         );
 
         return bookPersistencePort.save(book);

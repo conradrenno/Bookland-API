@@ -13,5 +13,6 @@ public record UpdateBookCommand(
         String synopsis,
         BigDecimal price,
         Integer stockQuantity,
-        UUID categoryId
+        UUID categoryId,
+        String coverImageUrl
 ) {}

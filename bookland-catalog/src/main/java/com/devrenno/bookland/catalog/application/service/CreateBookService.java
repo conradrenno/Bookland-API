@@ -49,7 +49,8 @@ public class CreateBookService implements CreateBookUseCase {
                 command.synopsis(),
                 Price.of(command.price()),
                 command.stockQuantity(),
-                CategoryId.of(command.categoryId())
+                CategoryId.of(command.categoryId()),
+                command.coverImageUrl()
         );
 
         return bookPersistencePort.save(book);

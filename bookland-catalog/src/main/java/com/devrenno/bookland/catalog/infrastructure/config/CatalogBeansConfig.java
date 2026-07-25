@@ -5,6 +5,7 @@ import com.devrenno.bookland.catalog.application.port.in.*;
 import com.devrenno.bookland.catalog.application.port.out.ActiveOrderCheckPort;
 import com.devrenno.bookland.catalog.application.port.out.BookPersistencePort;
 import com.devrenno.bookland.catalog.application.port.out.CategoryPersistencePort;
+import com.devrenno.bookland.catalog.application.port.out.ImageStoragePort;
 import com.devrenno.bookland.catalog.application.service.*;
 import com.devrenno.bookland.catalog.domain.service.CatalogDomainService;
 import org.springframework.context.annotation.Bean;
@@ -22,8 +23,10 @@ public class CatalogBeansConfig {
     @Bean
     public CatalogController catalogController(BookPersistencePort bookPersistencePort,
                                                CategoryPersistencePort categoryPersistencePort,
-                                               ActiveOrderCheckPort activeOrderCheckPort) {
-        return CatalogController.create(bookPersistencePort, categoryPersistencePort, activeOrderCheckPort);
+                                               ActiveOrderCheckPort activeOrderCheckPort,
+                                               ImageStoragePort imageStoragePort) {
+        return CatalogController.create(bookPersistencePort, categoryPersistencePort,
+                activeOrderCheckPort, imageStoragePort);
     }
 
     @Bean

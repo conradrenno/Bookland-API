@@ -1,0 +1,11 @@
+package com.devrenno.bookland.catalog.application.port.in;
+
+import com.devrenno.bookland.catalog.application.dto.UploadBookCoverCommand;
+import com.devrenno.bookland.catalog.domain.entity.Book;
+
+import java.util.UUID;
+
+public interface UploadBookCoverUseCase {
+
+    Book execute(UUID bookId, UploadBookCoverCommand command);
+}

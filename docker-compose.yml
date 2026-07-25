@@ -14,6 +14,9 @@ services:
       JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS:-604800000}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      STORAGE_COVERS_LOCATION: /var/bookland/covers
+    volumes:
+      - bookland-covers:/var/bookland/covers
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,3 +40,4 @@ services:
 
 volumes:
   bookland-pgdata:
+  bookland-covers:

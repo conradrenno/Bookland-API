@@ -35,6 +35,7 @@ class CatalogControllerTest {
     @Mock private BookPersistencePort bookPersistencePort;
     @Mock private CategoryPersistencePort categoryPersistencePort;
     @Mock private ActiveOrderCheckPort activeOrderCheckPort;
+    @Mock private com.devrenno.bookland.catalog.application.port.out.ImageStoragePort imageStoragePort;
 
     private CatalogController controller;
 
@@ -44,7 +45,7 @@ class CatalogControllerTest {
     @BeforeEach
     void setUp() {
         controller = CatalogController.create(
-                bookPersistencePort, categoryPersistencePort, activeOrderCheckPort);
+                bookPersistencePort, categoryPersistencePort, activeOrderCheckPort, imageStoragePort);
     }
 
     private Book sampleBook() {
@@ -53,7 +54,7 @@ class CatalogControllerTest {
                 BookId.of(BOOK_ID), "Clean Code", ISBN.of("9780132350884"),
                 List.of("Robert C. Martin"), "Prentice Hall", 2008, "1st", "Synopsis",
                 Price.of(new BigDecimal("89.90")), 10, CategoryId.of(CATEGORY_ID),
-                0.0, true, now, now);
+                "https://covers.example.com/clean-code.jpg", 0.0, true, now, now);
     }
 
     @Test

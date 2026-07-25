@@ -124,7 +124,7 @@ com.devrenno.bookland.{domain}/
 
 **Pagination is framework-free** via `PageQuery`(page, size) and `PageResult<T>` in each module's `application/common/` (deliberately duplicated per module — no shared kernel). Persistence adapters translate `PageQuery ↔ PageRequest` and `Page ↔ PageResult`; fixed sort orders live in the adapter. `PageResult<ViewModel>` is also the paged HTTP response envelope (content/page/size/totalElements/totalPages).
 
-**Port/Adapter pattern for all I/O:** persistence, password encoding, JWT generation, transactions and cross-module lookup are all accessed through interfaces in `application/port/out/`; infrastructure adapters implement them.
+**Port/Adapter pattern for all I/O:** persistence, password encoding, JWT generation, transactions, cross-module lookup and image storage are all accessed through interfaces in `application/port/out/`; infrastructure adapters implement them. Cover images are stored via `ImageStoragePort` (catalog out-port) — the `LocalImageStorageAdapter` writes bytes to `bookland.storage.covers-location` and returns a public `/media/covers/...` path served by `MediaResourceConfig`; swap in an S3/GCS adapter without touching inner layers. `MultipartFile` never crosses the web layer: `BookApiController` extracts `byte[]` + filename + contentType into a framework-free `UploadBookCoverCommand`.
 
 ### Auth Flow
 
@@ -132,7 +132,7 @@ com.devrenno.bookland.{domain}/
 
 The `JwtAuthenticationFilter` (in `bookland-auth`) intercepts every request, validates the Bearer token and populates `SecurityContextHolder` — with the **userId stored in `Authentication.getDetails()`**, which controllers read via `extractUserId(Principal)`. All authorization rules for every module live in `bookland-auth`'s `SecurityConfig` (rule order matters: specific admin routes are declared before broad permitAll patterns).
 
-Public endpoints: `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Admin-only (`ROLE_ADMIN`): book/inventory writes, `/api/v1/admin/**`. Everything else requires authentication.
+Public endpoints: `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Admin-only (`ROLE_ADMIN`): book/inventory writes including cover upload (`POST /api/v1/books/{id}/cover`, `multipart/form-data`, part `file`), `/api/v1/admin/**`. Everything else requires authentication.
 
 ### Technology Notes
 
@@ -141,5 +141,6 @@ Public endpoints: `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/c
 - **H2** in dev (`spring.profiles.active=dev`), **PostgreSQL 16** in prod
 - **JJWT 0.12.6** for JWT; secret and expirations configured under `bookland.jwt.*`
 - **Admin bootstrap**: `AdminBootstrap` (bookland-app, `@Order(1)`, all profiles) guarantees exactly one admin user on startup — credentials under `bookland.admin.email/password` (prod: `ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars). `DevDataLoader` (`@Order(2)`, dev only) seeds a sample customer and books
+- **Cover image storage**: local filesystem in dev/single-node. Location under `bookland.storage.covers-location` (dev: `./bookland-data/covers`; prod: `STORAGE_COVERS_LOCATION` env, default `/var/bookland/covers` — mount a volume so uploads survive restarts). Upload limits under `spring.servlet.multipart.*` (5 MB); allowed types JPEG/PNG/WEBP validated in `UploadBookCoverService`
 - **ArchUnit** (`archunit-junit5`, test scope) enforces framework-freedom of the inner layers and the inward dependency direction — one `ArchitectureRulesTest` per domain module
 - **Tests** are plain JUnit 5 + Mockito + AssertJ unit tests against mocked ports (`TransactionPort` is faked with a pass-through, not mocked); `BooklandApplicationTests` (bookland-app, `@SpringBootTest`) boots the full context and validates all composition-root wiring. There are no `@WebMvcTest` slices

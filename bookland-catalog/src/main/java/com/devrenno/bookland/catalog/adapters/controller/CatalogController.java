@@ -8,10 +8,12 @@ import com.devrenno.bookland.catalog.application.common.PageResult;
 import com.devrenno.bookland.catalog.application.dto.BookSearchQuery;
 import com.devrenno.bookland.catalog.application.dto.CreateBookCommand;
 import com.devrenno.bookland.catalog.application.dto.UpdateBookCommand;
+import com.devrenno.bookland.catalog.application.dto.UploadBookCoverCommand;
 import com.devrenno.bookland.catalog.application.port.in.*;
 import com.devrenno.bookland.catalog.application.port.out.ActiveOrderCheckPort;
 import com.devrenno.bookland.catalog.application.port.out.BookPersistencePort;
 import com.devrenno.bookland.catalog.application.port.out.CategoryPersistencePort;
+import com.devrenno.bookland.catalog.application.port.out.ImageStoragePort;
 import com.devrenno.bookland.catalog.application.service.*;
 import com.devrenno.bookland.catalog.domain.service.CatalogDomainService;
 
@@ -29,6 +31,7 @@ public class CatalogController {
     private final GetBookByIdUseCase getBookByIdUseCase;
     private final SearchBooksUseCase searchBooksUseCase;
     private final UpdateBookUseCase updateBookUseCase;
+    private final UploadBookCoverUseCase uploadBookCoverUseCase;
     private final RemoveBookUseCase removeBookUseCase;
     private final ListCategoriesUseCase listCategoriesUseCase;
     private final ListBooksByCategoryUseCase listBooksByCategoryUseCase;
@@ -36,12 +39,14 @@ public class CatalogController {
 
     private CatalogController(CreateBookUseCase createBookUseCase, GetBookByIdUseCase getBookByIdUseCase,
                             SearchBooksUseCase searchBooksUseCase, UpdateBookUseCase updateBookUseCase,
-                            RemoveBookUseCase removeBookUseCase, ListCategoriesUseCase listCategoriesUseCase,
+                            UploadBookCoverUseCase uploadBookCoverUseCase, RemoveBookUseCase removeBookUseCase,
+                            ListCategoriesUseCase listCategoriesUseCase,
                             ListBooksByCategoryUseCase listBooksByCategoryUseCase, CatalogPresenter presenter) {
         this.createBookUseCase = createBookUseCase;
         this.getBookByIdUseCase = getBookByIdUseCase;
         this.searchBooksUseCase = searchBooksUseCase;
         this.updateBookUseCase = updateBookUseCase;
+        this.uploadBookCoverUseCase = uploadBookCoverUseCase;
         this.removeBookUseCase = removeBookUseCase;
         this.listCategoriesUseCase = listCategoriesUseCase;
         this.listBooksByCategoryUseCase = listBooksByCategoryUseCase;
@@ -50,13 +55,15 @@ public class CatalogController {
 
     public static CatalogController create(BookPersistencePort bookPersistencePort,
                                            CategoryPersistencePort categoryPersistencePort,
-                                           ActiveOrderCheckPort activeOrderCheckPort) {
+                                           ActiveOrderCheckPort activeOrderCheckPort,
+                                           ImageStoragePort imageStoragePort) {
         CatalogDomainService domainService = new CatalogDomainService();
         return new CatalogController(
                 CreateBookService.create(domainService, bookPersistencePort, categoryPersistencePort),
                 GetBookByIdService.create(bookPersistencePort),
                 SearchBooksService.create(bookPersistencePort),
                 UpdateBookService.create(bookPersistencePort, categoryPersistencePort),
+                UploadBookCoverService.create(bookPersistencePort, imageStoragePort),
                 RemoveBookService.create(bookPersistencePort, activeOrderCheckPort),
                 ListCategoriesService.create(categoryPersistencePort),
                 ListBooksByCategoryService.create(bookPersistencePort, categoryPersistencePort),
@@ -78,6 +85,10 @@ public class CatalogController {
 
     public BookViewModel updateBook(UUID bookId, UpdateBookCommand command) {
         return presenter.present(updateBookUseCase.execute(bookId, command));
+    }
+
+    public BookViewModel uploadBookCover(UUID bookId, UploadBookCoverCommand command) {
+        return presenter.present(uploadBookCoverUseCase.execute(bookId, command));
     }
 
     public void removeBook(UUID bookId) {

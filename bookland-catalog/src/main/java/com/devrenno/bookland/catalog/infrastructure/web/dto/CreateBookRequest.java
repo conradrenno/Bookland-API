@@ -36,5 +36,8 @@ public record CreateBookRequest(
         int stockQuantity,
 
         @NotNull
-        UUID categoryId
+        UUID categoryId,
+
+        @Size(max = 2048)
+        String coverImageUrl
 ) {}

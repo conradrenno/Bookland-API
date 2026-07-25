@@ -17,5 +17,6 @@ public record BookViewModel(
         int stockQuantity,
         boolean available,
         UUID categoryId,
+        String coverImageUrl,
         double avgRating
 ) {}

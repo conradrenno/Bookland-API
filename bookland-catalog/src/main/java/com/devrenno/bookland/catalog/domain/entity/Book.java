@@ -24,6 +24,7 @@ public class Book {
     private Price price;
     private int stockQuantity;
     private CategoryId categoryId;
+    private String coverImageUrl;
     private double avgRating;
     private boolean active;
     private final LocalDateTime createdAt;
@@ -31,7 +32,7 @@ public class Book {
 
     private Book(BookId id, String title, ISBN isbn, List<String> authors, String publisher,
                  Integer publicationYear, String edition, String synopsis, Price price, int stockQuantity,
-                 CategoryId categoryId, double avgRating, boolean active,
+                 CategoryId categoryId, String coverImageUrl, double avgRating, boolean active,
                  LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.title = title;
@@ -44,6 +45,7 @@ public class Book {
         this.price = price;
         this.stockQuantity = stockQuantity;
         this.categoryId = categoryId;
+        this.coverImageUrl = coverImageUrl;
         this.avgRating = avgRating;
         this.active = active;
         this.createdAt = createdAt;
@@ -52,22 +54,24 @@ public class Book {
 
     public static Book create(String title, ISBN isbn, List<String> authors, String publisher,
                               Integer publicationYear, String edition, String synopsis, Price price,
-                              int stockQuantity, CategoryId categoryId) {
+                              int stockQuantity, CategoryId categoryId, String coverImageUrl) {
         LocalDateTime now = LocalDateTime.now();
         return new Book(BookId.generate(), title, isbn, authors, publisher, publicationYear, edition,
-                synopsis, price, stockQuantity, categoryId, 0.0, true, now, now);
+                synopsis, price, stockQuantity, categoryId, coverImageUrl, 0.0, true, now, now);
     }
 
     public static Book reconstitute(BookId id, String title, ISBN isbn, List<String> authors, String publisher,
                                     Integer publicationYear, String edition, String synopsis, Price price,
-                                    int stockQuantity, CategoryId categoryId, double avgRating, boolean active,
+                                    int stockQuantity, CategoryId categoryId, String coverImageUrl,
+                                    double avgRating, boolean active,
                                     LocalDateTime createdAt, LocalDateTime updatedAt) {
         return new Book(id, title, isbn, authors, publisher, publicationYear, edition, synopsis, price,
-                stockQuantity, categoryId, avgRating, active, createdAt, updatedAt);
+                stockQuantity, categoryId, coverImageUrl, avgRating, active, createdAt, updatedAt);
     }
 
     public void update(String title, List<String> authors, String publisher, Integer publicationYear,
-                       String edition, String synopsis, Price price, int stockQuantity, CategoryId categoryId) {
+                       String edition, String synopsis, Price price, int stockQuantity, CategoryId categoryId,
+                       String coverImageUrl) {
         if (title != null) this.title = title;
         if (authors != null) this.authors = authors;
         if (publisher != null) this.publisher = publisher;
@@ -77,6 +81,12 @@ public class Book {
         if (price != null) this.price = price;
         if (stockQuantity >= 0) this.stockQuantity = stockQuantity;
         if (categoryId != null) this.categoryId = categoryId;
+        if (coverImageUrl != null) this.coverImageUrl = coverImageUrl;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateCoverImage(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
         this.updatedAt = LocalDateTime.now();
     }
 

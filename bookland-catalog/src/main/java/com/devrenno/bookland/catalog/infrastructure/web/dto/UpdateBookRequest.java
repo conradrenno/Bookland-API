@@ -28,5 +28,8 @@ public record UpdateBookRequest(
         @Min(0)
         Integer stockQuantity,
 
-        UUID categoryId
+        UUID categoryId,
+
+        @Size(max = 2048)
+        String coverImageUrl
 ) {}

@@ -30,6 +30,7 @@ public interface CatalogPersistenceMapper {
                 Price.of(entity.getPrice()),
                 entity.getStockQuantity(),
                 CategoryId.of(entity.getCategory().getId()),
+                entity.getCoverImageUrl(),
                 entity.getAvgRating(),
                 entity.isActive(),
                 entity.getCreatedAt(),
@@ -49,6 +50,7 @@ public interface CatalogPersistenceMapper {
     @Mapping(target = "edition", source = "book.edition")
     @Mapping(target = "synopsis", source = "book.synopsis")
     @Mapping(target = "stockQuantity", source = "book.stockQuantity")
+    @Mapping(target = "coverImageUrl", source = "book.coverImageUrl")
     @Mapping(target = "avgRating", source = "book.avgRating")
     @Mapping(target = "createdAt", source = "book.createdAt")
     @Mapping(target = "updatedAt", source = "book.updatedAt")

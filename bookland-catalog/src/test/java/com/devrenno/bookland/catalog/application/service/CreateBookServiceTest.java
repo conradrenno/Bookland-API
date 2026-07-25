@@ -45,7 +45,7 @@ class CreateBookServiceTest {
         CreateBookCommand command = new CreateBookCommand(
                 "Clean Code", "9780132350884", List.of("Robert C. Martin"),
                 "Prentice Hall", 2008, "1st", "A handbook of agile software craftsmanship.",
-                new BigDecimal("89.90"), 10, categoryId
+                new BigDecimal("89.90"), 10, categoryId, "https://covers.example.com/clean-code.jpg"
         );
 
         Category category = Category.of(CategoryId.of(categoryId), "Tecnologia", true);
@@ -61,6 +61,7 @@ class CreateBookServiceTest {
         assertThat(result.getStockQuantity()).isEqualTo(10);
         assertThat(result.isActive()).isTrue();
         assertThat(result.getCategoryId().value()).isEqualTo(categoryId);
+        assertThat(result.getCoverImageUrl()).isEqualTo("https://covers.example.com/clean-code.jpg");
     }
 
     @Test
@@ -68,7 +69,7 @@ class CreateBookServiceTest {
         UUID categoryId = UUID.randomUUID();
         CreateBookCommand command = new CreateBookCommand(
                 "Clean Code", "9780132350884", List.of("Robert C. Martin"),
-                null, null, null, null, new BigDecimal("89.90"), 10, categoryId
+                null, null, null, null, new BigDecimal("89.90"), 10, categoryId, null
         );
 
         when(categoryPersistencePort.findById(categoryId)).thenReturn(Optional.empty());
@@ -82,7 +83,7 @@ class CreateBookServiceTest {
         UUID categoryId = UUID.randomUUID();
         CreateBookCommand command = new CreateBookCommand(
                 "Clean Code", "9780132350884", List.of("Robert C. Martin"),
-                null, null, null, null, new BigDecimal("89.90"), 10, categoryId
+                null, null, null, null, new BigDecimal("89.90"), 10, categoryId, null
         );
 
         Category category = Category.of(CategoryId.of(categoryId), "Tecnologia", true);

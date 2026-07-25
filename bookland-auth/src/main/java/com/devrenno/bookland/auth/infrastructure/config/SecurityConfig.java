@@ -37,7 +37,10 @@ public class SecurityConfig {
                         // Catalog public routes
                         .requestMatchers(HttpMethod.GET, "/api/v1/books/**", "/api/v1/books").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/categories/**", "/api/v1/categories").permitAll()
+                        // Cover images (static media)
+                        .requestMatchers(HttpMethod.GET, "/media/**").permitAll()
                         // Catalog admin routes
+                        .requestMatchers(HttpMethod.POST, "/api/v1/books/*/cover").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/books").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/books/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/books/**").hasRole("ADMIN")

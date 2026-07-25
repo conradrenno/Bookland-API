@@ -3,6 +3,10 @@ spring:
     name: bookland
   profiles:
     active: dev
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
 
 ---
 spring:
@@ -34,6 +38,8 @@ bookland:
   admin:
     email: admin@bookland.com
     password: admin1234
+  storage:
+    covers-location: ./bookland-data/covers
 
 springdoc:
   api-docs:
@@ -67,3 +73,5 @@ bookland:
   admin:
     email: ${ADMIN_EMAIL}
     password: ${ADMIN_PASSWORD}
+  storage:
+    covers-location: ${STORAGE_COVERS_LOCATION:/var/bookland/covers}

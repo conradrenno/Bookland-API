@@ -56,7 +56,8 @@ public class DevDataLoader implements ApplicationRunner {
                 List.of("Robert C. Martin"),
                 "Prentice Hall", 2008, "1ª edição",
                 "Um guia de boas práticas para escrita de código limpo e sustentável.",
-                BigDecimal.valueOf(44.90), 20, CAT_TECNOLOGIA));
+                BigDecimal.valueOf(44.90), 20, CAT_TECNOLOGIA,
+                "https://covers.openlibrary.org/b/isbn/9780132350884-L.jpg"));
 
         createBookUseCase.execute(new CreateBookCommand(
                 "The Pragmatic Programmer",
@@ -64,7 +65,8 @@ public class DevDataLoader implements ApplicationRunner {
                 List.of("David Thomas", "Andrew Hunt"),
                 "Addison-Wesley", 2019, "20th Anniversary Edition",
                 "Seu caminho para se tornar um programador pragmático e eficaz.",
-                BigDecimal.valueOf(59.90), 15, CAT_TECNOLOGIA));
+                BigDecimal.valueOf(59.90), 15, CAT_TECNOLOGIA,
+                "https://covers.openlibrary.org/b/isbn/9780135957059-L.jpg"));
 
         createBookUseCase.execute(new CreateBookCommand(
                 "Design Patterns",
@@ -72,7 +74,8 @@ public class DevDataLoader implements ApplicationRunner {
                 List.of("Erich Gamma", "Richard Helm", "Ralph Johnson", "John Vlissides"),
                 "Addison-Wesley", 1994, "1ª edição",
                 "Os 23 padrões de projeto que todo desenvolvedor precisa conhecer.",
-                BigDecimal.valueOf(79.90), 8, CAT_TECNOLOGIA));
+                BigDecimal.valueOf(79.90), 8, CAT_TECNOLOGIA,
+                "https://covers.openlibrary.org/b/isbn/9780201633610-L.jpg"));
 
         createBookUseCase.execute(new CreateBookCommand(
                 "Duna",
@@ -80,7 +83,8 @@ public class DevDataLoader implements ApplicationRunner {
                 List.of("Frank Herbert"),
                 "Aleph", 1965, "Edição especial",
                 "A épica saga de sobrevivência e poder no planeta deserto Arrakis.",
-                BigDecimal.valueOf(49.90), 12, CAT_FICCAO));
+                BigDecimal.valueOf(49.90), 12, CAT_FICCAO,
+                "https://covers.openlibrary.org/b/isbn/9788576574675-L.jpg"));
 
         createBookUseCase.execute(new CreateBookCommand(
                 "O Investidor Inteligente",
@@ -88,7 +92,8 @@ public class DevDataLoader implements ApplicationRunner {
                 List.of("Benjamin Graham"),
                 "HarperCollins", 1949, "Ed. revisada",
                 "O guia definitivo de investimento em valor de Benjamin Graham.",
-                BigDecimal.valueOf(54.90), 10, CAT_NEGOCIOS));
+                BigDecimal.valueOf(54.90), 10, CAT_NEGOCIOS,
+                "https://covers.openlibrary.org/b/isbn/9788576840220-L.jpg"));
 
         log.info("[DEV] Books seeded — 5 books available in catalog");
     }

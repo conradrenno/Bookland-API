@@ -14,5 +14,6 @@ public record CreateBookCommand(
         String synopsis,
         BigDecimal price,
         int stockQuantity,
-        UUID categoryId
+        UUID categoryId,
+        String coverImageUrl
 ) {}

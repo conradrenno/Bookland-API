@@ -31,6 +31,7 @@ public class CatalogPresenter {
                 book.getStockQuantity(),
                 book.getStockQuantity() > 0,
                 book.getCategoryId().value(),
+                book.getCoverImageUrl(),
                 book.getAvgRating()
         );
     }

@@ -4,12 +4,14 @@ import com.devrenno.bookland.catalog.domain.exception.BookHasActiveOrdersExcepti
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.catalog.domain.exception.CategoryNotFoundException;
 import com.devrenno.bookland.catalog.domain.exception.InsufficientStockException;
+import com.devrenno.bookland.catalog.domain.exception.InvalidImageException;
 import com.devrenno.bookland.catalog.domain.exception.IsbnAlreadyExistsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.stream.Collectors;
 
@@ -39,6 +41,17 @@ public class CatalogExceptionHandler {
     @ExceptionHandler(InsufficientStockException.class)
     public ProblemDetail handleInsufficientStock(InsufficientStockException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidImageException.class)
+    public ProblemDetail handleInvalidImage(InvalidImageException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ProblemDetail handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE,
+                "Uploaded file exceeds the maximum allowed size");
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

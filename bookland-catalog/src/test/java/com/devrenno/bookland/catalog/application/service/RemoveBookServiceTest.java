@@ -42,7 +42,7 @@ class RemoveBookServiceTest {
         return Book.create(
                 "Clean Code", ISBN.of("9780132350884"), List.of("Robert C. Martin"),
                 "Prentice Hall", 2008, "1st", "Synopsis",
-                Price.of(new BigDecimal("89.90")), 10, CategoryId.of(UUID.randomUUID())
+                Price.of(new BigDecimal("89.90")), 10, CategoryId.of(UUID.randomUUID()), null
         );
     }
 
