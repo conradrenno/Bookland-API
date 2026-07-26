@@ -2,10 +2,12 @@ package com.devrenno.bookland.user.infrastructure.config;
 
 import com.devrenno.bookland.user.adapters.controller.UserController;
 import com.devrenno.bookland.user.application.port.in.GetUserByEmailUseCase;
+import com.devrenno.bookland.user.application.port.in.GetUserByIdUseCase;
 import com.devrenno.bookland.user.application.port.in.RegisterUserUseCase;
 import com.devrenno.bookland.user.application.port.out.PasswordEncoderPort;
 import com.devrenno.bookland.user.application.port.out.UserPersistencePort;
 import com.devrenno.bookland.user.application.service.GetUserByEmailService;
+import com.devrenno.bookland.user.application.service.GetUserByIdService;
 import com.devrenno.bookland.user.application.service.RegisterUserService;
 import com.devrenno.bookland.user.domain.service.UserDomainService;
 import org.springframework.context.annotation.Bean;
@@ -41,5 +43,11 @@ public class UserBeansConfig {
     @Bean
     public GetUserByEmailUseCase getUserByEmailUseCase(UserPersistencePort persistencePort) {
         return GetUserByEmailService.create(persistencePort);
+    }
+
+    /** Cross-module: consumed by reviews (CustomerNameAdapter) to label a review with its author. */
+    @Bean
+    public GetUserByIdUseCase getUserByIdUseCase(UserPersistencePort persistencePort) {
+        return GetUserByIdService.create(persistencePort);
     }
 }

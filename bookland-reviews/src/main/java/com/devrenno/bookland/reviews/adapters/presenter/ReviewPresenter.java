@@ -3,7 +3,7 @@ package com.devrenno.bookland.reviews.adapters.presenter;
 import com.devrenno.bookland.reviews.adapters.viewmodel.ReviewListViewModel;
 import com.devrenno.bookland.reviews.adapters.viewmodel.ReviewViewModel;
 import com.devrenno.bookland.reviews.application.dto.ReviewList;
-import com.devrenno.bookland.reviews.domain.entity.Review;
+import com.devrenno.bookland.reviews.application.dto.ReviewView;
 
 /**
  * Transforms domain reviews / query read-models into delivery-facing view models. Plain Java.
@@ -17,14 +17,15 @@ public class ReviewPresenter {
         return new ReviewPresenter();
     }
 
-    public ReviewViewModel present(Review review) {
+    public ReviewViewModel present(ReviewView review) {
         return new ReviewViewModel(
-                review.getId(),
-                review.getBookId(),
-                review.getCustomerId(),
-                review.getRating(),
-                review.getComment(),
-                review.getCreatedAt()
+                review.id(),
+                review.bookId(),
+                review.customerId(),
+                review.customerName(),
+                review.rating(),
+                review.comment(),
+                review.createdAt()
         );
     }
 

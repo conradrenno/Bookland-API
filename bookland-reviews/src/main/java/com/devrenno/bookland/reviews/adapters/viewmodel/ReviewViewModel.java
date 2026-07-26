@@ -7,6 +7,7 @@ public record ReviewViewModel(
         UUID id,
         UUID bookId,
         UUID customerId,
+        String customerName,
         int rating,
         String comment,
         LocalDateTime createdAt

@@ -2,8 +2,10 @@ package com.devrenno.bookland.reviews.application.service;
 
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
+import com.devrenno.bookland.reviews.application.dto.ReviewView;
 import com.devrenno.bookland.reviews.application.port.out.BookExistsPort;
 import com.devrenno.bookland.reviews.application.port.out.BookRatingUpdatePort;
+import com.devrenno.bookland.reviews.application.port.out.CustomerNamePort;
 import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
@@ -32,6 +34,7 @@ class CreateReviewServiceTest {
     @Mock private BookExistsPort bookExistsPort;
     @Mock private PurchaseVerificationPort purchaseVerificationPort;
     @Mock private BookRatingUpdatePort bookRatingUpdatePort;
+    @Mock private CustomerNamePort customerNamePort;
 
     private CreateReviewService service;
 
@@ -41,7 +44,7 @@ class CreateReviewServiceTest {
     @BeforeEach
     void setUp() {
         service = CreateReviewService.create(reviewPersistencePort, bookExistsPort,
-                purchaseVerificationPort, bookRatingUpdatePort);
+                purchaseVerificationPort, bookRatingUpdatePort, customerNamePort);
     }
 
     @Test
@@ -54,10 +57,12 @@ class CreateReviewServiceTest {
         when(reviewPersistencePort.findByBookIdAndCustomerId(bookId, customerId)).thenReturn(Optional.empty());
         when(reviewPersistencePort.save(any())).thenReturn(saved);
         when(reviewPersistencePort.findAllActiveByBookId(bookId)).thenReturn(List.of(saved));
+        when(customerNamePort.getCustomerName(customerId)).thenReturn("Ana Souza");
 
-        Review result = service.execute(command);
+        ReviewView result = service.execute(command);
 
-        assertThat(result.getRating()).isEqualTo(5);
+        assertThat(result.rating()).isEqualTo(5);
+        assertThat(result.customerName()).isEqualTo("Ana Souza");
         verify(bookRatingUpdatePort).updateRating(eq(bookId), anyDouble());
     }
 

@@ -2,9 +2,11 @@ package com.devrenno.bookland.reviews.application.service;
 
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
+import com.devrenno.bookland.reviews.application.dto.ReviewView;
 import com.devrenno.bookland.reviews.application.port.in.CreateReviewUseCase;
 import com.devrenno.bookland.reviews.application.port.out.BookExistsPort;
 import com.devrenno.bookland.reviews.application.port.out.BookRatingUpdatePort;
+import com.devrenno.bookland.reviews.application.port.out.CustomerNamePort;
 import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
@@ -20,27 +22,31 @@ public class CreateReviewService implements CreateReviewUseCase {
     private final BookExistsPort bookExistsPort;
     private final PurchaseVerificationPort purchaseVerificationPort;
     private final BookRatingUpdatePort bookRatingUpdatePort;
+    private final CustomerNamePort customerNamePort;
 
     private CreateReviewService(ReviewPersistencePort reviewPersistencePort,
                                 BookExistsPort bookExistsPort,
                                 PurchaseVerificationPort purchaseVerificationPort,
-                                BookRatingUpdatePort bookRatingUpdatePort) {
+                                BookRatingUpdatePort bookRatingUpdatePort,
+                                CustomerNamePort customerNamePort) {
         this.reviewPersistencePort = reviewPersistencePort;
         this.bookExistsPort = bookExistsPort;
         this.purchaseVerificationPort = purchaseVerificationPort;
         this.bookRatingUpdatePort = bookRatingUpdatePort;
+        this.customerNamePort = customerNamePort;
     }
 
     public static CreateReviewService create(ReviewPersistencePort reviewPersistencePort,
                                              BookExistsPort bookExistsPort,
                                              PurchaseVerificationPort purchaseVerificationPort,
-                                             BookRatingUpdatePort bookRatingUpdatePort) {
+                                             BookRatingUpdatePort bookRatingUpdatePort,
+                                             CustomerNamePort customerNamePort) {
         return new CreateReviewService(reviewPersistencePort, bookExistsPort,
-                purchaseVerificationPort, bookRatingUpdatePort);
+                purchaseVerificationPort, bookRatingUpdatePort, customerNamePort);
     }
 
     @Override
-    public Review execute(CreateReviewCommand command) {
+    public ReviewView execute(CreateReviewCommand command) {
         if (!bookExistsPort.exists(command.bookId())) {
             throw new BookNotFoundException(command.bookId());
         }
@@ -55,7 +61,7 @@ public class CreateReviewService implements CreateReviewUseCase {
 
         recalculateRating(command.bookId());
 
-        return saved;
+        return new ReviewViewAssembler(customerNamePort).toView(saved);
     }
 
     private void recalculateRating(UUID bookId) {

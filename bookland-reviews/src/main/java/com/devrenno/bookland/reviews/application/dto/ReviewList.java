@@ -1,7 +1,6 @@
 package com.devrenno.bookland.reviews.application.dto;
 
 import com.devrenno.bookland.reviews.application.common.PageResult;
-import com.devrenno.bookland.reviews.domain.entity.Review;
 
 import java.util.Map;
 
@@ -10,7 +9,7 @@ import java.util.Map;
  * rating distribution across all active reviews).
  */
 public record ReviewList(
-        PageResult<Review> reviews,
+        PageResult<ReviewView> reviews,
         double averageRating,
         Map<Integer, Long> ratingDistribution
 ) {}
