@@ -19,9 +19,15 @@ public class GetBookByIdService implements GetBookByIdUseCase {
         return new GetBookByIdService(bookPersistencePort);
     }
 
+    /**
+     * Public book lookup: a deactivated (soft-deleted) book is indistinguishable from a missing one,
+     * so it must not be readable, addable to a cart/wishlist or checked out. Admin flows that need
+     * an inactive book (update / cover upload / removal) go through BookPersistencePort directly.
+     */
     @Override
     public Book execute(UUID bookId) {
         return bookPersistencePort.findById(bookId)
+                .filter(Book::isActive)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
     }
 }

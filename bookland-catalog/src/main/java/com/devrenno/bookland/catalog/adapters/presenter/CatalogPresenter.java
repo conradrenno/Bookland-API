@@ -29,7 +29,7 @@ public class CatalogPresenter {
                 book.getSynopsis(),
                 book.getPrice().value(),
                 book.getStockQuantity(),
-                book.getStockQuantity() > 0,
+                book.isActive() && book.getStockQuantity() > 0,
                 book.getCategoryId().value(),
                 book.getCoverImageUrl(),
                 book.getAvgRating()
