@@ -114,9 +114,13 @@ com.devrenno.bookland.{domain}/
 
 **Use cases return domain entities**, not DTOs. Output shaping happens in the Presenter (→ ViewModel). Cross-module consumers depend on the source module's `port/in` and receive its **domain entities** (e.g. `bookland-auth` maps the `User` entity from `GetUserByEmailUseCase`/`RegisterUserUseCase` into its own `AuthUserDto`).
 
+**Exception — use cases whose output needs data from another module return a query read-model** from `application/dto/` instead of the entity, assembled in the application layer from the aggregate + an out-port lookup (`CartView`/`CartItemView` via `BookInfoPort`, `WishlistView` via `WishlistBookInfoPort`, `ReviewView`/`ReviewList` via `CustomerNamePort`, `LowStockBook` via `LowStockBooksPort`). The assemblers (`CartViewAssembler`, `WishlistViewAssembler`, `ReviewViewAssembler`) are package-private in `application/service/` and **degrade gracefully** when the lookup finds nothing — a cart/wishlist item whose book left the catalog renders as `"Unavailable"`/`available: false` rather than failing the whole response.
+
 **Manual wiring (composition root), no `@UseCase`/`@Service` on inner classes.** Infrastructure creates only the outbound-port adapters (`@Repository`/`@Component`) and exposes **one `@Bean`** per module entry point that calls `*Controller.create(ports)`. Inner classes are never Spring beans and never self-annotate. Never instantiate an infrastructure adapter from inside an inner layer.
 
 **Cross-module use cases must be explicit `@Bean`s.** A use case consumed by another module (e.g. orders' `VerifyPurchaseUseCase` → reviews, `AddCartItemUseCase` → wishlist, catalog's `GetBookByIdUseCase` → orders/reviews/wishlist) must be exposed as its own `@Bean` in the module's `*BeansConfig` — forgetting one fails context startup in the consumer's adapter.
+
+**Soft-deleted books are invisible outside the catalog.** `GetBookByIdUseCase` — the in-port every other module reads books through — filters out inactive books, so a removed book cannot be fetched (404), added to a cart/wishlist (404) or checked out (409 `CartItemUnavailableException`, via `BookInfoPort.findBookInfo` returning empty). Admin write flows (update / cover upload / removal) bypass it and go straight to `BookPersistencePort.findById`, which still sees inactive books. `available` on a `BookViewModel` means `active && stockQuantity > 0`.
 
 **Bean names must be unique across modules.** Adapters duplicated per module with the same simple class name (e.g. `TransactionAdapter` in wishlist and orders) collide under component scanning — give the later one an explicit name: `@Component("ordersTransactionAdapter")`.
 
@@ -132,7 +136,7 @@ com.devrenno.bookland.{domain}/
 
 The `JwtAuthenticationFilter` (in `bookland-auth`) intercepts every request, validates the Bearer token and populates `SecurityContextHolder` — with the **userId stored in `Authentication.getDetails()`**, which controllers read via `extractUserId(Principal)`. All authorization rules for every module live in `bookland-auth`'s `SecurityConfig` (rule order matters: specific admin routes are declared before broad permitAll patterns).
 
-Public endpoints: `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Admin-only (`ROLE_ADMIN`): book/inventory writes including cover upload (`POST /api/v1/books/{id}/cover`, `multipart/form-data`, part `file`), `/api/v1/admin/**`. Everything else requires authentication.
+Public endpoints: `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Admin-only (`ROLE_ADMIN`): book/inventory writes including cover upload (`POST /api/v1/books/{id}/cover`, `multipart/form-data`, part `file`), `/api/v1/admin/**` — which includes the order back-office: `GET /api/v1/admin/orders?status=&page=&size=` (all orders, newest first, `AdminOrderSummaryViewModel` rows carrying `customerId`), `GET /api/v1/admin/orders/{id}`, `GET /api/v1/admin/orders/customer/{customerId}` and `PATCH /api/v1/admin/orders/{id}/status`. Everything else requires authentication.
 
 ### Technology Notes
 
