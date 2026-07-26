@@ -1,5 +1,6 @@
 package com.devrenno.bookland.orders.adapters.presenter;
 
+import com.devrenno.bookland.orders.adapters.viewmodel.AdminOrderSummaryViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.CartItemViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.CartViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.OrderItemViewModel;
@@ -57,6 +58,13 @@ public class OrderPresenter {
     public OrderSummaryViewModel presentSummary(Order order) {
         return new OrderSummaryViewModel(
                 order.getId(), order.getStatus(), order.getTotalAmount(),
+                order.getItems().size(), order.getCreatedAt()
+        );
+    }
+
+    public AdminOrderSummaryViewModel presentAdminSummary(Order order) {
+        return new AdminOrderSummaryViewModel(
+                order.getId(), order.getCustomerId(), order.getStatus(), order.getTotalAmount(),
                 order.getItems().size(), order.getCreatedAt()
         );
     }

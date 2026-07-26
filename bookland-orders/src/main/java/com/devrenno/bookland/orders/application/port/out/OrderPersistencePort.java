@@ -13,5 +13,7 @@ public interface OrderPersistencePort {
     Order save(Order order);
     Optional<Order> findById(UUID orderId);
     PageResult<Order> findByCustomerId(UUID customerId, PageQuery pageQuery);
+    /** All orders, newest first; a null status means "no status filter". */
+    PageResult<Order> findAll(OrderStatus status, PageQuery pageQuery);
     boolean existsOrderWithBookInStatuses(UUID bookId, Set<OrderStatus> statuses);
 }

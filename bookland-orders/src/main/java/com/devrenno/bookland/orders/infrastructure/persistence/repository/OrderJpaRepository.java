@@ -11,6 +11,8 @@ import java.util.UUID;
 public interface OrderJpaRepository extends JpaRepository<OrderJpaEntity, UUID> {
     Page<OrderJpaEntity> findByCustomerId(UUID customerId, Pageable pageable);
 
+    Page<OrderJpaEntity> findByStatus(String status, Pageable pageable);
+
     boolean existsByCustomerIdAndStatusAndItems_BookId(UUID customerId, String status, UUID bookId);
 
     boolean existsByStatusInAndItems_BookId(Collection<String> statuses, UUID bookId);

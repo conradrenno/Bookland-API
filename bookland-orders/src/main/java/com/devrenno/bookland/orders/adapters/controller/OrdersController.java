@@ -1,6 +1,7 @@
 package com.devrenno.bookland.orders.adapters.controller;
 
 import com.devrenno.bookland.orders.adapters.presenter.OrderPresenter;
+import com.devrenno.bookland.orders.adapters.viewmodel.AdminOrderSummaryViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.CartViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.OrderSummaryViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.OrderViewModel;
@@ -15,6 +16,7 @@ import com.devrenno.bookland.orders.application.port.in.CheckoutUseCase;
 import com.devrenno.bookland.orders.application.port.in.GetCartUseCase;
 import com.devrenno.bookland.orders.application.port.in.GetOrderByIdUseCase;
 import com.devrenno.bookland.orders.application.port.in.GetOrderHistoryUseCase;
+import com.devrenno.bookland.orders.application.port.in.ListAllOrdersUseCase;
 import com.devrenno.bookland.orders.application.port.in.RemoveCartItemUseCase;
 import com.devrenno.bookland.orders.application.port.in.UpdateCartItemUseCase;
 import com.devrenno.bookland.orders.application.port.in.UpdateOrderStatusUseCase;
@@ -31,9 +33,11 @@ import com.devrenno.bookland.orders.application.service.CheckoutService;
 import com.devrenno.bookland.orders.application.service.GetCartService;
 import com.devrenno.bookland.orders.application.service.GetOrderByIdService;
 import com.devrenno.bookland.orders.application.service.GetOrderHistoryService;
+import com.devrenno.bookland.orders.application.service.ListAllOrdersService;
 import com.devrenno.bookland.orders.application.service.RemoveCartItemService;
 import com.devrenno.bookland.orders.application.service.UpdateCartItemService;
 import com.devrenno.bookland.orders.application.service.UpdateOrderStatusService;
+import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 import com.devrenno.bookland.payments.domain.entity.PaymentMethod;
 
 import java.util.UUID;
@@ -54,13 +58,15 @@ public class OrdersController {
     private final GetOrderHistoryUseCase getOrderHistoryUseCase;
     private final CancelOrderUseCase cancelOrderUseCase;
     private final UpdateOrderStatusUseCase updateOrderStatusUseCase;
+    private final ListAllOrdersUseCase listAllOrdersUseCase;
     private final OrderPresenter presenter;
 
     private OrdersController(GetCartUseCase getCartUseCase, AddCartItemUseCase addCartItemUseCase,
                              UpdateCartItemUseCase updateCartItemUseCase, RemoveCartItemUseCase removeCartItemUseCase,
                              CheckoutUseCase checkoutUseCase, GetOrderByIdUseCase getOrderByIdUseCase,
                              GetOrderHistoryUseCase getOrderHistoryUseCase, CancelOrderUseCase cancelOrderUseCase,
-                             UpdateOrderStatusUseCase updateOrderStatusUseCase, OrderPresenter presenter) {
+                             UpdateOrderStatusUseCase updateOrderStatusUseCase,
+                             ListAllOrdersUseCase listAllOrdersUseCase, OrderPresenter presenter) {
         this.getCartUseCase = getCartUseCase;
         this.addCartItemUseCase = addCartItemUseCase;
         this.updateCartItemUseCase = updateCartItemUseCase;
@@ -70,6 +76,7 @@ public class OrdersController {
         this.getOrderHistoryUseCase = getOrderHistoryUseCase;
         this.cancelOrderUseCase = cancelOrderUseCase;
         this.updateOrderStatusUseCase = updateOrderStatusUseCase;
+        this.listAllOrdersUseCase = listAllOrdersUseCase;
         this.presenter = presenter;
     }
 
@@ -89,6 +96,7 @@ public class OrdersController {
                 GetOrderHistoryService.create(orderPersistencePort),
                 CancelOrderService.create(orderPersistencePort, bookStockPort, refundPort, transactionPort),
                 UpdateOrderStatusService.create(orderPersistencePort),
+                ListAllOrdersService.create(orderPersistencePort),
                 OrderPresenter.create()
         );
     }
@@ -127,5 +135,9 @@ public class OrdersController {
 
     public OrderViewModel updateOrderStatus(UpdateOrderStatusCommand command) {
         return presenter.present(updateOrderStatusUseCase.execute(command));
+    }
+
+    public PageResult<AdminOrderSummaryViewModel> listAllOrders(OrderStatus status, PageQuery pageQuery) {
+        return listAllOrdersUseCase.execute(status, pageQuery).map(presenter::presentAdminSummary);
     }
 }

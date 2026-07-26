@@ -16,6 +16,7 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.Set;
@@ -115,6 +116,21 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
     public PageResult<Order> findByCustomerId(UUID customerId, PageQuery pageQuery) {
         Page<Order> page = orderRepository
                 .findByCustomerId(customerId, PageRequest.of(pageQuery.page(), pageQuery.size()))
+                .map(this::toDomain);
+        return new PageResult<>(
+                page.getContent(), page.getNumber(), page.getSize(),
+                page.getTotalElements(), page.getTotalPages()
+        );
+    }
+
+    /** Admin listing: newest first, optionally narrowed to a single status. */
+    @Override
+    public PageResult<Order> findAll(OrderStatus status, PageQuery pageQuery) {
+        PageRequest pageable = PageRequest.of(
+                pageQuery.page(), pageQuery.size(), Sort.by("createdAt").descending());
+        Page<Order> page = (status == null
+                ? orderRepository.findAll(pageable)
+                : orderRepository.findByStatus(status.name(), pageable))
                 .map(this::toDomain);
         return new PageResult<>(
                 page.getContent(), page.getNumber(), page.getSize(),
