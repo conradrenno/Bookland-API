@@ -1,0 +1,32 @@
+# Build output
+target/
+**/target/
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# IDE / tooling
+.idea/
+.vscode/
+.mvn/wrapper/maven-wrapper.jar
+*.iml
+*.iws
+*.ipr
+.settings/
+.classpath
+.project
+.claude/
+
+# Secrets and local environment — must never enter the build context
+.env
+.env.*
+!.env.example
+
+# Dev runtime data (uploaded cover images)
+bookland-data/
+
+# Docs
+*.md
+docker-compose.yml

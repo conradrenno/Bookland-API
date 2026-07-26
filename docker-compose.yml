@@ -7,6 +7,7 @@ services:
       - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/bookland
       DB_USER: ${POSTGRES_USER:-bookland}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
       JWT_SECRET: ${JWT_SECRET}

@@ -12,6 +12,7 @@ COPY bookland-orders/pom.xml bookland-orders/
 COPY bookland-reviews/pom.xml bookland-reviews/
 COPY bookland-inventory/pom.xml bookland-inventory/
 COPY bookland-wishlist/pom.xml bookland-wishlist/
+COPY bookland-payments/pom.xml bookland-payments/
 
 RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 
@@ -22,6 +23,7 @@ COPY bookland-orders/src bookland-orders/src
 COPY bookland-reviews/src bookland-reviews/src
 COPY bookland-inventory/src bookland-inventory/src
 COPY bookland-wishlist/src bookland-wishlist/src
+COPY bookland-payments/src bookland-payments/src
 COPY bookland-app/src bookland-app/src
 
 RUN ./mvnw clean package -pl bookland-app -am -DskipTests -B
