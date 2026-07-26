@@ -79,6 +79,23 @@ class CreateBookServiceTest {
     }
 
     @Test
+    void execute_shouldCheckUniquenessAndStoreTheCanonicalIsbn_whenInputIsHyphenated() {
+        UUID categoryId = UUID.randomUUID();
+        CreateBookCommand command = new CreateBookCommand(
+                "Clean Code", "978-0-13-235088-4", List.of("Robert C. Martin"),
+                "Prentice Hall", 2008, "1st", "A handbook of agile software craftsmanship.",
+                new BigDecimal("89.90"), 10, categoryId, null
+        );
+
+        when(categoryPersistencePort.findById(categoryId))
+                .thenReturn(Optional.of(Category.of(CategoryId.of(categoryId), "Tecnologia", true)));
+        when(bookPersistencePort.existsByIsbn("9780132350884")).thenReturn(false);
+        when(bookPersistencePort.save(any(Book.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(createBookService.execute(command).getIsbn().value()).isEqualTo("9780132350884");
+    }
+
+    @Test
     void execute_shouldThrow_whenIsbnAlreadyExists() {
         UUID categoryId = UUID.randomUUID();
         CreateBookCommand command = new CreateBookCommand(

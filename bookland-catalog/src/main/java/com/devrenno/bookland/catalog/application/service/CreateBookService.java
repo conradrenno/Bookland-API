@@ -36,12 +36,15 @@ public class CreateBookService implements CreateBookUseCase {
         categoryPersistencePort.findById(command.categoryId())
                 .orElseThrow(() -> new CategoryNotFoundException(command.categoryId()));
 
-        boolean isbnExists = bookPersistencePort.existsByIsbn(command.isbn());
-        domainService.validateIsbnUniqueness(command.isbn(), isbnExists);
+        // Uniqueness is checked on the canonical form, so "978-0132350884" cannot slip past a
+        // stored "9780132350884".
+        ISBN isbn = ISBN.of(command.isbn());
+        boolean isbnExists = bookPersistencePort.existsByIsbn(isbn.value());
+        domainService.validateIsbnUniqueness(isbn.value(), isbnExists);
 
         Book book = Book.create(
                 command.title(),
-                ISBN.of(command.isbn()),
+                isbn,
                 command.authors(),
                 command.publisher(),
                 command.publicationYear(),

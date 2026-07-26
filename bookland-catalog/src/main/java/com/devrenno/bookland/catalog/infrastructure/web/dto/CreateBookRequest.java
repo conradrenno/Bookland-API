@@ -12,7 +12,7 @@ public record CreateBookRequest(
         String title,
 
         @NotBlank
-        @Pattern(regexp = "\\d{13}", message = "ISBN must be 13 digits")
+        @Pattern(regexp = "\\s*(?:\\d[\\s-]*){13}", message = "ISBN must be 13 digits (hyphens optional)")
         String isbn,
 
         @NotEmpty
