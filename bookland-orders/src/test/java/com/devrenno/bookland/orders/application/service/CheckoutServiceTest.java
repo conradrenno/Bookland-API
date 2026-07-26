@@ -72,7 +72,7 @@ class CheckoutServiceTest {
         BookInfo book = new BookInfo(bookId, "Clean Code", BigDecimal.valueOf(29.90), 10);
 
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
-        when(bookInfoPort.getBookInfo(bookId)).thenReturn(book);
+        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
         when(orderPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(paymentPort.processPayment(any(), any(), any(), any()))
                 .thenReturn(new PaymentResult(true, "SIM-001", null));
@@ -91,7 +91,7 @@ class CheckoutServiceTest {
         BookInfo book = new BookInfo(bookId, "Clean Code", BigDecimal.valueOf(29.90), 10);
 
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
-        when(bookInfoPort.getBookInfo(bookId)).thenReturn(book);
+        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
         when(orderPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(paymentPort.processPayment(any(), any(), any(), any()))
                 .thenReturn(new PaymentResult(false, null, "Insufficient funds"));
@@ -110,7 +110,21 @@ class CheckoutServiceTest {
         BookInfo book = new BookInfo(bookId, "Clean Code", BigDecimal.valueOf(29.90), 2);
 
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
-        when(bookInfoPort.getBookInfo(bookId)).thenReturn(book);
+        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
+
+        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
+                .isInstanceOf(CartItemUnavailableException.class);
+
+        verify(orderPersistencePort, never()).save(any());
+        verify(bookStockPort, never()).adjustStock(any(), anyInt());
+    }
+
+    @Test
+    void execute_shouldThrowCartItemUnavailable_whenBookWasRemovedFromCatalog() {
+        Cart cart = buildCart(bookId, 1, BigDecimal.valueOf(29.90));
+
+        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
+        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
                 .isInstanceOf(CartItemUnavailableException.class);

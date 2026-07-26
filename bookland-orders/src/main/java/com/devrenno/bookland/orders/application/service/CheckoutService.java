@@ -21,6 +21,7 @@ import com.devrenno.bookland.payments.domain.entity.PaymentMethod;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public class CheckoutService implements CheckoutUseCase {
@@ -78,10 +79,14 @@ public class CheckoutService implements CheckoutUseCase {
         List<OrderItem> orderItems = new ArrayList<>();
 
         for (CartItem item : cart.getItems()) {
-            BookInfo book = bookInfoPort.getBookInfo(item.getBookId());
-            if (book.stockQuantity() < item.getQuantity()) {
+            // A book removed from the catalog since it was added counts as unavailable, not as a
+            // missing resource — the customer gets the same "remove these items" outcome as an
+            // out-of-stock one.
+            Optional<BookInfo> found = bookInfoPort.findBookInfo(item.getBookId());
+            if (found.isEmpty() || found.get().stockQuantity() < item.getQuantity()) {
                 unavailable.add(item.getBookId());
             } else {
+                BookInfo book = found.get();
                 orderItems.add(OrderItem.of(
                         book.id(), book.title(), item.getQuantity(), item.getUnitPriceAtAddition()));
             }
