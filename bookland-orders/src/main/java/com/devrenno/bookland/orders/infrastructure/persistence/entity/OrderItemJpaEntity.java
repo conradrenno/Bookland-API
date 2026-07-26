@@ -29,6 +29,9 @@ public class OrderItemJpaEntity {
     @Column(nullable = false)
     private String title;
 
+    @Column(name = "cover_image_url")
+    private String coverImageUrl;
+
     @Column(nullable = false)
     private int quantity;
 

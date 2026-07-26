@@ -2,6 +2,7 @@ package com.devrenno.bookland.orders.application.service;
 
 import com.devrenno.bookland.orders.application.dto.AddCartItemCommand;
 import com.devrenno.bookland.orders.application.dto.BookInfo;
+import com.devrenno.bookland.orders.application.dto.CartView;
 import com.devrenno.bookland.orders.application.port.in.AddCartItemUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
@@ -22,11 +23,11 @@ public class AddCartItemService implements AddCartItemUseCase {
     }
 
     @Override
-    public Cart execute(AddCartItemCommand command) {
+    public CartView execute(AddCartItemCommand command) {
         BookInfo book = bookInfoPort.getBookInfo(command.bookId());
         Cart cart = cartPersistencePort.findByCustomerId(command.customerId())
                 .orElseGet(() -> Cart.createFor(command.customerId()));
         cart.addOrUpdateItem(command.bookId(), book.price(), command.quantity(), book.stockQuantity());
-        return cartPersistencePort.save(cart);
+        return CartViewAssembler.toView(cartPersistencePort.save(cart), bookInfoPort);
     }
 }

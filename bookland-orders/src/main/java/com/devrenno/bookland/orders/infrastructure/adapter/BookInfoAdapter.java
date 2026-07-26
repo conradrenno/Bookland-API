@@ -33,6 +33,7 @@ public class BookInfoAdapter implements BookInfoPort {
 
     private static BookInfo toInfo(Book book) {
         return new BookInfo(
-                book.getId().value(), book.getTitle(), book.getPrice().value(), book.getStockQuantity());
+                book.getId().value(), book.getTitle(), book.getCoverImageUrl(),
+                book.getPrice().value(), book.getStockQuantity());
     }
 }

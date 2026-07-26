@@ -29,7 +29,8 @@ public class LowStockBooksAdapter implements LowStockBooksPort {
 
     private static LowStockBookInfo toInfo(Book book) {
         return new LowStockBookInfo(
-                book.getId().value(), book.getTitle(), book.getIsbn().value(), book.getStockQuantity()
+                book.getId().value(), book.getTitle(), book.getIsbn().value(),
+                book.getCoverImageUrl(), book.getStockQuantity()
         );
     }
 }

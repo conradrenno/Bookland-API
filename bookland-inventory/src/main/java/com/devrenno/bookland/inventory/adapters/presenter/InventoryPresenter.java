@@ -35,6 +35,7 @@ public class InventoryPresenter {
                 book.id(),
                 book.title(),
                 book.isbn(),
+                book.coverImageUrl(),
                 book.stockQuantity(),
                 book.lastMovement()
         );

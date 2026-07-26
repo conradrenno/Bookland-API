@@ -19,6 +19,7 @@ public class WishlistBookInfoAdapter implements WishlistBookInfoPort {
     public WishlistBookInfo getBookInfo(UUID bookId) {
         Book book = getBookByIdUseCase.execute(bookId);
         return new WishlistBookInfo(
-                book.getTitle(), book.getPrice().value(), book.getStockQuantity(), book.getStockQuantity() > 0);
+                book.getTitle(), book.getCoverImageUrl(), book.getPrice().value(),
+                book.getStockQuantity(), book.getStockQuantity() > 0);
     }
 }

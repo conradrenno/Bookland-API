@@ -22,12 +22,12 @@ final class WishlistViewAssembler {
                     try {
                         WishlistBookInfo book = bookInfoPort.getBookInfo(item.getBookId());
                         return new WishlistItemView(
-                                item.getBookId(), book.title(), book.price(),
+                                item.getBookId(), book.title(), book.coverImageUrl(), book.price(),
                                 book.stockQuantity(), book.available(), item.getAddedAt()
                         );
                     } catch (Exception e) {
                         return new WishlistItemView(
-                                item.getBookId(), "Unavailable", null, 0, false, item.getAddedAt()
+                                item.getBookId(), "Unavailable", null, null, 0, false, item.getAddedAt()
                         );
                     }
                 })

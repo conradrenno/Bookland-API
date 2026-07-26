@@ -1,6 +1,7 @@
 package com.devrenno.bookland.orders.application.service;
 
 import com.devrenno.bookland.orders.application.dto.BookInfo;
+import com.devrenno.bookland.orders.application.dto.CartView;
 import com.devrenno.bookland.orders.application.dto.UpdateCartItemCommand;
 import com.devrenno.bookland.orders.application.port.in.UpdateCartItemUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
@@ -23,11 +24,11 @@ public class UpdateCartItemService implements UpdateCartItemUseCase {
     }
 
     @Override
-    public Cart execute(UpdateCartItemCommand command) {
+    public CartView execute(UpdateCartItemCommand command) {
         Cart cart = cartPersistencePort.findByCustomerId(command.customerId())
                 .orElseThrow(() -> new CartNotFoundException(command.customerId()));
         BookInfo book = bookInfoPort.getBookInfo(command.bookId());
         cart.updateItemQuantity(command.bookId(), command.quantity(), book.stockQuantity());
-        return cartPersistencePort.save(cart);
+        return CartViewAssembler.toView(cartPersistencePort.save(cart), bookInfoPort);
     }
 }

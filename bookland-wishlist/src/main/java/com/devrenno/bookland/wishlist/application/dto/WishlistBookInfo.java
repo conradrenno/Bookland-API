@@ -8,6 +8,7 @@ import java.math.BigDecimal;
  */
 public record WishlistBookInfo(
         String title,
+        String coverImageUrl,
         BigDecimal price,
         int stockQuantity,
         boolean available

@@ -79,10 +79,10 @@ public class OrdersController {
                                           PaymentPort paymentPort, RefundPort refundPort,
                                           TransactionPort transactionPort) {
         return new OrdersController(
-                GetCartService.create(cartPersistencePort),
+                GetCartService.create(cartPersistencePort, bookInfoPort),
                 AddCartItemService.create(cartPersistencePort, bookInfoPort),
                 UpdateCartItemService.create(cartPersistencePort, bookInfoPort),
-                RemoveCartItemService.create(cartPersistencePort),
+                RemoveCartItemService.create(cartPersistencePort, bookInfoPort),
                 CheckoutService.create(cartPersistencePort, orderPersistencePort, bookInfoPort,
                         bookStockPort, paymentPort, transactionPort),
                 GetOrderByIdService.create(orderPersistencePort),

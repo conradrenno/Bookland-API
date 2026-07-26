@@ -21,7 +21,7 @@ public class WishlistPresenter {
                 view.customerId(),
                 view.items().stream()
                         .map(i -> new WishlistItemViewModel(
-                                i.bookId(), i.title(), i.price(),
+                                i.bookId(), i.title(), i.coverImageUrl(), i.price(),
                                 i.stockQuantity(), i.available(), i.addedAt()
                         ))
                         .toList()

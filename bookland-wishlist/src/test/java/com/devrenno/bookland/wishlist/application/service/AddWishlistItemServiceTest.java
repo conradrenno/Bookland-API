@@ -69,6 +69,7 @@ class AddWishlistItemServiceTest {
     }
 
     private WishlistBookInfo buildBookInfo() {
-        return new WishlistBookInfo("Clean Code", BigDecimal.valueOf(49.90), 10, true);
+        return new WishlistBookInfo("Clean Code", "/media/covers/clean-code.jpg",
+                BigDecimal.valueOf(49.90), 10, true);
     }
 }

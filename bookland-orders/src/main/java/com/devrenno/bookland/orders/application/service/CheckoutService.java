@@ -88,7 +88,8 @@ public class CheckoutService implements CheckoutUseCase {
             } else {
                 BookInfo book = found.get();
                 orderItems.add(OrderItem.of(
-                        book.id(), book.title(), item.getQuantity(), item.getUnitPriceAtAddition()));
+                        book.id(), book.title(), book.coverImageUrl(),
+                        item.getQuantity(), item.getUnitPriceAtAddition()));
             }
         }
 

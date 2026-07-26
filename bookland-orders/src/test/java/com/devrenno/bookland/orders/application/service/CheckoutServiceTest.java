@@ -69,7 +69,7 @@ class CheckoutServiceTest {
     @Test
     void execute_shouldCreateOrderClearCartAndDecrementStock_whenPaymentApproved() {
         Cart cart = buildCart(bookId, 2, BigDecimal.valueOf(29.90));
-        BookInfo book = new BookInfo(bookId, "Clean Code", BigDecimal.valueOf(29.90), 10);
+        BookInfo book = new BookInfo(bookId, "Clean Code", "/media/covers/clean-code.jpg", BigDecimal.valueOf(29.90), 10);
 
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
         when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
@@ -88,7 +88,7 @@ class CheckoutServiceTest {
     @Test
     void execute_shouldSaveOrderAsPaymentFailed_whenPaymentDeclined() {
         Cart cart = buildCart(bookId, 2, BigDecimal.valueOf(29.90));
-        BookInfo book = new BookInfo(bookId, "Clean Code", BigDecimal.valueOf(29.90), 10);
+        BookInfo book = new BookInfo(bookId, "Clean Code", "/media/covers/clean-code.jpg", BigDecimal.valueOf(29.90), 10);
 
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
         when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
@@ -107,7 +107,7 @@ class CheckoutServiceTest {
     @Test
     void execute_shouldThrowCartItemUnavailable_whenStockInsufficient() {
         Cart cart = buildCart(bookId, 5, BigDecimal.valueOf(29.90));
-        BookInfo book = new BookInfo(bookId, "Clean Code", BigDecimal.valueOf(29.90), 2);
+        BookInfo book = new BookInfo(bookId, "Clean Code", "/media/covers/clean-code.jpg", BigDecimal.valueOf(29.90), 2);
 
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
         when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));

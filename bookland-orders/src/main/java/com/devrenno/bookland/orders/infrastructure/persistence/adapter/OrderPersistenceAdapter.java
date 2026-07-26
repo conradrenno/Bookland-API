@@ -84,6 +84,7 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
                         .order(entity)
                         .bookId(i.getBookId())
                         .title(i.getTitle())
+                        .coverImageUrl(i.getCoverImageUrl())
                         .quantity(i.getQuantity())
                         .unitPrice(i.getUnitPrice())
                         .build())
@@ -137,7 +138,8 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
 
     private Order toDomain(OrderJpaEntity entity) {
         List<OrderItem> items = entity.getItems().stream()
-                .map(i -> OrderItem.of(i.getBookId(), i.getTitle(), i.getQuantity(), i.getUnitPrice()))
+                .map(i -> OrderItem.of(i.getBookId(), i.getTitle(), i.getCoverImageUrl(),
+                        i.getQuantity(), i.getUnitPrice()))
                 .toList();
 
         List<StatusTransition> history = entity.getStatusHistory().stream()

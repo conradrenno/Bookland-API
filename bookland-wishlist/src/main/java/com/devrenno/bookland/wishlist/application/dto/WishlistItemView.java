@@ -7,6 +7,7 @@ import java.util.UUID;
 public record WishlistItemView(
         UUID bookId,
         String title,
+        String coverImageUrl,
         BigDecimal price,
         int stockQuantity,
         boolean available,

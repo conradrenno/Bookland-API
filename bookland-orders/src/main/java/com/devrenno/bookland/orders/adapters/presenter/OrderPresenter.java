@@ -6,7 +6,7 @@ import com.devrenno.bookland.orders.adapters.viewmodel.OrderItemViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.OrderSummaryViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.OrderViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.StatusTransitionViewModel;
-import com.devrenno.bookland.orders.domain.entity.Cart;
+import com.devrenno.bookland.orders.application.dto.CartView;
 import com.devrenno.bookland.orders.domain.entity.Order;
 
 import java.math.BigDecimal;
@@ -23,23 +23,24 @@ public class OrderPresenter {
         return new OrderPresenter();
     }
 
-    public CartViewModel present(Cart cart) {
-        List<CartItemViewModel> items = cart.getItems().stream()
+    public CartViewModel present(CartView cart) {
+        List<CartItemViewModel> items = cart.items().stream()
                 .map(i -> new CartItemViewModel(
-                        i.getBookId(), i.getQuantity(), i.getUnitPriceAtAddition(),
-                        i.getUnitPriceAtAddition().multiply(BigDecimal.valueOf(i.getQuantity()))
+                        i.bookId(), i.title(), i.coverImageUrl(), i.quantity(), i.unitPrice(),
+                        i.unitPrice().multiply(BigDecimal.valueOf(i.quantity())), i.available()
                 ))
                 .toList();
         BigDecimal total = items.stream()
                 .map(CartItemViewModel::subtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new CartViewModel(cart.getId(), cart.getCustomerId(), items, total, cart.getUpdatedAt());
+        return new CartViewModel(cart.id(), cart.customerId(), items, total, cart.updatedAt());
     }
 
     public OrderViewModel present(Order order) {
         List<OrderItemViewModel> items = order.getItems().stream()
                 .map(i -> new OrderItemViewModel(
-                        i.getBookId(), i.getTitle(), i.getQuantity(), i.getUnitPrice(), i.subtotal()
+                        i.getBookId(), i.getTitle(), i.getCoverImageUrl(),
+                        i.getQuantity(), i.getUnitPrice(), i.subtotal()
                 ))
                 .toList();
         List<StatusTransitionViewModel> history = order.getStatusHistory().stream()

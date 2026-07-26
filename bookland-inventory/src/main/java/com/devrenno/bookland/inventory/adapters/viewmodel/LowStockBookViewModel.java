@@ -7,6 +7,7 @@ public record LowStockBookViewModel(
         UUID id,
         String title,
         String isbn,
+        String coverImageUrl,
         int stockQuantity,
         LocalDateTime lastMovement
 ) {}

@@ -27,7 +27,7 @@ public class GetLowStockBooksService implements GetLowStockBooksUseCase {
     public PageResult<LowStockBook> execute(int threshold, PageQuery pageQuery) {
         return lowStockBooksPort.getLowStockBooks(threshold, pageQuery)
                 .map(info -> new LowStockBook(
-                        info.id(), info.title(), info.isbn(), info.stockQuantity(),
+                        info.id(), info.title(), info.isbn(), info.coverImageUrl(), info.stockQuantity(),
                         inventoryPersistencePort.findLastAdjustmentTime(info.id()).orElse(null)
                 ));
     }
