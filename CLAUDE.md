@@ -23,9 +23,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Run a single test class
 ./mvnw test -pl bookland-user -Dtest=UserDomainServiceTest
 
-# Run with Docker (prod profile, PostgreSQL)
+# Run with Docker (prod profile, PostgreSQL + Flyway)
 docker-compose up --build
+
+# Start from an empty database (wipes the pgdata and covers volumes)
+docker compose down -v && docker compose up --build
 ```
+
+The Dockerfile enumerates every module twice (one `COPY` for the `pom.xml`, one for `src`) to keep the dependency-download layer cacheable. **That list duplicates `pom.xml` and nothing enforces it** — a new module must be added there too, or the image build fails. `.dockerignore` keeps `target/`, `.git`, `bookland-data/` and `.env` out of the build context.
 
 **Dev endpoints:**
 - API: `http://localhost:8080`
@@ -142,7 +147,10 @@ Public endpoints: `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/c
 
 - **Java 21**, Spring Boot 4.0.6
 - **MapStruct** for all struct-to-struct mapping (configured with `defaultComponentModel=spring`; Lombok binding order matters — Lombok processor must come before MapStruct in `annotationProcessorPaths`)
-- **H2** in dev (`spring.profiles.active=dev`), **PostgreSQL 16** in prod
+- **H2** in dev (`spring.profiles.active=dev`), **PostgreSQL 16** in prod. Both JDBC drivers are declared in `bookland-app` (the assembly module), not in a domain module
+- **Flyway owns the schema in prod**; `ddl-auto` stays `validate` there (Flyway creates, Hibernate verifies the mapping and refuses to boot on a drift). Migrations live in `bookland-app/src/main/resources/db/migration`, versioned by **timestamp** (`V20260726164500__init_schema.sql`) so parallel branches cannot collide. Dev still uses `create-drop` + `import.sql` with `spring.flyway.enabled: false` — so `import.sql` and the categories migration are deliberately duplicated until dev moves onto Flyway, and `DevDataLoader` must be made idempotent before that happens. **Boot 4 gotcha:** `flyway-core` alone does nothing — the auto-configuration lives in `spring-boot-flyway`, so the dependency must be `spring-boot-starter-flyway` (plus `flyway-database-postgresql`). Without it Flyway fails silently: no error, no migrations applied
+- **Datasource URL is `${DB_URL:jdbc:postgresql://localhost:5432/bookland}`.** `docker-compose.yml` injects `DB_URL` pointing at the `postgres` service name; the default covers running the app from the host against the compose Postgres (port 5432 is published)
+- **FKs exist only within a module.** Cross-module columns (`cart_items.book_id`, `orders.customer_id`, `payments.order_id`, `refresh_tokens.user_id`, …) are indexed `uuid` with no constraint, mirroring the absence of cross-module JPA relationships. Do not add them without discussing the module-split implications
 - **JJWT 0.12.6** for JWT; secret and expirations configured under `bookland.jwt.*`
 - **Admin bootstrap**: `AdminBootstrap` (bookland-app, `@Order(1)`, all profiles) guarantees exactly one admin user on startup — credentials under `bookland.admin.email/password` (prod: `ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars). `DevDataLoader` (`@Order(2)`, dev only) seeds a sample customer and books
 - **Cover image storage**: local filesystem in dev/single-node. Location under `bookland.storage.covers-location` (dev: `./bookland-data/covers`; prod: `STORAGE_COVERS_LOCATION` env, default `/var/bookland/covers` — mount a volume so uploads survive restarts). Upload limits under `spring.servlet.multipart.*` (5 MB); allowed types JPEG/PNG/WEBP validated in `UploadBookCoverService`

@@ -10,12 +10,14 @@
 - [Architecture](#architecture)
   - [Module Structure](#module-structure)
   - [Layer Layout (per domain)](#layer-layout-per-domain)
+  - [The Two Controllers](#the-two-controllers)
   - [Cross-domain Communication](#cross-domain-communication)
 - [Design Patterns](#design-patterns)
 - [Tech Stack](#tech-stack)
 - [Domain Overview](#domain-overview)
 - [API Reference](#api-reference)
 - [Security Model](#security-model)
+- [Database and Migrations](#database-and-migrations)
 - [Running the Application](#running-the-application)
   - [Without Docker (dev)](#without-docker-dev)
   - [With Docker (prod)](#with-docker-prod)
@@ -72,70 +74,107 @@ bookland/                       ← Parent POM (dependency management)
 
 ### Layer Layout (per domain)
 
-Each domain module follows a strict **Clean Architecture / Hexagonal Architecture** layering:
+Each domain module follows **four** layers. Domain, Application and Adapters are **framework-free** — no Spring, no JPA, no Jackson. Only Infrastructure touches a framework. Lombok is allowed everywhere: it is source-only and leaves no bytecode trace.
 
 ```
 com.devrenno.bookland.{domain}/
 │
-├── domain/
-│   ├── entity/          ← Pure Java domain objects — zero framework annotations
-│   ├── valueobject/     ← Immutable value types (Email, UserId, Token...)
-│   ├── service/         ← Domain rules — no I/O, no Spring
+├── domain/                  [framework-free]
+│   ├── entity/          ← Pure Java; static create/reconstitute factories,
+│   │                       private constructor, no public setters
+│   ├── valueobject/     ← Immutable value types (Email, UserId, ISBN...)
+│   ├── service/         ← Domain rules needing lookup data — no I/O, no Spring
 │   └── exception/       ← Domain-specific exceptions
 │
-├── application/
-│   ├── service/         ← @UseCase: implements use-case interfaces, orchestrates domain
-│   ├── dto/             ← Commands and application-layer responses
+├── application/             [framework-free]
+│   ├── service/         ← Plain-Java *Service implementing port/in.
+│   │                       Private constructor + static create(...) factory
+│   ├── dto/             ← Input commands and query read-models
+│   ├── common/          ← PageQuery / PageResult — framework-free pagination
 │   └── port/
-│       ├── in/          ← Use-case interfaces (e.g. CheckoutUseCase, RegisterUserUseCase)
-│       └── out/         ← Outbound port interfaces (e.g. OrderPersistencePort, PaymentPort)
+│       ├── in/          ← Use-case interfaces (CheckoutUseCase, RegisterUserUseCase)
+│       └── out/         ← Outbound ports (persistence, transactions, cross-module)
 │
-├── infrastructure/
-│   ├── config/          ← Spring @Configuration — wires domain and application beans
-│   ├── persistence/     ← JPA entities, Spring Data repositories, persistence adapters
-│   └── adapter/         ← Implements out-ports: payment, stock, cross-domain calls
+├── adapters/                [framework-free]
+│   ├── controller/      ← Internal controller — orchestrates use cases + presenter.
+│   │                       Also the module's composition root
+│   ├── presenter/       ← Domain entity → ViewModel
+│   └── viewmodel/       ← Output DTOs — no Jackson annotations
 │
-└── api/
-    ├── controller/      ← @RestController — HTTP only; delegates to port/in interfaces
-    ├── dto/             ← HTTP request/response DTOs
-    └── mapper/          ← MapStruct mappers between API DTOs and application DTOs
+└── infrastructure/          [Spring]
+    ├── web/             ← @RestController, request DTOs, MapStruct mappers,
+    │                       @RestControllerAdvice
+    ├── config/          ← Composition-root @Beans calling *Controller.create(ports)
+    ├── persistence/     ← JPA entities, Spring Data repos, persistence adapters
+    ├── adapter/         ← Cross-module adapters implementing this module's out-ports
+    ├── transaction/     ← TransactionAdapter implementing TransactionPort
+    └── security/        ← JWT filter, BCrypt adapter (user/auth only)
 ```
 
-**The dependency rule is strictly enforced:**
-- `domain` depends on nothing
-- `application` depends on `domain`
-- `infrastructure` and `api` depend on `application` and `domain`
-- Nothing depends on `infrastructure` or `api`
+**The dependency rule points inward and is enforced by tests:**
+
+```
+infrastructure → adapters → application → domain
+```
+
+Every module has an `ArchitectureRulesTest` (ArchUnit) that fails the build if an inner layer imports `org.springframework..`, `jakarta.persistence..` or `com.fasterxml.jackson..`, or if the layer direction is violated. There is **no `@UseCase` annotation** — inner classes are never Spring beans and never self-annotate.
+
+---
+
+### The Two Controllers
+
+The name "controller" is used for two different things, deliberately:
+
+| | **Internal controller** | **API controller** |
+|---|---|---|
+| Package | `adapters/controller` | `infrastructure/web` |
+| Framework | None — plain Java | `@RestController` |
+| Role | Orchestrates `port/in` use cases, calls the Presenter, returns a ViewModel | HTTP adapter: request → internal controller → `ResponseEntity<ViewModel>` |
+| Extra role | **Composition root** — its static `create(ports)` wires domain service + use cases + presenter | — |
+| Knows about | Use cases and the presenter | Only the internal controller — never a `*Service` |
+
+Infrastructure creates only the outbound-port adapters (`@Repository` / `@Component`) and exposes **one `@Bean` per module entry point** that calls `*Controller.create(ports)`. A use case consumed by another module must also be exposed as its own `@Bean` — forgetting one fails context startup in the consumer.
+
+**Use cases return domain entities**, not DTOs. Output shaping happens in the Presenter. The exception is a use case whose output needs data from another module: it returns a **query read-model** from `application/dto/`, assembled from the aggregate plus an out-port lookup.
 
 ---
 
 ### Cross-domain Communication
 
-Modules communicate exclusively through **use-case interfaces** — never by importing another module's services or repositories directly. This preserves encapsulation between bounded contexts.
+Modules communicate exclusively through **use-case interfaces** — never by importing another module's services, repositories or JPA entities. A consumer depends on the source module's `port/in` and receives its **domain entities**, mapping them into its own types.
 
 ```
 bookland-auth
-    └── UserLookupPort       → GetUserByEmailUseCase    (bookland-user)
-    └── UserRegistrationPort → RegisterUserUseCase       (bookland-user)
+    ├── UserLookupPort          → GetUserByEmailUseCase              (user)
+    └── UserRegistrationPort    → RegisterUserUseCase                (user)
 
 bookland-orders
-    └── BookInfoPort         → GetBookByIdUseCase        (bookland-catalog)
-    └── BookStockPort        → AdjustBookStockUseCase    (bookland-catalog)
-    └── PaymentPort          → ProcessPaymentUseCase     (bookland-payments)
-    └── RefundPort           → RefundPaymentUseCase      (bookland-payments)
+    ├── BookInfoPort            → GetBookByIdUseCase                 (catalog)
+    ├── BookStockPort           → AdjustBookStockUseCase             (catalog)
+    ├── PaymentPort             → ProcessPaymentUseCase              (payments)
+    └── RefundPort              → RefundPaymentUseCase               (payments)
 
 bookland-inventory
-    └── BookStockAdjustmentPort → GetBookStockUseCase + AdjustBookStockUseCase (bookland-catalog)
-    └── LowStockBooksPort    → GetLowStockBooksUseCase   (bookland-catalog)
+    ├── BookStockAdjustmentPort → GetBookStockUseCase
+    │                             + AdjustBookStockUseCase           (catalog)
+    └── LowStockBooksPort       → GetLowStockBooksUseCase            (catalog)
 
 bookland-reviews
-    └── PurchaseVerificationPort → VerifyPurchaseUseCase (bookland-orders)
-    └── RatingUpdatePort     → UpdateBookAverageRatingUseCase (bookland-catalog)
+    ├── PurchaseVerificationPort → VerifyPurchaseUseCase             (orders)
+    ├── BookExistsPort           → GetBookByIdUseCase                (catalog)
+    ├── BookRatingUpdatePort     → UpdateBookAverageRatingUseCase    (catalog)
+    └── CustomerNamePort         → GetUserByIdUseCase                (user)
 
 bookland-wishlist
-    └── CartAddPort          → AddCartItemUseCase        (bookland-orders)
-    └── BookValidationPort   → GetBookByIdUseCase        (bookland-catalog)
+    ├── CartAddPort             → AddCartItemUseCase                 (orders)
+    └── WishlistBookInfoPort    → GetBookByIdUseCase                 (catalog)
+
+bookland-catalog
+    └── ActiveOrderCheckPort    → implemented by orders — a book cannot be
+                                  removed while it sits in an active order
 ```
+
+Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` is declared by catalog and implemented in `bookland-orders`, inverting the dependency so catalog stays a leaf module.
 
 ---
 
@@ -145,15 +184,24 @@ bookland-wishlist
 |---|---|
 | **Hexagonal Architecture (Ports & Adapters)** | Every domain — all I/O behind `port/in` and `port/out` interfaces |
 | **Use Case per Class** | One `*Service` per use case (e.g. `CheckoutService`, `CancelOrderService`) |
-| **Value Object** | `Email`, `UserId`, `Token` — immutable, self-validating types |
+| **Composition Root** | `*Controller.create(ports)` wires each module's graph by hand; no `@UseCase`, no self-annotating beans |
+| **Presenter / ViewModel** | Use cases return domain entities; presenters shape them into Jackson-free ViewModels |
+| **Value Object** | `Email`, `UserId`, `ISBN` — immutable, self-validating types |
 | **Aggregate** | `Order` owns `OrderItem` and `StatusTransition`; `Cart` owns `CartItem` |
 | **Repository Pattern** | All persistence behind `*PersistencePort` interfaces |
 | **Adapter Pattern** | Cross-domain and infrastructure adapters implement out-ports |
+| **Dependency Inversion across modules** | `ActiveOrderCheckPort` is declared by catalog and implemented by orders, keeping catalog a leaf |
+| **Read Model (query-side DTO)** | `CartView`, `WishlistView`, `ReviewView`, `LowStockBook` — assembled in the application layer from the aggregate plus a cross-module lookup |
+| **Graceful Degradation** | A cart or wishlist item whose book left the catalog renders as `"Unavailable"` / `available: false` instead of failing the whole response |
+| **Framework-free Transactions** | `TransactionPort.inTransaction(Supplier<T>)`, implemented with `TransactionTemplate`; no `@Transactional` on application services |
+| **Framework-free Pagination** | `PageQuery` / `PageResult<T>` per module; adapters translate to and from Spring's `PageRequest` / `Page` |
 | **Domain Event (implicit)** | Status transitions recorded as `StatusTransition` history in `Order` |
 | **Idempotent Bootstrap** | `AdminBootstrap` guarantees exactly one admin on every startup |
-| **Optimistic Price Snapshot** | Cart freezes unit price at add time; Order freezes it again at checkout |
+| **Soft Delete** | Books are deactivated, never deleted — invisible outside the catalog, still reachable by admin write flows |
+| **Optimistic Price Snapshot** | Cart freezes unit price at add time; Order freezes price, title and cover at checkout |
 | **Append-only Ledger** | `InventoryEntry` — insert-only, no updates, full audit trail |
 | **Token Rotation** | Refresh tokens are single-use; each refresh issues a new pair |
+| **Executable Architecture** | ArchUnit rules per module fail the build on a framework import in an inner layer |
 
 ---
 
@@ -167,12 +215,14 @@ bookland-wishlist
 | Persistence | Spring Data JPA + Hibernate |
 | Database (dev) | H2 (in-memory) |
 | Database (prod) | PostgreSQL 16 |
+| Schema migrations | Flyway 11 (`spring-boot-starter-flyway`) — owns the schema in prod |
+| File storage | Local filesystem behind `ImageStoragePort` (swappable for S3/GCS) |
 | Authentication | JWT (JJWT 0.12.6) — HS256 |
 | Object Mapping | MapStruct |
 | Boilerplate reduction | Lombok |
 | API Documentation | SpringDoc OpenAPI 3 (Swagger UI) |
 | Testing | JUnit 5 + Mockito + AssertJ |
-| Test slices | `@WebMvcTest`, `@ExtendWith(MockitoExtension)` |
+| Architecture testing | ArchUnit — one `ArchitectureRulesTest` per module |
 | Containerization | Docker + Docker Compose |
 | Code style | Conventional Commits |
 
@@ -187,7 +237,11 @@ Manages customer identity and profile. Stores hashed passwords, name, email, rol
 Handles the full JWT lifecycle: registration, login, access-token refresh, and logout. Issues short-lived **access tokens** (24h) and long-lived **refresh tokens** (7 days) with single-use rotation. The `JwtAuthenticationFilter` populates Spring Security's context on every request.
 
 ### Catalog
-The source of truth for book data and stock quantity. Supports full-text search, filtering by category, price range, and average rating. Exposes stock adjustment and low-stock query use cases consumed by Inventory and Orders.
+The source of truth for book data and stock quantity. Supports full-text search, filtering by category, price range, and average rating. Exposes stock adjustment and low-stock query use cases consumed by Inventory and Orders. ISBNs are normalised to their canonical 13-digit form on the way in.
+
+Cover images are uploaded as `multipart/form-data` and stored through `ImageStoragePort`; the adapter writes the bytes to disk and returns a public `/media/covers/...` path. `MultipartFile` never crosses the web layer — the API controller extracts `byte[]` + filename + content type into a framework-free command.
+
+**Book removal is a soft delete.** `GetBookByIdUseCase` — the in-port every other module reads books through — filters out inactive books, so a removed book cannot be fetched (404), added to a cart or wishlist (404), or checked out (409). Admin write flows bypass it and still see inactive books. On a `BookViewModel`, `available` means `active && stockQuantity > 0`.
 
 ### Inventory
 An admin-facing audit ledger for manual stock adjustments. Records every delta with `previousQuantity`, `newQuantity`, `reason`, and `adjustedBy`. Does not store stock itself — that lives in Catalog. The low-stock endpoint enriches Catalog data with the timestamp of the last recorded manual movement.
@@ -236,12 +290,13 @@ All endpoints are documented interactively at **`/swagger-ui.html`** when the ap
 | Method | Path | Access | Description |
 |---|---|---|---|
 | `GET` | `/books` | Public | Search/filter books (q, category, price, sort, page) |
-| `GET` | `/books/{id}` | Public | Get book details |
+| `GET` | `/books/{bookId}` | Public | Get book details |
 | `GET` | `/categories` | Public | List all categories |
-| `GET` | `/categories/{id}/books` | Public | List books by category |
+| `GET` | `/categories/{categoryId}/books` | Public | List books by category |
 | `POST` | `/books` | Admin | Create book |
-| `PATCH` | `/books/{id}` | Admin | Update book |
-| `DELETE` | `/books/{id}` | Admin | Remove book |
+| `PATCH` | `/books/{bookId}` | Admin | Update book |
+| `POST` | `/books/{bookId}/cover` | Admin | Upload cover image (`multipart/form-data`, part `file`) |
+| `DELETE` | `/books/{bookId}` | Admin | Remove book (soft delete) |
 
 ### Inventory — `/api/v1/books/{bookId}/inventory`, `/api/v1/inventory`
 
@@ -266,17 +321,19 @@ All endpoints are documented interactively at **`/swagger-ui.html`** when the ap
 | Method | Path | Access | Description |
 |---|---|---|---|
 | `GET` | `/orders` | Authenticated | Order history (paginated) |
-| `GET` | `/orders/{id}` | Authenticated | Get order details |
-| `DELETE` | `/orders/{id}` | Authenticated | Cancel order |
-| `GET` | `/admin/orders` | Admin | All orders (paginated) |
-| `PATCH` | `/admin/orders/{id}/status` | Admin | Update order status |
+| `GET` | `/orders/{orderId}` | Authenticated | Get order details |
+| `DELETE` | `/orders/{orderId}` | Authenticated | Cancel order |
+| `GET` | `/admin/orders?status=&page=&size=` | Admin | All orders, newest first |
+| `GET` | `/admin/orders/{orderId}` | Admin | Get any order's details |
+| `GET` | `/admin/orders/customer/{customerId}` | Admin | Orders of a given customer |
+| `PATCH` | `/admin/orders/{orderId}/status` | Admin | Update order status |
 
 ### Payments — `/api/v1/payments`, `/api/v1/admin/payments`
 
 | Method | Path | Access | Description |
 |---|---|---|---|
 | `GET` | `/payments/order/{orderId}` | Authenticated | Get payment record |
-| `POST` | `/admin/payments/{orderId}/refund` | Admin | Issue manual refund |
+| `POST` | `/admin/payments/order/{orderId}/refund` | Admin | Issue manual refund |
 
 ### Reviews — `/api/v1/books/{bookId}/reviews`
 
@@ -305,6 +362,36 @@ All endpoints are documented interactively at **`/swagger-ui.html`** when the ap
 - **Role-based access** — `CUSTOMER` for standard routes, `ADMIN` for management endpoints; enforced by Spring Security `hasRole()` rules in `SecurityConfig`
 - **Admin bootstrap** — `AdminBootstrap` runs on every startup and idempotently ensures the configured admin account exists, driven by environment variables in production
 - **Password hashing** — BCrypt via `PasswordEncoderPort` — infrastructure detail hidden behind an out-port
+
+All authorization rules for every module live in a single `SecurityConfig`, inside `bookland-auth`. Rule order matters: specific admin routes are declared before broad `permitAll` patterns.
+
+The filter stores the **userId in `Authentication.getDetails()`**; controllers read it via `extractUserId(Principal)` rather than trusting a path variable.
+
+**Public routes:** `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Everything else requires authentication; `/api/v1/admin/**` and all catalog/inventory writes require `ROLE_ADMIN`.
+
+---
+
+## Database and Migrations
+
+**Flyway owns the schema in production.** Migrations live in `bookland-app/src/main/resources/db/migration` and run at startup, before Hibernate.
+
+```
+V20260726164500__init_schema.sql          ← 15 tables, FKs, indexes
+V20260726164600__reference_categories.sql ← category reference data
+```
+
+Versions are **timestamps**, not sequential numbers, so parallel branches cannot collide on the same version.
+
+`ddl-auto` stays on `validate` in prod — deliberately. Flyway creates the schema; Hibernate then verifies it matches the entity mapping and refuses to start if it does not. A migration forgotten after an entity change fails the boot instead of surfacing as a runtime error.
+
+| | dev | prod |
+|---|---|---|
+| Database | H2 (in-memory) | PostgreSQL 16 |
+| Schema owner | Hibernate (`create-drop`) | **Flyway** |
+| `ddl-auto` | `create-drop` | `validate` |
+| Seed data | `import.sql` + `DevDataLoader` | migration + `AdminBootstrap` |
+
+> Foreign keys exist only **within** a module. Columns that reference another module (`cart_items.book_id`, `orders.customer_id`, `payments.order_id`, `refresh_tokens.user_id`, …) are indexed `uuid` values with no referential constraint — mirroring the absence of JPA relationships across module boundaries. Integrity is enforced in the application layer.
 
 ---
 
@@ -356,9 +443,11 @@ cp .env.example .env   # edit with your values
 docker-compose up --build
 ```
 
-The application starts on `http://localhost:8080` connected to a persistent PostgreSQL 16 instance.
+The application starts on `http://localhost:8080` connected to a persistent PostgreSQL 16 instance. On a fresh volume, Flyway creates the whole schema on first boot — no manual setup.
 
-To stop and remove volumes:
+Two volumes persist across restarts: `bookland-pgdata` (database) and `bookland-covers` (uploaded cover images).
+
+To stop and wipe both volumes:
 
 ```bash
 docker-compose down -v
@@ -379,6 +468,8 @@ Copy `.env.example` to `.env` and fill in the values before running with Docker.
 | `JWT_REFRESH_EXPIRATION_MS` | Optional | Refresh token TTL in ms (default: 604800000 — 7d) |
 | `ADMIN_EMAIL` | Prod | Bootstrap admin email |
 | `ADMIN_PASSWORD` | Prod | Bootstrap admin password |
+| `DB_URL` | Injected | JDBC URL. `docker-compose.yml` sets it to `jdbc:postgresql://postgres:5432/bookland` — the service name on the compose network. Not set in `.env`; the `application.yml` default (`localhost:5432`) covers running the app from the host |
+| `STORAGE_COVERS_LOCATION` | Optional | Where cover images are written (default `/var/bookland/covers`). Mount a volume so uploads survive restarts |
 
 Generate a secure JWT secret:
 ```bash
@@ -400,26 +491,32 @@ openssl rand -base64 64
 ./mvnw test -pl bookland-auth -Dtest=LoginServiceTest
 ```
 
-The test suite covers all domain modules with a combination of:
-- **Unit tests** — application services tested in isolation with Mockito (`@ExtendWith(MockitoExtension.class)`)
-- **Web layer tests** — controllers tested with `@WebMvcTest` slices
-- **Integration test** — full Spring context startup validated on every CI-equivalent build
+The suite is **plain JUnit 5 + Mockito + AssertJ** against mocked ports — there are no `@WebMvcTest` slices and no database in the tests. `TransactionPort` is faked with a pass-through implementation rather than mocked.
+
+Three kinds of test:
+- **Unit tests** — domain services, application services and internal controllers, in isolation
+- **Architecture tests** — one `ArchitectureRulesTest` per module (ArchUnit): fails the build if `domain`, `application` or `adapters` import Spring, JPA or Jackson, or if the inward dependency direction is broken
+- **Context test** — `BooklandApplicationTests` boots the full Spring context, validating every composition root and cross-module `@Bean`
 
 | Module | Test classes |
 |---|---|
-| user | `UserDomainServiceTest`, `RegisterUserServiceTest`, `UserControllerTest` |
-| auth | `LoginServiceTest`, `RegisterServiceTest`, `RefreshAccessTokenServiceTest`, `LogoutServiceTest` |
-| catalog | `CreateBookServiceTest`, `RemoveBookServiceTest`, `BookControllerTest` |
-| orders | `CheckoutServiceTest`, `CancelOrderServiceTest` |
-| reviews | `CreateReviewServiceTest` |
-| inventory | `AdjustInventoryServiceTest` |
-| wishlist | `AddWishlistItemServiceTest` |
+| user | `UserDomainServiceTest`, `RegisterUserServiceTest`, `UserControllerTest`, `ArchitectureRulesTest` |
+| auth | `LoginServiceTest`, `RegisterServiceTest`, `RefreshAccessTokenServiceTest`, `LogoutServiceTest`, `AuthControllerTest`, `ArchitectureRulesTest` |
+| catalog | `CreateBookServiceTest`, `GetBookByIdServiceTest`, `RemoveBookServiceTest`, `CatalogControllerTest`, `ISBNTest`, `ArchitectureRulesTest` |
+| orders | `CheckoutServiceTest`, `CancelOrderServiceTest`, `CheckActiveOrdersServiceTest`, `GetCartServiceTest`, `ArchitectureRulesTest` |
+| payments | `ProcessPaymentServiceTest`, `ArchitectureRulesTest` |
+| reviews | `CreateReviewServiceTest`, `ArchitectureRulesTest` |
+| inventory | `AdjustInventoryServiceTest`, `ArchitectureRulesTest` |
+| wishlist | `AddWishlistItemServiceTest`, `ArchitectureRulesTest` |
+| app | `BooklandApplicationTests` |
 
 ---
 
 ## Future Improvements
 
 The current implementation intentionally keeps auth simple (direct JWT) to focus on domain architecture. The roadmap includes:
+
+- **Flyway in dev** — dev still lets Hibernate own the schema (`create-drop`), so migrations are only exercised in prod. Moving dev onto Flyway requires making `DevDataLoader` idempotent, since the database would stop being recreated on every boot
 
 - **OAuth2 Authorization Code + PKCE** — replace the current JWT flow with a proper OAuth2 Authorization Server (Spring Authorization Server), moving toward a BFF (Backend for Frontend) pattern where the browser never touches tokens directly
 - **Event-driven cross-domain communication** — replace in-process port calls with domain events via a message broker (e.g. Kafka or RabbitMQ), enabling true decoupling and eventual consistency between modules
