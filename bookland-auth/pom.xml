@@ -15,6 +15,10 @@
     <dependencies>
         <dependency>
             <groupId>com.devrenno</groupId>
+            <artifactId>bookland-web-support</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.devrenno</groupId>
             <artifactId>bookland-user</artifactId>
         </dependency>
         <dependency>

@@ -19,6 +19,7 @@
 
     <modules>
         <module>bookland-app</module>
+        <module>bookland-web-support</module>
         <module>bookland-user</module>
         <module>bookland-auth</module>
         <module>bookland-catalog</module>
@@ -41,6 +42,11 @@
     <dependencyManagement>
         <dependencies>
             <!-- Internal modules -->
+            <dependency>
+                <groupId>com.devrenno</groupId>
+                <artifactId>bookland-web-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.devrenno</groupId>
                 <artifactId>bookland-user</artifactId>

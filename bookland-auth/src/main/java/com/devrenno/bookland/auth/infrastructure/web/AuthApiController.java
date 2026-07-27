@@ -8,6 +8,7 @@ import com.devrenno.bookland.auth.infrastructure.web.dto.LoginRequest;
 import com.devrenno.bookland.auth.infrastructure.web.dto.LogoutRequest;
 import com.devrenno.bookland.auth.infrastructure.web.dto.RefreshTokenRequest;
 import com.devrenno.bookland.auth.infrastructure.web.dto.RegisterRequest;
+import com.devrenno.bookland.websupport.ProblemDetails;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -50,11 +51,15 @@ public class AuthApiController {
 
     @ExceptionHandler(InvalidCredentialsException.class)
     public ProblemDetail handleInvalidCredentials(InvalidCredentialsException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+        return ProblemDetails.of(HttpStatus.UNAUTHORIZED, ex.getMessage(), "INVALID_CREDENTIALS");
     }
 
+    /**
+     * The refresh token itself is gone, revoked or expired — distinct from an expired access token
+     * (TOKEN_EXPIRED), and the signal for a client to end the session instead of retrying.
+     */
     @ExceptionHandler(InvalidRefreshTokenException.class)
     public ProblemDetail handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+        return ProblemDetails.of(HttpStatus.UNAUTHORIZED, ex.getMessage(), "INVALID_REFRESH_TOKEN");
     }
 }

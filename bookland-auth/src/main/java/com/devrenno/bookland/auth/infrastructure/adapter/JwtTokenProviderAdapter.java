@@ -1,6 +1,7 @@
 package com.devrenno.bookland.auth.infrastructure.adapter;
 
 import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
+import com.devrenno.bookland.auth.domain.exception.InvalidTokenException;
 import com.devrenno.bookland.auth.domain.exception.TokenExpiredException;
 import com.devrenno.bookland.auth.domain.valueobject.Token;
 import com.devrenno.bookland.auth.infrastructure.config.JwtProperties;
@@ -55,8 +56,8 @@ public class JwtTokenProviderAdapter implements TokenProviderPort {
             return new Token(tokenValue, expiresAt, userId, email, role);
         } catch (ExpiredJwtException e) {
             throw new TokenExpiredException();
-        } catch (JwtException e) {
-            throw new IllegalArgumentException("Invalid JWT token", e);
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new InvalidTokenException(e);
         }
     }
 

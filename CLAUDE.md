@@ -71,8 +71,11 @@ All commits must follow **[Conventional Commits](https://www.conventionalcommits
 ```
 bookland/               ← Parent POM (dependency management)
 ├── bookland-app/       ← Spring Boot bootstrap only; imports all domain modules
+├── bookland-web-support/ ← Platform library: HTTP error-contract glue (see below)
 └── bookland-{domain}/  ← One module per domain (user, auth, catalog, orders, reviews, inventory, wishlist, payments)
 ```
+
+`bookland-web-support` is **not** a shared kernel — the "duplicate it per module" rule (PageQuery, PageResult) still holds for anything with domain meaning. It holds framework glue only: `ProblemDetails`, `ProblemDetailWriter`, `AuthErrorCode`, `RestAuthenticationEntryPoint`, `RestAccessDeniedHandler`. It must never contain a domain type or depend on another `bookland-*` module, and only `*.infrastructure` packages may import it. It exists so the HTTP error contract survives a future split into separate services.
 
 `bookland-app` has no business logic — it exists solely to assemble all domain modules and host `application.yml`. The `spring-boot-maven-plugin` runs only here.
 
@@ -140,6 +143,8 @@ com.devrenno.bookland.{domain}/
 `bookland-auth` owns authentication: `POST /api/v1/auth/login` → `AuthApiController` → internal `AuthController` → `LoginUseCase` (`LoginService`) → validates credentials via `UserLookupPort` (→ user module) + `PasswordEncoderPort` → issues an access JWT via `TokenProviderPort` **plus a persisted, opaque refresh token** (table `refresh_tokens`). `POST /auth/refresh` rotates the pair (single-use: the used refresh token is revoked); `POST /auth/logout` revokes it; `POST /auth/register` creates the user via the user module's `RegisterUserUseCase` (role always CUSTOMER) and authenticates immediately. There is no user-creation endpoint in the user module itself.
 
 The `JwtAuthenticationFilter` (in `bookland-auth`) intercepts every request, validates the Bearer token and populates `SecurityContextHolder` — with the **userId stored in `Authentication.getDetails()`**, which controllers read via `extractUserId(Principal)`. All authorization rules for every module live in `bookland-auth`'s `SecurityConfig` (rule order matters: specific admin routes are declared before broad permitAll patterns).
+
+**401 and 403 are distinct and must stay that way** — see `docs/error-contract.md`, which is the contract clients code against. A missing/expired/invalid token is **401** (`TOKEN_MISSING` / `TOKEN_EXPIRED` / `TOKEN_INVALID`); an authenticated caller without the role is **403** (`INSUFFICIENT_ROLE`). Both are `application/problem+json` with a machine-readable `code`. This only works because `SecurityConfig` wires `.exceptionHandling(...)`: without it Spring Security falls back to `Http403ForbiddenEntryPoint` and answers *everything* with an empty 403, which is indistinguishable to a client. The filter never writes a response — it records the rejection reason under `AuthErrorCode.REQUEST_ATTRIBUTE` and lets `RestAuthenticationEntryPoint` render it. A rejected token on a **public** endpoint does not fail the request. `AuthErrorContractIntegrationTest` (bookland-app) locks all of this against the real filter chain.
 
 Public endpoints: `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Admin-only (`ROLE_ADMIN`): book/inventory writes including cover upload (`POST /api/v1/books/{id}/cover`, `multipart/form-data`, part `file`), `/api/v1/admin/**` — which includes the order back-office: `GET /api/v1/admin/orders?status=&page=&size=` (all orders, newest first, `AdminOrderSummaryViewModel` rows carrying `customerId`), `GET /api/v1/admin/orders/{id}`, `GET /api/v1/admin/orders/customer/{customerId}` and `PATCH /api/v1/admin/orders/{id}/status`. Everything else requires authentication.
 

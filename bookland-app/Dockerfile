@@ -5,6 +5,7 @@ COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
 COPY bookland-app/pom.xml bookland-app/
+COPY bookland-web-support/pom.xml bookland-web-support/
 COPY bookland-user/pom.xml bookland-user/
 COPY bookland-auth/pom.xml bookland-auth/
 COPY bookland-catalog/pom.xml bookland-catalog/
@@ -16,6 +17,7 @@ COPY bookland-payments/pom.xml bookland-payments/
 
 RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 
+COPY bookland-web-support/src bookland-web-support/src
 COPY bookland-user/src bookland-user/src
 COPY bookland-auth/src bookland-auth/src
 COPY bookland-catalog/src bookland-catalog/src
