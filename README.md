@@ -74,7 +74,18 @@ bookland/                       ← Parent POM (dependency management)
 
 ### Layer Layout (per domain)
 
-Each domain module follows **four** layers. Domain, Application and Adapters are **framework-free** — no Spring, no JPA, no Jackson. Only Infrastructure touches a framework. Lombok is allowed everywhere: it is source-only and leaves no bytecode trace.
+Each domain module follows **four** layers, mapping onto Clean Architecture's concentric circles:
+
+| Layer | Clean Architecture ring |
+|---|---|
+| `domain/` | Entities — enterprise business rules |
+| `application/` | Use Cases — application business rules |
+| `adapters/` | Interface Adapters — controllers, presenters |
+| `infrastructure/` | Frameworks & Drivers |
+
+Ports & Adapters is the **boundary mechanism** used throughout, not a competing style: `port/in` and `port/out` are how each ring is crossed.
+
+Domain, Application and Adapters are **framework-free** — no Spring, no JPA, no Jackson. Only Infrastructure touches a framework. Lombok is allowed everywhere: it is source-only and leaves no bytecode trace.
 
 ```
 com.devrenno.bookland.{domain}/
@@ -137,6 +148,8 @@ Infrastructure creates only the outbound-port adapters (`@Repository` / `@Compon
 
 **Use cases return domain entities**, not DTOs. Output shaping happens in the Presenter. The exception is a use case whose output needs data from another module: it returns a **query read-model** from `application/dto/`, assembled from the aggregate plus an out-port lookup.
 
+> One deliberate deviation from canonical Clean Architecture: the use case *returns* its result and the internal controller then calls the Presenter, rather than the use case pushing through an output boundary into an injected presenter. In a synchronous HTTP context the output-port indirection buys nothing but ceremony, so it was dropped.
+
 ---
 
 ### Cross-domain Communication
@@ -182,7 +195,9 @@ Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` i
 
 | Pattern | Where Applied |
 |---|---|
-| **Hexagonal Architecture (Ports & Adapters)** | Every domain — all I/O behind `port/in` and `port/out` interfaces |
+| **Ports & Adapters** | The boundary mechanism throughout — all I/O behind `port/in` and `port/out` interfaces |
+| **The Dependency Rule** | `infrastructure → adapters → application → domain`, asserted by an ArchUnit `layeredArchitecture` rule per module |
+| **Rich Domain Model** | Entities own their invariants: private constructors, `create`/`reconstitute` factories, no public setters |
 | **Use Case per Class** | One `*Service` per use case (e.g. `CheckoutService`, `CancelOrderService`) |
 | **Composition Root** | `*Controller.create(ports)` wires each module's graph by hand; no `@UseCase`, no self-annotating beans |
 | **Presenter / ViewModel** | Use cases return domain entities; presenters shape them into Jackson-free ViewModels |
