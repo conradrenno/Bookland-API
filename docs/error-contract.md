@@ -98,6 +98,27 @@ Rules a client can rely on:
 Business rule violations (404, 409, 422) are **not** validation errors: they carry `detail` and no
 `errors` map, and are raised by each module's own `@RestControllerAdvice`.
 
+## In the OpenAPI document
+
+`GET /api-docs` describes the contract, so a client can generate its error type instead of
+hand-writing it:
+
+- `components.schemas.ProblemDetail` — the members above, including `code`.
+- `components.schemas.ValidationProblemDetail` — `allOf` ProblemDetail plus the `errors` map.
+- Every operation carries a **`default`** response pointing at `ProblemDetail`, and every operation
+  that takes a body or parameters also carries an explicit **`400`** pointing at
+  `ValidationProblemDetail`.
+- `components.securitySchemes.bearerAuth` — HTTP bearer, JWT.
+
+Which of 401/403/404/409/422 a given endpoint can produce is **not** enumerated per operation. That
+depends on `SecurityConfig` rules and on domain exceptions that nothing on the handler declares, so
+a hand-maintained list would go stale without anyone noticing; `default` is accurate and gives a
+generator the one error type it needs.
+
+⚠️ The document still reports `200` for every operation, including the ones answering `201` or
+`204` — springdoc cannot see through `ResponseEntity.status(...)`. That is about success codes, not
+this contract, and is not fixed here.
+
 ## Implementation
 
 - `AuthErrorCode` (bookland-web-support) holds the enum, the detail text and the request-attribute
@@ -114,6 +135,9 @@ Business rule violations (404, 409, 422) are **not** validation errors: they car
   drifts apart module by module. `ValidationErrorContractIntegrationTest` locks it.
 - `ValidationConfig` (bookland-web-support) replaces Boot's auto-configured validator with the same
   one plus a fixed English locale.
+- `ErrorResponsesCustomizer` (bookland-web-support) puts the schemas and responses into the OpenAPI
+  document; `OpenApiConfig` (bookland-app) registers it along with the API info and bearer scheme.
+  `OpenApiErrorContractIntegrationTest` locks the published document.
 
 Should the modules ever be split into separate services, this contract — not the code — is what has
 to be preserved. A gateway or an OAuth2 resource server terminating the token in front of the

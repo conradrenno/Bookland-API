@@ -30,6 +30,14 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-web</artifactId>
         </dependency>
+
+        <!-- Optional: only the module that publishes an OpenAPI document needs this on its
+             classpath, and it instantiates ErrorResponsesCustomizer itself. -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-common</artifactId>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
 
 </project>
