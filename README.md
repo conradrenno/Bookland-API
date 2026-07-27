@@ -215,7 +215,7 @@ Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` i
 | Persistence | Spring Data JPA + Hibernate |
 | Database (dev) | H2 (in-memory) |
 | Database (prod) | PostgreSQL 16 |
-| Schema migrations | Flyway 11 (`spring-boot-starter-flyway`) — owns the schema in prod |
+| Schema migrations | Flyway 11 (`spring-boot-starter-flyway`) — owns the schema in dev and prod |
 | File storage | Local filesystem behind `ImageStoragePort` (swappable for S3/GCS) |
 | Authentication | JWT (JJWT 0.12.6) — HS256 |
 | Object Mapping | MapStruct |
@@ -384,12 +384,16 @@ Versions are **timestamps**, not sequential numbers, so parallel branches cannot
 
 `ddl-auto` stays on `validate` in prod — deliberately. Flyway creates the schema; Hibernate then verifies it matches the entity mapping and refuses to start if it does not. A migration forgotten after an entity change fails the boot instead of surfacing as a runtime error.
 
+**Dev runs the same migrations.** H2 is opened in PostgreSQL compatibility mode (`MODE=PostgreSQL`) so it accepts the same SQL, which means every migration is exercised on every dev boot rather than being tried for the first time in production.
+
 | | dev | prod |
 |---|---|---|
-| Database | H2 (in-memory) | PostgreSQL 16 |
-| Schema owner | Hibernate (`create-drop`) | **Flyway** |
-| `ddl-auto` | `create-drop` | `validate` |
-| Seed data | `import.sql` + `DevDataLoader` | migration + `AdminBootstrap` |
+| Database | H2 (in-memory, PostgreSQL mode) | PostgreSQL 16 |
+| Schema owner | **Flyway** | **Flyway** |
+| `ddl-auto` | `validate` | `validate` |
+| Seed data | migration + `AdminBootstrap` + `DevDataLoader` | migration + `AdminBootstrap` |
+
+Both bootstrap runners are **idempotent** — they check before inserting. This matters because the in-memory database survives a `spring-boot-devtools` restart (`DB_CLOSE_DELAY=-1` keeps it alive for the life of the JVM) and Flyway, unlike `create-drop`, does not wipe it.
 
 > Foreign keys exist only **within** a module. Columns that reference another module (`cart_items.book_id`, `orders.customer_id`, `payments.order_id`, `refresh_tokens.user_id`, …) are indexed `uuid` values with no referential constraint — mirroring the absence of JPA relationships across module boundaries. Integrity is enforced in the application layer.
 
@@ -515,8 +519,6 @@ Three kinds of test:
 ## Future Improvements
 
 The current implementation intentionally keeps auth simple (direct JWT) to focus on domain architecture. The roadmap includes:
-
-- **Flyway in dev** — dev still lets Hibernate own the schema (`create-drop`), so migrations are only exercised in prod. Moving dev onto Flyway requires making `DevDataLoader` idempotent, since the database would stop being recreated on every boot
 
 - **OAuth2 Authorization Code + PKCE** — replace the current JWT flow with a proper OAuth2 Authorization Server (Spring Authorization Server), moving toward a BFF (Backend for Frontend) pattern where the browser never touches tokens directly
 - **Event-driven cross-domain communication** — replace in-process port calls with domain events via a message broker (e.g. Kafka or RabbitMQ), enabling true decoupling and eventual consistency between modules

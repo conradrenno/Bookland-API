@@ -2,9 +2,13 @@ package com.devrenno.bookland;
 
 import com.devrenno.bookland.catalog.application.dto.CreateBookCommand;
 import com.devrenno.bookland.catalog.application.port.in.CreateBookUseCase;
+import com.devrenno.bookland.catalog.domain.exception.IsbnAlreadyExistsException;
 import com.devrenno.bookland.user.application.dto.CreateUserCommand;
+import com.devrenno.bookland.user.application.port.in.GetUserByEmailUseCase;
 import com.devrenno.bookland.user.application.port.in.RegisterUserUseCase;
 import com.devrenno.bookland.user.domain.entity.UserRole;
+import com.devrenno.bookland.user.domain.exception.UserNotFoundException;
+import com.devrenno.bookland.user.domain.valueobject.Email;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -29,11 +33,18 @@ public class DevDataLoader implements ApplicationRunner {
     private static final UUID CAT_FICCAO     = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
     private static final UUID CAT_NEGOCIOS   = UUID.fromString("e5f6a7b8-c9d0-1234-efab-345678901234");
 
+    private static final String CUSTOMER_EMAIL = "joao@bookland.com";
+    private static final int TOTAL_BOOKS = 5;
+
     private final RegisterUserUseCase registerUserUseCase;
+    private final GetUserByEmailUseCase getUserByEmailUseCase;
     private final CreateBookUseCase createBookUseCase;
 
-    public DevDataLoader(RegisterUserUseCase registerUserUseCase, CreateBookUseCase createBookUseCase) {
+    public DevDataLoader(RegisterUserUseCase registerUserUseCase,
+                         GetUserByEmailUseCase getUserByEmailUseCase,
+                         CreateBookUseCase createBookUseCase) {
         this.registerUserUseCase = registerUserUseCase;
+        this.getUserByEmailUseCase = getUserByEmailUseCase;
         this.createBookUseCase = createBookUseCase;
     }
 
@@ -44,13 +55,20 @@ public class DevDataLoader implements ApplicationRunner {
     }
 
     private void seedUsers() {
-        registerUserUseCase.execute(new CreateUserCommand(
-                "João Silva", "joao@bookland.com", "joao1234", UserRole.CUSTOMER));
-        log.info("[DEV] Users seeded — joao@bookland.com (joao1234)");
+        try {
+            getUserByEmailUseCase.execute(Email.of(CUSTOMER_EMAIL));
+            log.info("[DEV] Customer already exists — skipping ({})", CUSTOMER_EMAIL);
+        } catch (UserNotFoundException e) {
+            registerUserUseCase.execute(new CreateUserCommand(
+                    "João Silva", CUSTOMER_EMAIL, "joao1234", UserRole.CUSTOMER));
+            log.info("[DEV] Users seeded — {} (joao1234)", CUSTOMER_EMAIL);
+        }
     }
 
     private void seedBooks() {
-        createBookUseCase.execute(new CreateBookCommand(
+        int created = 0;
+
+        created += seedBook(new CreateBookCommand(
                 "Clean Code",
                 "978-0132350884",
                 List.of("Robert C. Martin"),
@@ -59,7 +77,7 @@ public class DevDataLoader implements ApplicationRunner {
                 BigDecimal.valueOf(44.90), 20, CAT_TECNOLOGIA,
                 "https://covers.openlibrary.org/b/isbn/9780132350884-L.jpg"));
 
-        createBookUseCase.execute(new CreateBookCommand(
+        created += seedBook(new CreateBookCommand(
                 "The Pragmatic Programmer",
                 "978-0135957059",
                 List.of("David Thomas", "Andrew Hunt"),
@@ -68,7 +86,7 @@ public class DevDataLoader implements ApplicationRunner {
                 BigDecimal.valueOf(59.90), 15, CAT_TECNOLOGIA,
                 "https://covers.openlibrary.org/b/isbn/9780135957059-L.jpg"));
 
-        createBookUseCase.execute(new CreateBookCommand(
+        created += seedBook(new CreateBookCommand(
                 "Design Patterns",
                 "978-0201633610",
                 List.of("Erich Gamma", "Richard Helm", "Ralph Johnson", "John Vlissides"),
@@ -77,7 +95,7 @@ public class DevDataLoader implements ApplicationRunner {
                 BigDecimal.valueOf(79.90), 8, CAT_TECNOLOGIA,
                 "https://covers.openlibrary.org/b/isbn/9780201633610-L.jpg"));
 
-        createBookUseCase.execute(new CreateBookCommand(
+        created += seedBook(new CreateBookCommand(
                 "Duna",
                 "978-8576574675",
                 List.of("Frank Herbert"),
@@ -86,7 +104,7 @@ public class DevDataLoader implements ApplicationRunner {
                 BigDecimal.valueOf(49.90), 12, CAT_FICCAO,
                 "https://covers.openlibrary.org/b/isbn/9788576574675-L.jpg"));
 
-        createBookUseCase.execute(new CreateBookCommand(
+        created += seedBook(new CreateBookCommand(
                 "O Investidor Inteligente",
                 "978-8576840220",
                 List.of("Benjamin Graham"),
@@ -95,6 +113,16 @@ public class DevDataLoader implements ApplicationRunner {
                 BigDecimal.valueOf(54.90), 10, CAT_NEGOCIOS,
                 "https://covers.openlibrary.org/b/isbn/9788576840220-L.jpg"));
 
-        log.info("[DEV] Books seeded — 5 books available in catalog");
+        log.info("[DEV] Books seeded — {} created, {} already present", created, TOTAL_BOOKS - created);
+    }
+
+    /** Returns 1 when the book was created, 0 when the catalog already had it. */
+    private int seedBook(CreateBookCommand command) {
+        try {
+            createBookUseCase.execute(command);
+            return 1;
+        } catch (IsbnAlreadyExistsException e) {
+            return 0;
+        }
     }
 }

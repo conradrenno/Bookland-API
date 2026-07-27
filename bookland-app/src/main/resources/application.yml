@@ -14,7 +14,7 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:h2:mem:booklanddb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:booklanddb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -24,15 +24,17 @@ spring:
       path: /h2-console
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-  # Em dev o Hibernate ainda é o dono do schema (create-drop + import.sql).
-  # As migrations em db/migration são escritas para PostgreSQL e não rodam aqui.
+  # O Flyway é o dono do schema em dev também, para que as migrations sejam
+  # exercitadas a cada boot e não apenas em produção. O H2 roda em modo de
+  # compatibilidade PostgreSQL para aceitar o mesmo SQL.
   flyway:
-    enabled: false
+    enabled: true
+    locations: classpath:db/migration
 
 bookland:
   jwt:
