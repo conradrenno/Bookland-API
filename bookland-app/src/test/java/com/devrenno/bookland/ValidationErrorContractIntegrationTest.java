@@ -102,6 +102,24 @@ class ValidationErrorContractIntegrationTest {
                 .andExpect(jsonPath("$.detail").isNotEmpty());
     }
 
+    /**
+     * The column is varchar(255) and the field had no upper bound, so an over-long name reached the
+     * database and came back as a 500 — which, while /error was authenticated, reached the client
+     * as 401 TOKEN_MISSING. It is a rejected field, and has to be answered as one.
+     */
+    @Test
+    @DisplayName("a value longer than its column is a 400 naming the field, not a 500")
+    void overlongValueIsRejectedBeforeTheDatabase() throws Exception {
+        mockMvc.perform(post(REGISTER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "%s", "email": "long@bookland.com", "password": "senha1234"}
+                                """.formatted("N".repeat(300))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errors.name").isArray());
+    }
+
     @Test
     @DisplayName("unparseable body: 400 MALFORMED_REQUEST, no parser internals leaked")
     void malformedJson() throws Exception {

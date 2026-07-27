@@ -65,6 +65,42 @@ class BusinessErrorContractIntegrationTest {
                 .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
     }
 
+    /**
+     * The container forwards an unhandled exception to /error. While that path required
+     * authentication, the forward was answered with 401 TOKEN_MISSING and the real failure never
+     * reached the client — worse than losing it, because a client treats 401 as "refresh and
+     * retry" and ends the session over a server bug.
+     */
+    /**
+     * The half of the masking bug that lives in the security rules. While /error required
+     * authentication, the container's forward after an unhandled exception was answered with
+     * 401 TOKEN_MISSING and the real failure never reached the client — and a client reads 401 as
+     * "refresh and retry", so a server bug ended the session instead of surfacing.
+     *
+     * <p>What the error dispatch then renders is covered by ProblemDetailErrorControllerTest:
+     * MockMvc does not run the ERROR dispatch, so it cannot be asserted end to end here.
+     */
+    @Test
+    @DisplayName("/error is reachable without a token, or every 500 arrives as a fake 401")
+    void errorPathIsNotBehindAuthentication() throws Exception {
+        mockMvc.perform(get("/error"))
+                .andExpect(jsonPath("$.code").value(org.hamcrest.Matchers.not("TOKEN_MISSING")))
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
+    }
+
+    /**
+     * The flip side, and correct: an unauthenticated request to a path behind the authentication
+     * wall is 401 whether or not that path exists. Answering 404 there would let anyone map the
+     * API's private routes.
+     */
+    @Test
+    @DisplayName("an unmapped protected path stays 401, and does not reveal that it is unmapped")
+    void unmappedProtectedPathDoesNotLeakItsAbsence() throws Exception {
+        mockMvc.perform(get("/api/v1/does-not-exist"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TOKEN_MISSING"));
+    }
+
     @Test
     @DisplayName("a business error is not a validation error: no errors map")
     void businessErrorsCarryNoFieldMap() throws Exception {

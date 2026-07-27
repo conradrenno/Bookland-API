@@ -60,6 +60,12 @@ public class SecurityConfig {
                         // Payment routes
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/payments/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/**").authenticated()
+                        // The container forwards here after an unhandled exception, on a dispatch
+                        // the security chain also filters. Left authenticated, it answers the
+                        // forward with 401 TOKEN_MISSING and the real 500 never reaches the client
+                        // — a server bug arriving disguised as an expired session, which is the
+                        // one thing a client must not retry a refresh for.
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**",

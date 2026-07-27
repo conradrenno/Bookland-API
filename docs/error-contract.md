@@ -98,6 +98,31 @@ Rules a client can rely on:
 Business rule violations are **not** validation errors: they carry `detail` and no `errors` map, and
 are raised by each module's own `@RestControllerAdvice`.
 
+## Server errors and unroutable requests
+
+Anything no `@RestControllerAdvice` handles is forwarded by the container to `/error` and rendered
+in the same shape by `ProblemDetailErrorController`:
+
+| Situation | Status | `code` |
+|---|---|---|
+| Unhandled exception | 500 | `INTERNAL_ERROR` |
+| No route matched (on a public path) | 404 | `NOT_FOUND` |
+| Wrong method, unsupported media type, … | 4xx | the status name (`METHOD_NOT_ALLOWED`, …) |
+
+A 5xx `detail` is always `"The server failed to process the request"` — the exception's own message
+carries stack traces, SQL and column names. The cause is in the server log, never in the response.
+
+⚠️ **`instance` is always the request that failed, never `/error`.** If you ever see
+`"instance": "/error"`, the deployed build predates this and is masking a real failure.
+
+**`/error` must stay `permitAll`.** Behind the authentication wall, the container's forward is
+answered with `401 TOKEN_MISSING` and the real 500 never reaches the client — arriving as "your
+session expired", which makes a client refresh, fail, and log the user out over a server bug.
+
+Note that an unauthenticated request to an unmapped path *behind* the wall is still `401`, not
+`404`: security runs before routing, and answering 404 there would let anyone map the private
+routes.
+
 ## Business rule violations
 
 | Module | `code` | Status |
