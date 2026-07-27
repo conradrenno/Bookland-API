@@ -1,5 +1,6 @@
 package com.devrenno.bookland;
 
+import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +9,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -33,6 +36,9 @@ class ValidationErrorContractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private TokenProviderPort tokenProvider;
 
     @Test
     @DisplayName("every broken field lands in errors, keyed by its own name")
@@ -118,6 +124,33 @@ class ValidationErrorContractIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors.name").isArray());
+    }
+
+    /**
+     * The catalog carries the most varchar(255) columns, and coverImageUrl was the worst of them:
+     * it declared @Size(max = 2048) against a varchar(255) column, so every URL between the two
+     * bounds was accepted by validation purely to fail at the database.
+     */
+    @Test
+    @DisplayName("catalog fields are bounded by their columns, so a long value is a 400 not a 500")
+    void bookFieldsAreBoundedByTheirColumns() throws Exception {
+        String adminToken = tokenProvider
+                .generate(UUID.randomUUID().toString(), "admin@bookland.com", "ADMIN")
+                .value();
+
+        mockMvc.perform(post("/api/v1/books")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title": "%s", "isbn": "9781234567897", "authors": ["A"],
+                                 "price": 10.00, "stockQuantity": 1,
+                                 "categoryId": "00000000-0000-0000-0000-000000000000",
+                                 "coverImageUrl": "https://example.com/%s.jpg"}
+                                """.formatted("T".repeat(300), "u".repeat(300))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errors.title").isArray())
+                .andExpect(jsonPath("$.errors.coverImageUrl").isArray());
     }
 
     @Test
