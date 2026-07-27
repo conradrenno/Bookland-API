@@ -55,6 +55,49 @@ Example:
 Note that a stale token on a **public** endpoint (`GET /api/v1/books/**`, …) does not fail the
 request: the filter chain carries on unauthenticated and the endpoint answers normally.
 
+## Validation and malformed requests
+
+A rejected payload carries an extra `errors` member — field name → the messages that field broke —
+so each message can be rendered next to its own form input. `detail` stays populated as a summary
+for a form-level banner.
+
+| Situation | Status | `code` | `errors` |
+|---|---|---|---|
+| A field breaks a constraint | 400 | `VALIDATION_ERROR` | yes |
+| A path variable or query parameter will not convert | 400 | `INVALID_PARAMETER` | yes |
+| Body missing, truncated or not JSON | 400 | `MALFORMED_REQUEST` | no |
+
+```json
+{
+  "detail": "Validation failed for 3 fields: email, name, password",
+  "instance": "/api/v1/auth/register",
+  "status": 400,
+  "title": "Bad Request",
+  "code": "VALIDATION_ERROR",
+  "errors": {
+    "email": ["must be a well-formed email address"],
+    "name": ["must not be blank"],
+    "password": ["must contain at least one number", "size must be between 8 and 72"]
+  }
+}
+```
+
+Rules a client can rely on:
+
+- **A field can carry more than one message** — the values are always arrays, never strings.
+- **Messages never name their own field** (`"must not be blank"`, not `"name must not be blank"`) —
+  the map key already does, so a client can render `<field label> + <message>` itself.
+- **Messages are always English**, whatever `Accept-Language` says and whatever locale the server
+  runs in. `FixedLocaleMessageInterpolator` pins them, because Hibernate Validator otherwise
+  resolves its built-in messages against the host JVM's default locale — which is how a single
+  response used to mix Portuguese defaults with English custom messages.
+- **Errors that belong to the payload as a whole**, not to one field, appear under the reserved key
+  `"_"`.
+- `errors` is absent, not empty, when the failure has no field to attach to.
+
+Business rule violations (404, 409, 422) are **not** validation errors: they carry `detail` and no
+`errors` map, and are raised by each module's own `@RestControllerAdvice`.
+
 ## Implementation
 
 - `AuthErrorCode` (bookland-web-support) holds the enum, the detail text and the request-attribute
@@ -65,6 +108,12 @@ request: the filter chain carries on unauthenticated and the endpoint answers no
   the body above. They are wired in `SecurityConfig.securityFilterChain`.
 - `AuthErrorContractIntegrationTest` (bookland-app) locks the table above against the real filter
   chain.
+- `ValidationExceptionHandler` (bookland-web-support) is the **single** advice handling bean
+  validation for the whole application, at `HIGHEST_PRECEDENCE`. Modules must not add their own —
+  two advices for the same exception leaves the winner up to bean ordering, and the payload shape
+  drifts apart module by module. `ValidationErrorContractIntegrationTest` locks it.
+- `ValidationConfig` (bookland-web-support) replaces Boot's auto-configured validator with the same
+  one plus a fixed English locale.
 
 Should the modules ever be split into separate services, this contract — not the code — is what has
 to be preserved. A gateway or an OAuth2 resource server terminating the token in front of the

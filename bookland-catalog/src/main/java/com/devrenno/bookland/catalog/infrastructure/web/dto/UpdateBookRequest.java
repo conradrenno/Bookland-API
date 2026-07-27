@@ -22,7 +22,7 @@ public record UpdateBookRequest(
 
         String synopsis,
 
-        @DecimalMin(value = "0.01", message = "Price must be positive")
+        @DecimalMin(value = "0.01", message = "must be greater than 0")
         BigDecimal price,
 
         @Min(0)

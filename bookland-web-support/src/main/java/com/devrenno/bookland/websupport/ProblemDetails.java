@@ -17,6 +17,9 @@ public final class ProblemDetails {
 
     public static final String CODE = "code";
 
+    /** Validation only: field name → the messages that field broke. */
+    public static final String ERRORS = "errors";
+
     private ProblemDetails() {
     }
 

@@ -12,7 +12,7 @@ public record CreateBookRequest(
         String title,
 
         @NotBlank
-        @Pattern(regexp = "\\s*(?:\\d[\\s-]*){13}", message = "ISBN must be 13 digits (hyphens optional)")
+        @Pattern(regexp = "\\s*(?:\\d[\\s-]*){13}", message = "must be 13 digits (hyphens optional)")
         String isbn,
 
         @NotEmpty
@@ -29,7 +29,7 @@ public record CreateBookRequest(
         String synopsis,
 
         @NotNull
-        @DecimalMin(value = "0.01", message = "Price must be positive")
+        @DecimalMin(value = "0.01", message = "must be greater than 0")
         BigDecimal price,
 
         @Min(0)

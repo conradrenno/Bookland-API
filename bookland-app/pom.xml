@@ -13,6 +13,13 @@
     <name>Bookland - Application Bootstrap</name>
 
     <dependencies>
+        <!-- Shared HTTP error contract. Declared explicitly rather than picked up transitively:
+             the global validation advice has to be on the classpath of the running app. -->
+        <dependency>
+            <groupId>com.devrenno</groupId>
+            <artifactId>bookland-web-support</artifactId>
+        </dependency>
+
         <!-- Domain modules -->
         <dependency>
             <groupId>com.devrenno</groupId>
