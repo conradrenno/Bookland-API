@@ -119,8 +119,9 @@ Success codes are accurate too, but only because each handler says so: springdoc
 the return type and cannot see through `ResponseEntity.status(...)`. **A handler answering anything
 other than 200 must carry `@ResponseStatus`** — otherwise the document silently claims 200 and a
 generated client gets the wrong success type. The eight that do are pinned in
-`OpenApiErrorContractIntegrationTest`; a *new* handler that forgets the annotation is not caught
-automatically.
+`OpenApiErrorContractIntegrationTest`, and `WebLayerRulesTest` (ArchUnit, bookland-app) fails the
+build on any handler that builds a non-200 `ResponseEntity` without declaring it — including new
+ones.
 
 ## Implementation
 
