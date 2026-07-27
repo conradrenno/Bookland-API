@@ -5,6 +5,7 @@ import com.devrenno.bookland.user.adapters.viewmodel.UserViewModel;
 import com.devrenno.bookland.user.infrastructure.web.dto.UpdateUserRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,6 +35,7 @@ public class UserApiController {
     }
 
     @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         userController.delete(id);
         return ResponseEntity.noContent().build();

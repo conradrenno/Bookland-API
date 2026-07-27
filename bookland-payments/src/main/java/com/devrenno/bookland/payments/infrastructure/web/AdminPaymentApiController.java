@@ -2,6 +2,7 @@ package com.devrenno.bookland.payments.infrastructure.web;
 
 import com.devrenno.bookland.payments.application.port.in.RefundPaymentUseCase;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +20,7 @@ public class AdminPaymentApiController {
     private final RefundPaymentUseCase refundPaymentUseCase;
 
     @PostMapping("/order/{orderId}/refund")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> refund(@PathVariable UUID orderId) {
         refundPaymentUseCase.refund(orderId);
         return ResponseEntity.noContent().build();

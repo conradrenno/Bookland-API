@@ -28,6 +28,7 @@ public class AuthApiController {
     private final AuthRequestMapper requestMapper;
 
     @PostMapping("/register")
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<TokenViewModel> register(@Valid @RequestBody RegisterRequest request) {
         TokenViewModel response = authController.register(requestMapper.toRegisterCommand(request));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -44,6 +45,7 @@ public class AuthApiController {
     }
 
     @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
         authController.logout(request.refreshToken());
         return ResponseEntity.noContent().build();

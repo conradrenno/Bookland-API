@@ -24,6 +24,7 @@ public class BookReviewApiController {
     private final ReviewController reviewController;
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ReviewViewModel> create(
             @PathVariable UUID bookId,
             @Valid @RequestBody CreateReviewRequest request,
@@ -45,6 +46,7 @@ public class BookReviewApiController {
     }
 
     @DeleteMapping("/{reviewId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> moderate(@PathVariable UUID bookId, @PathVariable UUID reviewId) {
         reviewController.moderate(reviewId);
         return ResponseEntity.noContent().build();

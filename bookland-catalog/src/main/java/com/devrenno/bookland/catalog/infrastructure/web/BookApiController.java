@@ -10,6 +10,7 @@ import com.devrenno.bookland.catalog.infrastructure.web.dto.CreateBookRequest;
 import com.devrenno.bookland.catalog.infrastructure.web.dto.UpdateBookRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -31,6 +32,7 @@ public class BookApiController {
     private final CatalogRequestMapper requestMapper;
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<BookViewModel> create(@Valid @RequestBody CreateBookRequest request) {
         BookViewModel book = catalogController.createBook(requestMapper.toCommand(request));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
@@ -78,6 +80,7 @@ public class BookApiController {
     }
 
     @DeleteMapping("/{bookId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> remove(@PathVariable UUID bookId) {
         catalogController.removeBook(bookId);
         return ResponseEntity.noContent().build();

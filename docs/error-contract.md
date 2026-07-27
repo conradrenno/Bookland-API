@@ -115,9 +115,12 @@ depends on `SecurityConfig` rules and on domain exceptions that nothing on the h
 a hand-maintained list would go stale without anyone noticing; `default` is accurate and gives a
 generator the one error type it needs.
 
-⚠️ The document still reports `200` for every operation, including the ones answering `201` or
-`204` — springdoc cannot see through `ResponseEntity.status(...)`. That is about success codes, not
-this contract, and is not fixed here.
+Success codes are accurate too, but only because each handler says so: springdoc infers `200` from
+the return type and cannot see through `ResponseEntity.status(...)`. **A handler answering anything
+other than 200 must carry `@ResponseStatus`** — otherwise the document silently claims 200 and a
+generated client gets the wrong success type. The eight that do are pinned in
+`OpenApiErrorContractIntegrationTest`; a *new* handler that forgets the annotation is not caught
+automatically.
 
 ## Implementation
 
