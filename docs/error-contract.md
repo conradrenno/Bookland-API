@@ -95,8 +95,47 @@ Rules a client can rely on:
   `"_"`.
 - `errors` is absent, not empty, when the failure has no field to attach to.
 
-Business rule violations (404, 409, 422) are **not** validation errors: they carry `detail` and no
-`errors` map, and are raised by each module's own `@RestControllerAdvice`.
+Business rule violations are **not** validation errors: they carry `detail` and no `errors` map, and
+are raised by each module's own `@RestControllerAdvice`.
+
+## Business rule violations
+
+| Module | `code` | Status |
+|---|---|---|
+| user | `USER_NOT_FOUND` | 404 |
+| user | `EMAIL_ALREADY_EXISTS` | 409 |
+| catalog | `BOOK_NOT_FOUND` | 404 |
+| catalog | `CATEGORY_NOT_FOUND` | 404 |
+| catalog | `ISBN_ALREADY_EXISTS` | 409 |
+| catalog | `BOOK_HAS_ACTIVE_ORDERS` | 409 |
+| catalog | `INSUFFICIENT_STOCK` | 422 |
+| catalog | `INVALID_IMAGE` | 422 |
+| catalog | `FILE_TOO_LARGE` | 413 |
+| orders | `CART_NOT_FOUND` | 404 |
+| orders | `ORDER_NOT_FOUND` | 404 |
+| orders | `BOOK_NOT_IN_CART` | 404 |
+| orders | `ORDER_ACCESS_DENIED` | 403 |
+| orders | `CART_ITEM_UNAVAILABLE` | 409 |
+| orders | `ORDER_CANCELLATION_NOT_ALLOWED` | 409 |
+| orders | `INVALID_ORDER_STATUS_TRANSITION` | 409 |
+| orders | `PAYMENT_DECLINED` | 402 |
+| payments | `PAYMENT_NOT_FOUND` | 404 |
+| payments | `REFUND_NOT_ALLOWED` | 409 |
+| reviews | `REVIEW_NOT_FOUND` | 404 |
+| reviews | `DUPLICATE_REVIEW` | 409 |
+| reviews | `REVIEW_ALREADY_DELETED` | 409 |
+| reviews | `PURCHASE_REQUIRED` | 403 |
+| wishlist | `WISHLIST_ITEM_NOT_FOUND` | 404 |
+| wishlist | `WISHLIST_ITEM_ALREADY_EXISTS` | 409 |
+| any | `INVALID_ARGUMENT` | 400 |
+
+⚠️ **Not every 403 is a role problem.** `ORDER_ACCESS_DENIED` (someone else's order) and
+`PURCHASE_REQUIRED` (reviewing a book you have not bought) are 403s that say nothing about the
+caller's role — only `INSUFFICIENT_ROLE` does. This is exactly why status alone is not enough to
+branch on.
+
+`BOOK_NOT_FOUND` is raised by the catalog, reviews and wishlist advices alike; the code is the same
+everywhere, so a client never has to care which module answered.
 
 ## In the OpenAPI document
 
@@ -139,6 +178,10 @@ ones.
   drifts apart module by module. `ValidationErrorContractIntegrationTest` locks it.
 - `ValidationConfig` (bookland-web-support) replaces Boot's auto-configured validator with the same
   one plus a fixed English locale.
+- Each module's `*ExceptionHandler` builds its business errors through `ProblemDetails.of(status,
+  detail, code)` — the code belongs next to the exception it describes, so the module owning the
+  rule owns its symbol. `BusinessErrorContractIntegrationTest` covers the cases reachable without a
+  fixture.
 - `ErrorResponsesCustomizer` (bookland-web-support) puts the schemas and responses into the OpenAPI
   document; `OpenApiConfig` (bookland-app) registers it along with the API info and bearer scheme.
   `OpenApiErrorContractIntegrationTest` locks the published document.
