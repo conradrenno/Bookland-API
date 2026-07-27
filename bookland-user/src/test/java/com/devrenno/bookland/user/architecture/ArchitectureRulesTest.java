@@ -21,7 +21,13 @@ class ArchitectureRulesTest {
     private static final String[] FRAMEWORK_PACKAGES = {
             "org.springframework..",
             "jakarta.persistence..",
-            "com.fasterxml.jackson.."
+            "com.fasterxml.jackson..",
+            // Boot 4 ships Jackson 3, whose package is tools.jackson. Listing only the old
+            // coordinates leaves this rule looking right while enforcing nothing.
+            "tools.jackson..",
+            // bookland-web-support is HTTP infrastructure (problem+json, security entry
+            // points, the validation advice) and must not leak inward either.
+            "com.devrenno.bookland.websupport.."
     };
 
     @ArchTest
