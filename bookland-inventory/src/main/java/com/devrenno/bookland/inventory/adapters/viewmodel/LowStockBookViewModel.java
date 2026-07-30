@@ -1,6 +1,6 @@
 package com.devrenno.bookland.inventory.adapters.viewmodel;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 public record LowStockBookViewModel(
@@ -9,5 +9,5 @@ public record LowStockBookViewModel(
         String isbn,
         String coverImageUrl,
         int stockQuantity,
-        LocalDateTime lastMovement
+        Instant lastMovement
 ) {}

@@ -11,7 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,7 +39,7 @@ public class InventoryPersistenceAdapter implements InventoryPersistencePort {
     }
 
     @Override
-    public Optional<LocalDateTime> findLastAdjustmentTime(UUID bookId) {
+    public Optional<Instant> findLastAdjustmentTime(UUID bookId) {
         return repository.findFirstByBookIdOrderByAdjustedAtDesc(bookId)
                 .map(e -> e.getAdjustedAt());
     }

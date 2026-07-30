@@ -1,6 +1,6 @@
 package com.devrenno.bookland.inventory.adapters.viewmodel;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 public record InventoryEntryViewModel(
@@ -11,5 +11,5 @@ public record InventoryEntryViewModel(
         int delta,
         String reason,
         UUID adjustedBy,
-        LocalDateTime adjustedAt
+        Instant adjustedAt
 ) {}

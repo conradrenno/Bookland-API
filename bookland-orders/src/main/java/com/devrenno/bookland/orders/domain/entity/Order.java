@@ -6,7 +6,7 @@ import com.devrenno.bookland.orders.domain.exception.OrderCancellationNotAllowed
 import lombok.Getter;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,12 +31,12 @@ public class Order {
     private OrderStatus status;
     private final BigDecimal totalAmount;
     private final List<StatusTransition> statusHistory;
-    private final LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private final Instant createdAt;
+    private Instant updatedAt;
 
     private Order(UUID id, UUID customerId, List<OrderItem> items, OrderStatus status,
                   BigDecimal totalAmount, List<StatusTransition> statusHistory,
-                  LocalDateTime createdAt, LocalDateTime updatedAt) {
+                  Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.customerId = customerId;
         this.items = items;
@@ -51,14 +51,14 @@ public class Order {
         BigDecimal total = items.stream()
                 .map(OrderItem::subtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         return new Order(UUID.randomUUID(), customerId, new ArrayList<>(items),
                 OrderStatus.AWAITING_PAYMENT, total, new ArrayList<>(), now, now);
     }
 
     public static Order reconstitute(UUID id, UUID customerId, List<OrderItem> items, OrderStatus status,
                                      BigDecimal totalAmount, List<StatusTransition> statusHistory,
-                                     LocalDateTime createdAt, LocalDateTime updatedAt) {
+                                     Instant createdAt, Instant updatedAt) {
         return new Order(id, customerId, new ArrayList<>(items), status, totalAmount,
                 new ArrayList<>(statusHistory), createdAt, updatedAt);
     }
@@ -79,6 +79,6 @@ public class Order {
         StatusTransition transition = StatusTransition.create(this.id, this.status, newStatus, changedBy);
         statusHistory.add(transition);
         this.status = newStatus;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 }

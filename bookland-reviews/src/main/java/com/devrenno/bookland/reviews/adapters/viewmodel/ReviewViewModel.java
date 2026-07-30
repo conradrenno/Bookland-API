@@ -1,6 +1,6 @@
 package com.devrenno.bookland.reviews.adapters.viewmodel;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 public record ReviewViewModel(
@@ -10,5 +10,5 @@ public record ReviewViewModel(
         String customerName,
         int rating,
         String comment,
-        LocalDateTime createdAt
+        Instant createdAt
 ) {}

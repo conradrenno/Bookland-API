@@ -2,7 +2,7 @@ package com.devrenno.bookland.user.adapters.viewmodel;
 
 import com.devrenno.bookland.user.domain.entity.UserRole;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -14,7 +14,7 @@ public record UserViewModel(
         String name,
         String email,
         UserRole role,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt,
+        Instant createdAt,
+        Instant updatedAt,
         boolean active
 ) {}

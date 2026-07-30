@@ -3,7 +3,7 @@ package com.devrenno.bookland.reviews.domain.entity;
 import com.devrenno.bookland.reviews.domain.exception.ReviewAlreadyDeletedException;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -14,11 +14,11 @@ public class Review {
     private final UUID customerId;
     private final int rating;
     private final String comment;
-    private final LocalDateTime createdAt;
+    private final Instant createdAt;
     private boolean deleted;
 
     private Review(UUID id, UUID bookId, UUID customerId, int rating, String comment,
-                   LocalDateTime createdAt, boolean deleted) {
+                   Instant createdAt, boolean deleted) {
         this.id = id;
         this.bookId = bookId;
         this.customerId = customerId;
@@ -32,11 +32,11 @@ public class Review {
         if (rating < 1 || rating > 5) {
             throw new IllegalArgumentException("rating must be between 1 and 5");
         }
-        return new Review(UUID.randomUUID(), bookId, customerId, rating, comment, LocalDateTime.now(), false);
+        return new Review(UUID.randomUUID(), bookId, customerId, rating, comment, Instant.now(), false);
     }
 
     public static Review reconstitute(UUID id, UUID bookId, UUID customerId, int rating, String comment,
-                                      LocalDateTime createdAt, boolean deleted) {
+                                      Instant createdAt, boolean deleted) {
         return new Review(id, bookId, customerId, rating, comment, createdAt, deleted);
     }
 

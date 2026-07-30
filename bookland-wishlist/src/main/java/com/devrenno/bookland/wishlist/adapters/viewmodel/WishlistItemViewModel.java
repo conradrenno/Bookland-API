@@ -1,7 +1,7 @@
 package com.devrenno.bookland.wishlist.adapters.viewmodel;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 public record WishlistItemViewModel(
@@ -11,5 +11,5 @@ public record WishlistItemViewModel(
         BigDecimal price,
         int stockQuantity,
         boolean available,
-        LocalDateTime addedAt
+        Instant addedAt
 ) {}

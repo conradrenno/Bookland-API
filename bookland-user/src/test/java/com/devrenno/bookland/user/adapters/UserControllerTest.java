@@ -14,7 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,7 +38,7 @@ class UserControllerTest {
     private User sampleUser(UUID id) {
         return User.reconstitute(
                 UserId.of(id), "Alice", Email.of("alice@test.com"), "hash",
-                UserRole.CUSTOMER, LocalDateTime.now(), LocalDateTime.now(), true);
+                UserRole.CUSTOMER, Instant.now(), Instant.now(), true);
     }
 
     @Test

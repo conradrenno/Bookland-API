@@ -5,7 +5,7 @@ import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableExceptio
 import lombok.Getter;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -16,11 +16,11 @@ public class Cart {
     private final UUID id;
     private final UUID customerId;
     private final List<CartItem> items;
-    private final LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private final Instant createdAt;
+    private Instant updatedAt;
 
     private Cart(UUID id, UUID customerId, List<CartItem> items,
-                 LocalDateTime createdAt, LocalDateTime updatedAt) {
+                 Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.customerId = customerId;
         this.items = items;
@@ -29,12 +29,12 @@ public class Cart {
     }
 
     public static Cart createFor(UUID customerId) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         return new Cart(UUID.randomUUID(), customerId, new ArrayList<>(), now, now);
     }
 
     public static Cart reconstitute(UUID id, UUID customerId, List<CartItem> items,
-                                    LocalDateTime createdAt, LocalDateTime updatedAt) {
+                                    Instant createdAt, Instant updatedAt) {
         return new Cart(id, customerId, new ArrayList<>(items), createdAt, updatedAt);
     }
 
@@ -52,7 +52,7 @@ public class Cart {
             }
             items.add(CartItem.of(bookId, requestedQty, price));
         }
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
     public void updateItemQuantity(UUID bookId, int newQty, int availableStock) {
@@ -64,12 +64,12 @@ public class Cart {
             if (newQty > availableStock) throw new CartItemUnavailableException(bookId, availableStock);
             item.updateQuantity(newQty);
         }
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
     public void removeItem(UUID bookId) {
         items.removeIf(i -> i.getBookId().equals(bookId));
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
     private CartItem findItem(UUID bookId) {

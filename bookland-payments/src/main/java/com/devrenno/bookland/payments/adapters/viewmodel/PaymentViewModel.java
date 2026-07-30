@@ -4,7 +4,7 @@ import com.devrenno.bookland.payments.domain.entity.PaymentMethod;
 import com.devrenno.bookland.payments.domain.entity.PaymentStatus;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 public record PaymentViewModel(
@@ -15,6 +15,6 @@ public record PaymentViewModel(
         PaymentMethod method,
         PaymentStatus status,
         String gatewayTransactionId,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        Instant createdAt,
+        Instant updatedAt
 ) {}

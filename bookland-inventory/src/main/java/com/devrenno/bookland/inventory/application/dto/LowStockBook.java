@@ -1,6 +1,6 @@
 package com.devrenno.bookland.inventory.application.dto;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -13,5 +13,5 @@ public record LowStockBook(
         String isbn,
         String coverImageUrl,
         int stockQuantity,
-        LocalDateTime lastMovement
+        Instant lastMovement
 ) {}

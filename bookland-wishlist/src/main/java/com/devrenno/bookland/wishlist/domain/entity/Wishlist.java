@@ -4,7 +4,7 @@ import com.devrenno.bookland.wishlist.domain.exception.WishlistItemAlreadyExists
 import com.devrenno.bookland.wishlist.domain.exception.WishlistItemNotFoundException;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -33,7 +33,7 @@ public class Wishlist {
     public void addItem(UUID bookId) {
         boolean exists = items.stream().anyMatch(i -> i.getBookId().equals(bookId));
         if (exists) throw new WishlistItemAlreadyExistsException(customerId, bookId);
-        items.add(new WishlistItem(bookId, LocalDateTime.now()));
+        items.add(new WishlistItem(bookId, Instant.now()));
     }
 
     public void removeItem(UUID bookId) {

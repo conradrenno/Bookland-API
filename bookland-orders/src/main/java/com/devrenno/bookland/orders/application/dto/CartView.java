@@ -1,6 +1,6 @@
 package com.devrenno.bookland.orders.application.dto;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,5 +11,5 @@ public record CartView(
         UUID id,
         UUID customerId,
         List<CartItemView> items,
-        LocalDateTime updatedAt
+        Instant updatedAt
 ) {}

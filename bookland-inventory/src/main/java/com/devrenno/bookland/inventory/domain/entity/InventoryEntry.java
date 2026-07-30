@@ -2,7 +2,7 @@ package com.devrenno.bookland.inventory.domain.entity;
 
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -15,10 +15,10 @@ public class InventoryEntry {
     private final int delta;
     private final String reason;
     private final UUID adjustedBy;
-    private final LocalDateTime adjustedAt;
+    private final Instant adjustedAt;
 
     private InventoryEntry(UUID id, UUID bookId, int previousQuantity, int newQuantity, int delta,
-                          String reason, UUID adjustedBy, LocalDateTime adjustedAt) {
+                          String reason, UUID adjustedBy, Instant adjustedAt) {
         this.id = id;
         this.bookId = bookId;
         this.previousQuantity = previousQuantity;
@@ -39,13 +39,13 @@ public class InventoryEntry {
                 newQty - previousQty,
                 reason,
                 adjustedBy,
-                LocalDateTime.now()
+                Instant.now()
         );
     }
 
     /** Rehydrates an entry from persisted state. */
     public static InventoryEntry reconstitute(UUID id, UUID bookId, int previousQuantity, int newQuantity, int delta,
-                                              String reason, UUID adjustedBy, LocalDateTime adjustedAt) {
+                                              String reason, UUID adjustedBy, Instant adjustedAt) {
         return new InventoryEntry(id, bookId, previousQuantity, newQuantity, delta, reason, adjustedBy, adjustedAt);
     }
 }

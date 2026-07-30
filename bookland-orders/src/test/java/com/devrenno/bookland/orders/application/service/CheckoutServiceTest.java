@@ -22,7 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -145,7 +145,7 @@ class CheckoutServiceTest {
         return Cart.reconstitute(
                 UUID.randomUUID(), customerId,
                 List.of(CartItem.of(bookId, quantity, price)),
-                LocalDateTime.now(), LocalDateTime.now()
+                Instant.now(), Instant.now()
         );
     }
 }

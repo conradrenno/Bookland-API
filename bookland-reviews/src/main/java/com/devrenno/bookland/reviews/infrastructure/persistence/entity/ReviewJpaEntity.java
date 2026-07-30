@@ -3,7 +3,7 @@ package com.devrenno.bookland.reviews.infrastructure.persistence.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -32,7 +32,7 @@ public class ReviewJpaEntity {
     private String comment;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(nullable = false)
     private boolean deleted;

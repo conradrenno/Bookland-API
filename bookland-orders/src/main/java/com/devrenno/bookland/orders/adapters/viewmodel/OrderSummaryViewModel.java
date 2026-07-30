@@ -3,7 +3,7 @@ package com.devrenno.bookland.orders.adapters.viewmodel;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 public record OrderSummaryViewModel(
@@ -11,5 +11,5 @@ public record OrderSummaryViewModel(
         OrderStatus status,
         BigDecimal totalAmount,
         int itemCount,
-        LocalDateTime createdAt
+        Instant createdAt
 ) {}

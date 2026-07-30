@@ -1,7 +1,7 @@
 package com.devrenno.bookland.wishlist.application.dto;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 public record WishlistItemView(
@@ -11,5 +11,5 @@ public record WishlistItemView(
         BigDecimal price,
         int stockQuantity,
         boolean available,
-        LocalDateTime addedAt
+        Instant addedAt
 ) {}

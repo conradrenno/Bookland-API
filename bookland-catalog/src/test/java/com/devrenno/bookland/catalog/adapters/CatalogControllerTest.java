@@ -19,7 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,7 +49,7 @@ class CatalogControllerTest {
     }
 
     private Book sampleBook() {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         return Book.reconstitute(
                 BookId.of(BOOK_ID), "Clean Code", ISBN.of("9780132350884"),
                 List.of("Robert C. Martin"), "Prentice Hall", 2008, "1st", "Synopsis",

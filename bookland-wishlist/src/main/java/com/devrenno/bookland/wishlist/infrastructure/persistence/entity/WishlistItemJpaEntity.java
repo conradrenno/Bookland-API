@@ -3,7 +3,7 @@ package com.devrenno.bookland.wishlist.infrastructure.persistence.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -27,5 +27,5 @@ public class WishlistItemJpaEntity {
     private UUID bookId;
 
     @Column(name = "added_at", nullable = false)
-    private LocalDateTime addedAt;
+    private Instant addedAt;
 }

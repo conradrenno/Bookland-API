@@ -17,7 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -101,6 +101,6 @@ class CreateReviewServiceTest {
     }
 
     private Review buildReview(int rating) {
-        return Review.reconstitute(UUID.randomUUID(), bookId, customerId, rating, null, LocalDateTime.now(), false);
+        return Review.reconstitute(UUID.randomUUID(), bookId, customerId, rating, null, Instant.now(), false);
     }
 }

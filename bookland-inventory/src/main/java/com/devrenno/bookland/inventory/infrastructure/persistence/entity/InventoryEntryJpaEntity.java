@@ -3,7 +3,7 @@ package com.devrenno.bookland.inventory.infrastructure.persistence.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -38,5 +38,5 @@ public class InventoryEntryJpaEntity {
     private UUID adjustedBy;
 
     @Column(name = "adjusted_at", nullable = false)
-    private LocalDateTime adjustedAt;
+    private Instant adjustedAt;
 }

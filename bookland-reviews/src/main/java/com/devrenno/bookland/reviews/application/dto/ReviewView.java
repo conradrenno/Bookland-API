@@ -1,6 +1,6 @@
 package com.devrenno.bookland.reviews.application.dto;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -14,5 +14,5 @@ public record ReviewView(
         String customerName,
         int rating,
         String comment,
-        LocalDateTime createdAt
+        Instant createdAt
 ) {}

@@ -4,7 +4,7 @@ import com.devrenno.bookland.user.domain.valueobject.Email;
 import com.devrenno.bookland.user.domain.valueobject.UserId;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Objects;
 
 @Getter
@@ -15,12 +15,12 @@ public class User {
     private final Email email;
     private String passwordHash;
     private UserRole role;
-    private final LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private final Instant createdAt;
+    private Instant updatedAt;
     private boolean active;
 
     private User(UserId id, String name, Email email, String passwordHash, UserRole role,
-                 LocalDateTime createdAt, LocalDateTime updatedAt, boolean active) {
+                 Instant createdAt, Instant updatedAt, boolean active) {
         this.id = id;
         this.name = name;
         this.email = email;
@@ -39,7 +39,7 @@ public class User {
         validateName(name);
         Objects.requireNonNull(email, "email must not be null");
         validatePasswordHash(passwordHash);
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         return new User(
                 UserId.generate(),
                 name,
@@ -57,19 +57,19 @@ public class User {
      * Intended for persistence adapters only.
      */
     public static User reconstitute(UserId id, String name, Email email, String passwordHash, UserRole role,
-                                    LocalDateTime createdAt, LocalDateTime updatedAt, boolean active) {
+                                    Instant createdAt, Instant updatedAt, boolean active) {
         return new User(id, name, email, passwordHash, role, createdAt, updatedAt, active);
     }
 
     public void updateName(String name) {
         validateName(name);
         this.name = name;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
     public void deactivate() {
         this.active = false;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
     private static void validateName(String name) {

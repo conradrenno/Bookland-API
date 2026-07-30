@@ -2,7 +2,7 @@ package com.devrenno.bookland.orders.domain.entity;
 
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -12,11 +12,11 @@ public class StatusTransition {
     private final UUID orderId;
     private final OrderStatus fromStatus;
     private final OrderStatus toStatus;
-    private final LocalDateTime changedAt;
+    private final Instant changedAt;
     private final UUID changedBy;
 
     private StatusTransition(UUID id, UUID orderId, OrderStatus fromStatus, OrderStatus toStatus,
-                             LocalDateTime changedAt, UUID changedBy) {
+                             Instant changedAt, UUID changedBy) {
         this.id = id;
         this.orderId = orderId;
         this.fromStatus = fromStatus;
@@ -26,11 +26,11 @@ public class StatusTransition {
     }
 
     public static StatusTransition create(UUID orderId, OrderStatus from, OrderStatus to, UUID changedBy) {
-        return new StatusTransition(UUID.randomUUID(), orderId, from, to, LocalDateTime.now(), changedBy);
+        return new StatusTransition(UUID.randomUUID(), orderId, from, to, Instant.now(), changedBy);
     }
 
     public static StatusTransition reconstitute(UUID id, UUID orderId, OrderStatus from, OrderStatus to,
-                                                LocalDateTime changedAt, UUID changedBy) {
+                                                Instant changedAt, UUID changedBy) {
         return new StatusTransition(id, orderId, from, to, changedAt, changedBy);
     }
 }

@@ -7,7 +7,7 @@ import com.devrenno.bookland.catalog.domain.valueobject.ISBN;
 import com.devrenno.bookland.catalog.domain.valueobject.Price;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 @Getter
@@ -27,13 +27,13 @@ public class Book {
     private String coverImageUrl;
     private double avgRating;
     private boolean active;
-    private final LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private final Instant createdAt;
+    private Instant updatedAt;
 
     private Book(BookId id, String title, ISBN isbn, List<String> authors, String publisher,
                  Integer publicationYear, String edition, String synopsis, Price price, int stockQuantity,
                  CategoryId categoryId, String coverImageUrl, double avgRating, boolean active,
-                 LocalDateTime createdAt, LocalDateTime updatedAt) {
+                 Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.title = title;
         this.isbn = isbn;
@@ -55,7 +55,7 @@ public class Book {
     public static Book create(String title, ISBN isbn, List<String> authors, String publisher,
                               Integer publicationYear, String edition, String synopsis, Price price,
                               int stockQuantity, CategoryId categoryId, String coverImageUrl) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         return new Book(BookId.generate(), title, isbn, authors, publisher, publicationYear, edition,
                 synopsis, price, stockQuantity, categoryId, coverImageUrl, 0.0, true, now, now);
     }
@@ -64,7 +64,7 @@ public class Book {
                                     Integer publicationYear, String edition, String synopsis, Price price,
                                     int stockQuantity, CategoryId categoryId, String coverImageUrl,
                                     double avgRating, boolean active,
-                                    LocalDateTime createdAt, LocalDateTime updatedAt) {
+                                    Instant createdAt, Instant updatedAt) {
         return new Book(id, title, isbn, authors, publisher, publicationYear, edition, synopsis, price,
                 stockQuantity, categoryId, coverImageUrl, avgRating, active, createdAt, updatedAt);
     }
@@ -82,12 +82,12 @@ public class Book {
         if (stockQuantity >= 0) this.stockQuantity = stockQuantity;
         if (categoryId != null) this.categoryId = categoryId;
         if (coverImageUrl != null) this.coverImageUrl = coverImageUrl;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
     public void updateCoverImage(String coverImageUrl) {
         this.coverImageUrl = coverImageUrl;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
     public void adjustStock(int delta) {
@@ -96,16 +96,16 @@ public class Book {
             throw new InsufficientStockException(this.id.value(), this.stockQuantity, delta);
         }
         this.stockQuantity = newQty;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
     public void updateAverageRating(double newAvgRating) {
         this.avgRating = newAvgRating;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
     public void deactivate() {
         this.active = false;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 }
