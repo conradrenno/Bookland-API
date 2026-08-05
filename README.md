@@ -17,6 +17,7 @@
 - [Domain Overview](#domain-overview)
 - [API Reference](#api-reference)
 - [Security Model](#security-model)
+- [Error Contract](#error-contract)
 - [Database and Migrations](#database-and-migrations)
 - [Running the Application](#running-the-application)
   - [Without Docker (dev)](#without-docker-dev)
@@ -290,6 +291,8 @@ Customer wishlist with atomic **move-to-cart** — removes the item from the wis
 
 All endpoints are documented interactively at **`/swagger-ui.html`** when the application is running.
 
+**Every date on the wire is an instant in UTC** — ISO-8601 ending in `Z` (`2026-08-05T18:17:49.755549Z`), never a local date-time. A client parses it with `Instant.parse` / `new Date(...)` and renders it in the viewer's own zone; no field anywhere in the API requires the reader to guess which zone it was written in. Columns are `timestamptz`, entities hold `Instant`, and `TimestampRulesTest` fails the build on a surviving `LocalDateTime`.
+
 ### Authentication — `/api/v1/auth`
 
 | Method | Path | Access | Description |
@@ -398,6 +401,50 @@ The filter stores the **userId in `Authentication.getDetails()`**; controllers r
 **Public routes:** `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/error`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Everything else requires authentication; `/api/v1/admin/**` and all catalog/inventory writes require `ROLE_ADMIN`.
 
 **`/error` is public on purpose and must stay that way.** Boot registers the security chain for the `ERROR` dispatch too, so when an unhandled exception makes the container forward to `/error`, an authenticated `/error` answers the *forward* with `401 TOKEN_MISSING`. The real 500 never reaches the client — it arrives disguised as an expired session, which makes the client refresh its token and then log the user out over a server-side bug.
+
+---
+
+## Error Contract
+
+> Full reference: **[`docs/error-contract.md`](docs/error-contract.md)** — every code, every status, and how a client should react to each.
+
+Every error response in the API is `application/problem+json` ([RFC 7807](https://www.rfc-editor.org/rfc/rfc7807)), in English, carrying one extension member on top of the standard ones:
+
+```json
+{
+  "detail": "The access token has expired",
+  "instance": "/api/v1/cart",
+  "status": 401,
+  "title": "Unauthorized",
+  "code": "TOKEN_EXPIRED"
+}
+```
+
+**`code` is the contract; `detail` is not.** `detail` is prose meant for a banner and may be reworded at any time — a client branches on `code`, which only changes with a breaking release.
+
+**401 and 403 mean different things and are never conflated.** A 401 says the credential is missing or no longer good (`TOKEN_MISSING`, `TOKEN_EXPIRED`, `TOKEN_INVALID`) — refresh, then retry. A 403 says the credential is fine but the role is not (`INSUFFICIENT_ROLE`) — refreshing is pointless. And **not every 403 is about a role**: `ORDER_ACCESS_DENIED` and `PURCHASE_REQUIRED` are business 403s that say nothing about the caller's authorities, which is exactly why the status alone is not enough to branch on.
+
+**A rejected payload carries an `errors` map** — field name → the messages that field broke, always as arrays — so each message renders next to its own input:
+
+```json
+{
+  "status": 400,
+  "code": "VALIDATION_ERROR",
+  "detail": "Validation failed for 2 fields: email, password",
+  "errors": {
+    "email": ["must be a well-formed email address"],
+    "password": ["must contain at least one number", "size must be between 8 and 72"]
+  }
+}
+```
+
+Messages never name their own field (the key already does) and are always English, whatever the server's locale or the request's `Accept-Language`.
+
+**Business rules are not validation errors** — they carry `detail`, no `errors` map, and a code owned by the module that owns the rule (`ISBN_ALREADY_EXISTS`, `INSUFFICIENT_STOCK`, `PAYMENT_DECLINED`, …). **A 5xx never echoes the exception message**: `detail` is always `"The server failed to process the request"`, because the exception's own text carries stack traces, SQL and column names. The cause goes to the log, never to the client.
+
+The contract is published in `GET /api-docs` — a `ProblemDetail` schema, a `ValidationProblemDetail` schema, a `default` error response on every operation and an explicit `400` wherever a request takes input — so a client generates its error type rather than hand-writing it.
+
+None of this is documentation-only. `AuthErrorContractIntegrationTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest` and `OpenApiErrorContractIntegrationTest` lock each half of it against the running application; the glue itself lives in [`bookland-web-support`](#module-structure), out of reach of every inner layer.
 
 ---
 
