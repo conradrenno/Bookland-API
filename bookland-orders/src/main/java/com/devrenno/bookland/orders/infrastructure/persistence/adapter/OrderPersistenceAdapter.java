@@ -30,6 +30,18 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVerificationPort {
 
+    /**
+     * The only order any listing of orders is served in: newest first.
+     *
+     * <p>{@code id} is not a second sort key anyone asked for — it is the tiebreaker. Two orders
+     * can share a {@code createdAt} (the column keeps microseconds, a checkout burst lands inside
+     * one), and rows tied on every sort key come back in whatever order the database chose for
+     * that query. Across two page requests that order can differ, which drops one tied row from
+     * both pages and repeats another on both. The id is arbitrary but stable, so ties are broken
+     * the same way on every query and a page boundary stops losing rows.
+     */
+    private static final Sort NEWEST_FIRST = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
+
     private final OrderJpaRepository orderRepository;
     private final EntityManager entityManager;
 
@@ -112,10 +124,11 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
         return orderRepository.findById(orderId).map(this::toDomain);
     }
 
+    /** Customer order history: newest first. Serves both the customer's own listing and the admin per-customer one. */
     @Override
     public PageResult<Order> findByCustomerId(UUID customerId, PageQuery pageQuery) {
         Page<Order> page = orderRepository
-                .findByCustomerId(customerId, PageRequest.of(pageQuery.page(), pageQuery.size()))
+                .findByCustomerId(customerId, PageRequest.of(pageQuery.page(), pageQuery.size(), NEWEST_FIRST))
                 .map(this::toDomain);
         return new PageResult<>(
                 page.getContent(), page.getNumber(), page.getSize(),
@@ -126,8 +139,7 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
     /** Admin listing: newest first, optionally narrowed to a single status. */
     @Override
     public PageResult<Order> findAll(OrderStatus status, PageQuery pageQuery) {
-        PageRequest pageable = PageRequest.of(
-                pageQuery.page(), pageQuery.size(), Sort.by("createdAt").descending());
+        PageRequest pageable = PageRequest.of(pageQuery.page(), pageQuery.size(), NEWEST_FIRST);
         Page<Order> page = (status == null
                 ? orderRepository.findAll(pageable)
                 : orderRepository.findByStatus(status.name(), pageable))

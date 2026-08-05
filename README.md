@@ -335,13 +335,19 @@ All endpoints are documented interactively at **`/swagger-ui.html`** when the ap
 
 | Method | Path | Access | Description |
 |---|---|---|---|
-| `GET` | `/orders` | Authenticated | Order history (paginated) |
+| `GET` | `/orders?page=&size=` | Authenticated | Order history, newest first |
 | `GET` | `/orders/{orderId}` | Authenticated | Get order details |
 | `DELETE` | `/orders/{orderId}` | Authenticated | Cancel order |
 | `GET` | `/admin/orders?status=&page=&size=` | Admin | All orders, newest first |
 | `GET` | `/admin/orders/{orderId}` | Admin | Get any order's details |
-| `GET` | `/admin/orders/customer/{customerId}` | Admin | Orders of a given customer |
+| `GET` | `/admin/orders/customer/{customerId}?page=&size=` | Admin | Orders of a given customer, newest first |
 | `PATCH` | `/admin/orders/{orderId}/status` | Admin | Update order status |
+
+**Order listings are not client-sortable.** Every route above is served newest
+first (`createdAt` descending, ties broken by `id` so paging cannot drop or
+repeat a row); the only pagination parameters are `page` and `size`. There is no
+`sort` parameter — a request carrying one is answered normally with the standard
+order, not rejected, because unknown query parameters are ignored API-wide.
 
 ### Payments — `/api/v1/payments`, `/api/v1/admin/payments`
 
