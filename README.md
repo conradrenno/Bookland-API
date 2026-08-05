@@ -58,6 +58,9 @@ bookland/                       ← Parent POM (dependency management)
 ├── bookland-app/               ← Spring Boot entry point — no business logic
 │                                 Assembles all domain modules; hosts application.yml
 │
+├── bookland-web-support/       ← Platform library — the HTTP error contract.
+│                                 Not a domain; not a shared kernel
+│
 ├── bookland-user/              ← User identity and profile management
 ├── bookland-auth/              ← JWT authentication and token lifecycle
 ├── bookland-catalog/           ← Book catalog, search, categories, stock quantity
@@ -69,6 +72,10 @@ bookland/                       ← Parent POM (dependency management)
 ```
 
 `bookland-app` has no business logic — it exists solely to assemble all domain modules into a single deployable artifact.
+
+**`bookland-web-support` is the one module every other module depends on**, and the "duplicate it per module" rule does not apply to it. It holds the glue that renders the HTTP error contract — `ProblemDetails`, `ProblemDetailWriter`, `ProblemDetailErrorController`, the Spring Security entry points, the single bean-validation advice, and the OpenAPI error-response customizer. It exists because that contract has to be **byte-identical across all 8 domains**: duplicated, the shape drifts — one module emitting a `code`, another not; one answering in English, another in whatever language the JVM defaults to.
+
+It is not a shared kernel. Anything with domain meaning is still duplicated per module (`PageQuery`, `PageResult`). This module may never contain a domain type or depend on another `bookland-*` module, and **only `*.infrastructure` packages may import it** — a rule the ArchUnit suite enforces by listing `com.devrenno.bookland.websupport..` next to `org.springframework..` in the framework packages banned from the inner layers. To domain, application and adapters, it *is* a framework. It is packaged separately so the error contract survives a future split into independently deployed services.
 
 ---
 
@@ -388,17 +395,21 @@ All authorization rules for every module live in a single `SecurityConfig`, insi
 
 The filter stores the **userId in `Authentication.getDetails()`**; controllers read it via `extractUserId(Principal)` rather than trusting a path variable.
 
-**Public routes:** `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Everything else requires authentication; `/api/v1/admin/**` and all catalog/inventory writes require `ROLE_ADMIN`.
+**Public routes:** `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/error`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Everything else requires authentication; `/api/v1/admin/**` and all catalog/inventory writes require `ROLE_ADMIN`.
+
+**`/error` is public on purpose and must stay that way.** Boot registers the security chain for the `ERROR` dispatch too, so when an unhandled exception makes the container forward to `/error`, an authenticated `/error` answers the *forward* with `401 TOKEN_MISSING`. The real 500 never reaches the client — it arrives disguised as an expired session, which makes the client refresh its token and then log the user out over a server-side bug.
 
 ---
 
 ## Database and Migrations
 
-**Flyway owns the schema in production.** Migrations live in `bookland-app/src/main/resources/db/migration` and run at startup, before Hibernate.
+**Flyway owns the schema in both profiles.** Migrations live in `bookland-app/src/main/resources/db/migration` and run at startup, before Hibernate.
 
 ```
-V20260726164500__init_schema.sql          ← 15 tables, FKs, indexes
-V20260726164600__reference_categories.sql ← category reference data
+V20260726164500__init_schema.sql            ← 15 tables, FKs, indexes
+V20260726164600__reference_categories.sql   ← category reference data
+V20260730120000__timestamps_with_time_zone.sql
+                                            ← every timestamp column → timestamptz
 ```
 
 Versions are **timestamps**, not sequential numbers, so parallel branches cannot collide on the same version.
@@ -516,11 +527,14 @@ openssl rand -base64 64
 ./mvnw test -pl bookland-auth -Dtest=LoginServiceTest
 ```
 
-The suite is **plain JUnit 5 + Mockito + AssertJ** against mocked ports — there are no `@WebMvcTest` slices and no database in the tests. `TransactionPort` is faked with a pass-through implementation rather than mocked.
+**Inside a domain module** the tests are plain JUnit 5 + Mockito + AssertJ against mocked ports — no Spring context, no database, no `@WebMvcTest` slices. `TransactionPort` is faked with a pass-through implementation rather than mocked. That is what the manual composition root buys: a use case is constructed with `new`, so testing it needs no framework.
 
-Three kinds of test:
+**The contract tests live in `bookland-app`** — the only module with every other module on the classpath, and therefore the only place the real filter chain, the real advices and the real database exist at once. These do boot Spring (`@SpringBootTest`) and do hit H2.
+
+Four kinds of test:
 - **Unit tests** — domain services, application services and internal controllers, in isolation
-- **Architecture tests** — one `ArchitectureRulesTest` per module (ArchUnit): fails the build if `domain`, `application` or `adapters` import Spring, JPA or Jackson, or if the inward dependency direction is broken
+- **Architecture tests** — one `ArchitectureRulesTest` per module (ArchUnit): fails the build if `domain`, `application` or `adapters` import Spring, JPA, Jackson or `bookland-web-support`, or if the inward dependency direction is broken. Two more live in `bookland-app`, where the whole classpath is visible: `WebLayerRulesTest` fails a handler that returns a non-200 without `@ResponseStatus` (springdoc would publish the wrong status), and `TimestampRulesTest` fails any surviving `LocalDateTime` field
+- **Contract tests** — `@SpringBootTest` against the assembled application: they pin what a client actually receives (error bodies, status codes, the published OpenAPI document, date formats, ordering) rather than what a mock was told to return
 - **Context test** — `BooklandApplicationTests` boots the full Spring context, validating every composition root and cross-module `@Bean`
 
 | Module | Test classes |
@@ -533,7 +547,8 @@ Three kinds of test:
 | reviews | `CreateReviewServiceTest`, `ArchitectureRulesTest` |
 | inventory | `AdjustInventoryServiceTest`, `ArchitectureRulesTest` |
 | wishlist | `AddWishlistItemServiceTest`, `ArchitectureRulesTest` |
-| app | `BooklandApplicationTests` |
+| app | `BooklandApplicationTests`, `AuthErrorContractIntegrationTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest`, `OpenApiErrorContractIntegrationTest`, `TimestampContractIntegrationTest`, `OrderHistoryOrderingIntegrationTest`, `ProblemDetailErrorControllerTest`, `WebLayerRulesTest`, `TimestampRulesTest` |
+| web-support | — (exercised entirely through the app's contract tests) |
 
 ---
 
