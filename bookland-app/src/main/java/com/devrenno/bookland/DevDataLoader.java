@@ -28,13 +28,20 @@ public class DevDataLoader implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DevDataLoader.class);
 
-    // Category UUIDs defined in import.sql
-    private static final UUID CAT_TECNOLOGIA = UUID.fromString("c3d4e5f6-a7b8-9012-cdef-123456789012");
-    private static final UUID CAT_FICCAO     = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
-    private static final UUID CAT_NEGOCIOS   = UUID.fromString("e5f6a7b8-c9d0-1234-efab-345678901234");
+    // All eight category UUIDs inserted by V20260726164600__reference_categories.sql.
+    // The migration's own header still says only three of them are referenced here —
+    // it predates this seed and cannot be edited without changing its Flyway checksum.
+    private static final UUID CAT_TECNOLOGIA  = UUID.fromString("c3d4e5f6-a7b8-9012-cdef-123456789012");
+    private static final UUID CAT_FICCAO      = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+    private static final UUID CAT_NEGOCIOS    = UUID.fromString("e5f6a7b8-c9d0-1234-efab-345678901234");
+    private static final UUID CAT_ROMANCE     = UUID.fromString("b2c3d4e5-f6a7-8901-bcde-f12345678901");
+    private static final UUID CAT_HISTORIA    = UUID.fromString("d4e5f6a7-b8c9-0123-defa-234567890123");
+    private static final UUID CAT_AUTOAJUDA   = UUID.fromString("f6a7b8c9-d0e1-2345-fabc-456789012345");
+    private static final UUID CAT_LIT_BRASIL  = UUID.fromString("a7b8c9d0-e1f2-3456-abcd-567890123456");
+    private static final UUID CAT_INFANTIL    = UUID.fromString("b8c9d0e1-f2a3-4567-bcde-678901234567");
 
     private static final String CUSTOMER_EMAIL = "joao@bookland.com";
-    private static final int TOTAL_BOOKS = 5;
+    private static final int TOTAL_BOOKS = 10;
 
     private final RegisterUserUseCase registerUserUseCase;
     private final GetUserByEmailUseCase getUserByEmailUseCase;
@@ -97,21 +104,66 @@ public class DevDataLoader implements ApplicationRunner {
 
         created += seedBook(new CreateBookCommand(
                 "Duna",
-                "978-8576574675",
+                "978-8576573135",
                 List.of("Frank Herbert"),
-                "Aleph", 1965, "Edição especial",
+                "Aleph", 2017, "Edição especial",
                 "A épica saga de sobrevivência e poder no planeta deserto Arrakis.",
                 BigDecimal.valueOf(49.90), 12, CAT_FICCAO,
-                "https://covers.openlibrary.org/b/isbn/9788576574675-L.jpg"));
+                "https://covers.openlibrary.org/b/isbn/9788576573135-L.jpg"));
 
         created += seedBook(new CreateBookCommand(
-                "O Investidor Inteligente",
-                "978-8576840220",
-                List.of("Benjamin Graham"),
-                "HarperCollins", 1949, "Ed. revisada",
-                "O guia definitivo de investimento em valor de Benjamin Graham.",
+                "Pai Rico, Pai Pobre",
+                "978-8550801483",
+                List.of("Robert T. Kiyosaki", "Sharon L. Lechter"),
+                "Alta Books", 2017, "Edição de 20 anos",
+                "O que os ricos ensinam a seus filhos sobre dinheiro — e que os pobres não ensinam.",
                 BigDecimal.valueOf(54.90), 10, CAT_NEGOCIOS,
-                "https://covers.openlibrary.org/b/isbn/9788576840220-L.jpg"));
+                "https://covers.openlibrary.org/b/isbn/9788550801483-L.jpg"));
+
+        created += seedBook(new CreateBookCommand(
+                "Dom Casmurro",
+                "978-8594318602",
+                List.of("Machado de Assis"),
+                "Principis", 2019, "1ª edição",
+                "O ciúme de Bentinho e o eterno enigma dos olhos de ressaca de Capitu.",
+                BigDecimal.valueOf(19.90), 25, CAT_LIT_BRASIL,
+                "https://covers.openlibrary.org/b/isbn/9788594318602-L.jpg"));
+
+        created += seedBook(new CreateBookCommand(
+                "Cem Anos de Solidão",
+                "978-8501012074",
+                List.of("Gabriel García Márquez"),
+                "Record", 2022, "1ª edição",
+                "A saga da família Buendía em Macondo, obra-prima do realismo mágico.",
+                BigDecimal.valueOf(69.90), 14, CAT_ROMANCE,
+                "https://covers.openlibrary.org/b/isbn/9788501012074-L.jpg"));
+
+        created += seedBook(new CreateBookCommand(
+                "Sapiens: Uma Breve História da Humanidade",
+                "978-8525432186",
+                List.of("Yuval Noah Harari"),
+                "L&PM", 2015, "1ª edição",
+                "Como um primata irrelevante se tornou o senhor do planeta.",
+                BigDecimal.valueOf(64.90), 18, CAT_HISTORIA,
+                "https://covers.openlibrary.org/b/isbn/9788525432186-L.jpg"));
+
+        created += seedBook(new CreateBookCommand(
+                "O Poder do Hábito",
+                "978-8539004119",
+                List.of("Charles Duhigg"),
+                "Objetiva", 2012, "1ª edição",
+                "Por que fazemos o que fazemos na vida e nos negócios.",
+                BigDecimal.valueOf(47.90), 22, CAT_AUTOAJUDA,
+                "https://covers.openlibrary.org/b/isbn/9788539004119-L.jpg"));
+
+        created += seedBook(new CreateBookCommand(
+                "Harry Potter e a Pedra Filosofal",
+                "978-8532530783",
+                List.of("J. K. Rowling"),
+                "Rocco", 2017, "Edição especial",
+                "O menino que sobreviveu descobre que é um bruxo e parte para Hogwarts.",
+                BigDecimal.valueOf(39.90), 30, CAT_INFANTIL,
+                "https://covers.openlibrary.org/b/isbn/9788532530783-L.jpg"));
 
         log.info("[DEV] Books seeded — {} created, {} already present", created, TOTAL_BOOKS - created);
     }
