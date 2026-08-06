@@ -257,7 +257,7 @@ Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` i
 Manages customer identity and profile. Stores hashed passwords, name, email, role (`CUSTOMER` / `ADMIN`), and active status. Exposes use-case interfaces consumed by the Auth module.
 
 ### Auth
-Handles the full JWT lifecycle: registration, login, access-token refresh, and logout. Issues short-lived **access tokens** (24h) and long-lived **refresh tokens** (7 days) with single-use rotation. The `JwtAuthenticationFilter` populates Spring Security's context on every request.
+Handles the full JWT lifecycle: registration, login, access-token refresh, and logout. Issues short-lived **access tokens** (15 minutes) and long-lived **refresh tokens** (7 days) with single-use rotation. The `JwtAuthenticationFilter` populates Spring Security's context on every request.
 
 ### Catalog
 The source of truth for book data and stock quantity. Supports full-text search, filtering by category, price range, and average rating. Exposes stock adjustment and low-stock query use cases consumed by Inventory and Orders. ISBNs are normalised to their canonical 13-digit form on the way in.
@@ -428,7 +428,7 @@ order, not rejected, because unknown query parameters are ignored API-wide.
 ## Security Model
 
 - **Stateless JWT** — no server-side session; the filter validates the token on every request
-- **Access token** — short-lived (24h default), carries `userId`, `email`, and `role` claims
+- **Access token** — short-lived (15 min default), carries `userId`, `email`, and `role` claims
 - **Refresh token** — long-lived (7 days), single-use with rotation; stored in the database
 - **Role-based access** — `CUSTOMER` for standard routes, `ADMIN` for management endpoints; enforced by Spring Security `hasRole()` rules in `SecurityConfig`
 - **Admin bootstrap** — `AdminBootstrap` runs on every startup and idempotently ensures the configured admin account exists, driven by environment variables in production
@@ -437,6 +437,8 @@ order, not rejected, because unknown query parameters are ignored API-wide.
 All authorization rules for every module live in a single `SecurityConfig`, inside `bookland-auth`. Rule order matters: specific admin routes are declared before broad `permitAll` patterns.
 
 The filter stores the **userId in `Authentication.getDetails()`**; controllers read it via `extractUserId(Principal)` rather than trusting a path variable.
+
+**Known limitation — logout does not invalidate the access token.** `POST /auth/logout` revokes the refresh token, so the session cannot be extended past the current access token. But the access token is stateless: nothing is looked up when it is validated, so it keeps working until it expires. A user who signed out stays authenticable for up to the access-token TTL — which is why that TTL is 15 minutes and not hours. This is the standard trade-off of stateless JWT, and the standard mitigation is exactly this: keep the access token short and let rotation do the rest. Making logout immediate requires server-side state on every request — a revocation list keyed by token id, listed under [Future Improvements](#future-improvements) as part of the Redis item.
 
 **Public routes:** `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/error`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Everything else requires authentication; `/api/v1/admin/**` and all catalog/inventory writes require `ROLE_ADMIN`.
 
@@ -587,7 +589,7 @@ Copy `.env.example` to `.env` and fill in the values before running with Docker.
 | `POSTGRES_USER` | Prod | PostgreSQL username |
 | `POSTGRES_PASSWORD` | Prod | PostgreSQL password |
 | `JWT_SECRET` | Prod | Base64-encoded HMAC-SHA256 key (min 256 bits) |
-| `JWT_EXPIRATION_MS` | Optional | Access token TTL in ms (default: 86400000 — 24h) |
+| `JWT_EXPIRATION_MS` | Optional | Access token TTL in ms (default: 900000 — 15 min). Raising it widens the logout window — see [Security Model](#security-model) |
 | `JWT_REFRESH_EXPIRATION_MS` | Optional | Refresh token TTL in ms (default: 604800000 — 7d) |
 | `ADMIN_EMAIL` | Prod | Bootstrap admin email |
 | `ADMIN_PASSWORD` | Prod | Bootstrap admin password |
@@ -647,7 +649,7 @@ The current implementation intentionally keeps auth simple (direct JWT) to focus
 - **Event-driven cross-domain communication** — replace in-process port calls with domain events via a message broker (e.g. Kafka or RabbitMQ), enabling true decoupling and eventual consistency between modules
 - **Notification domain** — email/push notifications triggered by domain events (order confirmed, shipped, review approved)
 - **Elasticsearch integration** — replace JPA-based book search with a dedicated search index for full-text, faceted, and relevance-ranked queries
-- **Redis caching** — cache catalog reads and session-adjacent data (cart preview, token blocklist for logout)
+- **Redis caching** — cache catalog reads and session-adjacent data (cart preview). Also the natural home for an **access-token revocation list**, which is what would make logout immediate instead of bounded by the 15-minute TTL (see [Security Model](#security-model)) — the trade is a lookup on every authenticated request, so it buys immediacy at the cost of the statelessness that makes the filter free today
 - **Admin promotion endpoint** — `PATCH /api/v1/admin/users/{id}/role` to promote users without direct database access
 - **CI/CD pipeline** — GitHub Actions workflow with test, build, Docker push, and deploy stages
 - **Rate limiting** — per-IP and per-user throttling on auth and checkout endpoints

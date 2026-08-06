@@ -39,7 +39,9 @@ spring:
 bookland:
   jwt:
     secret: ZmY0YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTY=
-    expiration-ms: 86400000
+    # 15 min. Logout revokes the refresh token but cannot revoke a stateless access token, so the
+    # window in which a signed-out token still works is exactly this TTL — keep it short.
+    expiration-ms: 900000
     refresh-token-expiration-ms: 604800000
   admin:
     email: admin@bookland.com
@@ -79,7 +81,7 @@ spring:
 bookland:
   jwt:
     secret: ${JWT_SECRET}
-    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    expiration-ms: ${JWT_EXPIRATION_MS:900000}
     refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
   admin:
     email: ${ADMIN_EMAIL}
