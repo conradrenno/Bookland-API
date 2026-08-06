@@ -95,7 +95,8 @@ public class OrdersController {
                 GetOrderByIdService.create(orderPersistencePort),
                 GetOrderHistoryService.create(orderPersistencePort),
                 CancelOrderService.create(orderPersistencePort, bookStockPort, refundPort, transactionPort),
-                UpdateOrderStatusService.create(orderPersistencePort),
+                UpdateOrderStatusService.create(orderPersistencePort, bookStockPort, refundPort,
+                        transactionPort),
                 ListAllOrdersService.create(orderPersistencePort),
                 OrderPresenter.create()
         );

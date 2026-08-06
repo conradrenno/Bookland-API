@@ -41,12 +41,8 @@ public class CancelOrderService implements CancelOrderUseCase {
             OrderStatus previousStatus = order.getStatus();
             order.cancel(customerId);
 
-            if (previousStatus == OrderStatus.CONFIRMED) {
-                for (var item : order.getItems()) {
-                    bookStockPort.incrementStock(item.getBookId(), item.getQuantity());
-                }
-                refundPort.refund(orderId);
-            }
+            OrderCancellation.compensate(order, previousStatus, order.getStatus(),
+                    bookStockPort, refundPort);
 
             return orderPersistencePort.save(order);
         });
