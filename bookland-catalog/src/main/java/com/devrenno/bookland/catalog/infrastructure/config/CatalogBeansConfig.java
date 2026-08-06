@@ -51,6 +51,16 @@ public class CatalogBeansConfig {
     }
 
     @Bean
+    public DecrementBookStockUseCase decrementBookStockUseCase(BookPersistencePort bookPersistencePort) {
+        return DecrementBookStockService.create(bookPersistencePort);
+    }
+
+    @Bean
+    public IncrementBookStockUseCase incrementBookStockUseCase(BookPersistencePort bookPersistencePort) {
+        return IncrementBookStockService.create(bookPersistencePort);
+    }
+
+    @Bean
     public GetLowStockBooksUseCase getLowStockBooksUseCase(BookPersistencePort bookPersistencePort) {
         return GetLowStockBooksService.create(bookPersistencePort);
     }

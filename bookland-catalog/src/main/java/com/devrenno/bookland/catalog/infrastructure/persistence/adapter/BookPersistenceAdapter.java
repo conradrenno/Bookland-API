@@ -18,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,6 +35,21 @@ public class BookPersistenceAdapter implements BookPersistencePort {
         CategoryJpaEntity category = categoryRepository.getReferenceById(book.getCategoryId().value());
         BookJpaEntity entity = mapper.toEntity(book, category);
         return mapper.toDomain(bookRepository.save(entity));
+    }
+
+    @Override
+    public boolean tryDecrementSellableStock(UUID bookId, int quantity) {
+        return bookRepository.decrementSellableStock(bookId, quantity, Instant.now()) == 1;
+    }
+
+    @Override
+    public boolean tryDecrementStock(UUID bookId, int quantity) {
+        return bookRepository.decrementStock(bookId, quantity, Instant.now()) == 1;
+    }
+
+    @Override
+    public boolean incrementStock(UUID bookId, int quantity) {
+        return bookRepository.incrementStock(bookId, quantity, Instant.now()) == 1;
     }
 
     @Override
