@@ -4,6 +4,7 @@ import com.devrenno.bookland.inventory.adapters.controller.InventoryController;
 import com.devrenno.bookland.inventory.application.port.out.BookStockAdjustmentPort;
 import com.devrenno.bookland.inventory.application.port.out.InventoryPersistencePort;
 import com.devrenno.bookland.inventory.application.port.out.LowStockBooksPort;
+import com.devrenno.bookland.inventory.application.port.out.TransactionPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,7 +18,9 @@ public class InventoryBeansConfig {
     @Bean
     public InventoryController inventoryController(BookStockAdjustmentPort bookStockAdjustmentPort,
                                                    InventoryPersistencePort inventoryPersistencePort,
-                                                   LowStockBooksPort lowStockBooksPort) {
-        return InventoryController.create(bookStockAdjustmentPort, inventoryPersistencePort, lowStockBooksPort);
+                                                   LowStockBooksPort lowStockBooksPort,
+                                                   TransactionPort transactionPort) {
+        return InventoryController.create(bookStockAdjustmentPort, inventoryPersistencePort,
+                lowStockBooksPort, transactionPort);
     }
 }

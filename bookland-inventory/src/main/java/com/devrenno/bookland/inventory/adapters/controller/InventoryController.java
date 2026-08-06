@@ -12,6 +12,7 @@ import com.devrenno.bookland.inventory.application.port.in.GetLowStockBooksUseCa
 import com.devrenno.bookland.inventory.application.port.out.BookStockAdjustmentPort;
 import com.devrenno.bookland.inventory.application.port.out.InventoryPersistencePort;
 import com.devrenno.bookland.inventory.application.port.out.LowStockBooksPort;
+import com.devrenno.bookland.inventory.application.port.out.TransactionPort;
 import com.devrenno.bookland.inventory.application.service.AdjustInventoryService;
 import com.devrenno.bookland.inventory.application.service.GetInventoryHistoryService;
 import com.devrenno.bookland.inventory.application.service.GetLowStockBooksService;
@@ -42,9 +43,11 @@ public class InventoryController {
 
     public static InventoryController create(BookStockAdjustmentPort bookStockAdjustmentPort,
                                              InventoryPersistencePort inventoryPersistencePort,
-                                             LowStockBooksPort lowStockBooksPort) {
+                                             LowStockBooksPort lowStockBooksPort,
+                                             TransactionPort transactionPort) {
         return new InventoryController(
-                AdjustInventoryService.create(bookStockAdjustmentPort, inventoryPersistencePort),
+                AdjustInventoryService.create(bookStockAdjustmentPort, inventoryPersistencePort,
+                        transactionPort),
                 GetInventoryHistoryService.create(inventoryPersistencePort),
                 GetLowStockBooksService.create(lowStockBooksPort, inventoryPersistencePort),
                 InventoryPresenter.create()
