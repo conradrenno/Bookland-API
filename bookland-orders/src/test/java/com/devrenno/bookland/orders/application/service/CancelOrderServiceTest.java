@@ -69,7 +69,7 @@ class CancelOrderServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        verify(bookStockPort, never()).adjustStock(any(), anyInt());
+        verify(bookStockPort, never()).incrementStock(any(), anyInt());
         verify(refundPort, never()).refund(any());
     }
 
@@ -83,7 +83,7 @@ class CancelOrderServiceTest {
         Order result = service.execute(order.getId(), customerId);
 
         assertThat(result).isNotNull();
-        verify(bookStockPort).adjustStock(bookId, 2);
+        verify(bookStockPort).incrementStock(bookId, 2);
         verify(refundPort).refund(order.getId());
     }
 
@@ -106,7 +106,7 @@ class CancelOrderServiceTest {
         assertThatThrownBy(() -> service.execute(order.getId(), otherCustomer))
                 .isInstanceOf(OrderAccessDeniedException.class);
 
-        verify(bookStockPort, never()).adjustStock(any(), anyInt());
+        verify(bookStockPort, never()).incrementStock(any(), anyInt());
     }
 
     @Test
@@ -118,7 +118,7 @@ class CancelOrderServiceTest {
         assertThatThrownBy(() -> service.execute(order.getId(), customerId))
                 .isInstanceOf(OrderCancellationNotAllowedException.class);
 
-        verify(bookStockPort, never()).adjustStock(any(), anyInt());
+        verify(bookStockPort, never()).incrementStock(any(), anyInt());
     }
 
     private Order buildOrder(UUID customerId, OrderStatus status) {

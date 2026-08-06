@@ -1,6 +1,7 @@
 package com.devrenno.bookland.orders.infrastructure.adapter;
 
-import com.devrenno.bookland.catalog.application.port.in.AdjustBookStockUseCase;
+import com.devrenno.bookland.catalog.application.port.in.DecrementBookStockUseCase;
+import com.devrenno.bookland.catalog.application.port.in.IncrementBookStockUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -11,10 +12,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BookStockAdapter implements BookStockPort {
 
-    private final AdjustBookStockUseCase adjustBookStockUseCase;
+    private final DecrementBookStockUseCase decrementBookStockUseCase;
+    private final IncrementBookStockUseCase incrementBookStockUseCase;
 
     @Override
-    public void adjustStock(UUID bookId, int delta) {
-        adjustBookStockUseCase.adjustStock(bookId, delta);
+    public boolean tryDecrementStock(UUID bookId, int quantity) {
+        return decrementBookStockUseCase.tryDecrement(bookId, quantity);
+    }
+
+    @Override
+    public void incrementStock(UUID bookId, int quantity) {
+        incrementBookStockUseCase.increment(bookId, quantity);
     }
 }

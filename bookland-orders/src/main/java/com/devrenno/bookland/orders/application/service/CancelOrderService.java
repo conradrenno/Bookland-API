@@ -43,7 +43,7 @@ public class CancelOrderService implements CancelOrderUseCase {
 
             if (previousStatus == OrderStatus.CONFIRMED) {
                 for (var item : order.getItems()) {
-                    bookStockPort.adjustStock(item.getBookId(), item.getQuantity());
+                    bookStockPort.incrementStock(item.getBookId(), item.getQuantity());
                 }
                 refundPort.refund(orderId);
             }

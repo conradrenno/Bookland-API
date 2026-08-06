@@ -76,13 +76,70 @@ class CheckoutServiceTest {
         when(orderPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(paymentPort.processPayment(any(), any(), any(), any()))
                 .thenReturn(new PaymentResult(true, "SIM-001", null));
+        when(bookStockPort.tryDecrementStock(bookId, 2)).thenReturn(true);
 
         Order order = service.execute(customerId, PaymentMethod.CREDIT_CARD);
 
         assertThat(order).isNotNull();
         assertThat(order.getCustomerId()).isEqualTo(customerId);
-        verify(bookStockPort).adjustStock(bookId, -2);
+        verify(bookStockPort).tryDecrementStock(bookId, 2);
         verify(cartPersistencePort).deleteByCustomerId(customerId);
+    }
+
+    /**
+     * The race the conditional decrement exists for: the cart validated against a stock reading that
+     * a concurrent checkout consumed before this one reached the decrement. The order must not be
+     * confirmed, and the cart must survive so the customer can act on it.
+     */
+    @Test
+    void execute_shouldThrowCartItemUnavailable_whenStockIsTakenBetweenValidationAndDecrement() {
+        Cart cart = buildCart(bookId, 1, BigDecimal.valueOf(29.90));
+        BookInfo book = new BookInfo(bookId, "Clean Code", "/media/covers/clean-code.jpg", BigDecimal.valueOf(29.90), 1);
+
+        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
+        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
+        when(paymentPort.processPayment(any(), any(), any(), any()))
+                .thenReturn(new PaymentResult(true, "SIM-001", null));
+        when(bookStockPort.tryDecrementStock(bookId, 1)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
+                .isInstanceOf(CartItemUnavailableException.class);
+
+        verify(orderPersistencePort, never()).save(any());
+        verify(cartPersistencePort, never()).deleteByCustomerId(any());
+    }
+
+    /**
+     * A multi-line cart where only the second line lost the race still fails as a whole: the
+     * transaction rollback is what undoes the first decrement, so the service must not try to
+     * compensate it by hand.
+     */
+    @Test
+    void execute_shouldReportOnlyTheLostLine_whenPartOfTheCartIsStillAvailable() {
+        UUID otherBookId = UUID.randomUUID();
+        Cart cart = Cart.reconstitute(
+                UUID.randomUUID(), customerId,
+                List.of(CartItem.of(bookId, 1, BigDecimal.valueOf(29.90)),
+                        CartItem.of(otherBookId, 1, BigDecimal.valueOf(49.90))),
+                Instant.now(), Instant.now());
+
+        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
+        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(
+                new BookInfo(bookId, "Clean Code", null, BigDecimal.valueOf(29.90), 5)));
+        when(bookInfoPort.findBookInfo(otherBookId)).thenReturn(Optional.of(
+                new BookInfo(otherBookId, "Refactoring", null, BigDecimal.valueOf(49.90), 1)));
+        when(paymentPort.processPayment(any(), any(), any(), any()))
+                .thenReturn(new PaymentResult(true, "SIM-001", null));
+        when(bookStockPort.tryDecrementStock(bookId, 1)).thenReturn(true);
+        when(bookStockPort.tryDecrementStock(otherBookId, 1)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
+                .isInstanceOf(CartItemUnavailableException.class)
+                .hasMessageContaining(otherBookId.toString())
+                .hasMessageNotContaining(bookId.toString());
+
+        verify(orderPersistencePort, never()).save(any());
+        verify(bookStockPort, never()).incrementStock(any(), anyInt());
     }
 
     @Test
@@ -100,7 +157,7 @@ class CheckoutServiceTest {
                 .isInstanceOf(PaymentDeclinedException.class);
 
         verify(orderPersistencePort).save(any());
-        verify(bookStockPort, never()).adjustStock(any(), anyInt());
+        verify(bookStockPort, never()).tryDecrementStock(any(), anyInt());
         verify(cartPersistencePort, never()).deleteByCustomerId(any());
     }
 
@@ -116,7 +173,7 @@ class CheckoutServiceTest {
                 .isInstanceOf(CartItemUnavailableException.class);
 
         verify(orderPersistencePort, never()).save(any());
-        verify(bookStockPort, never()).adjustStock(any(), anyInt());
+        verify(bookStockPort, never()).tryDecrementStock(any(), anyInt());
     }
 
     @Test
@@ -130,7 +187,7 @@ class CheckoutServiceTest {
                 .isInstanceOf(CartItemUnavailableException.class);
 
         verify(orderPersistencePort, never()).save(any());
-        verify(bookStockPort, never()).adjustStock(any(), anyInt());
+        verify(bookStockPort, never()).tryDecrementStock(any(), anyInt());
     }
 
     @Test

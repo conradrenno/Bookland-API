@@ -56,7 +56,11 @@ public class CheckoutService implements CheckoutUseCase {
      * The whole checkout runs in a single transaction. A declined payment must still COMMIT the
      * PAYMENT_FAILED order (the old @Transactional(noRollbackFor = PaymentDeclinedException.class)
      * semantics), so the declined outcome is returned from the transaction and the exception is
-     * thrown only after the commit. Any other exception rolls the transaction back as before.
+     * thrown only after the commit. Any other exception rolls the transaction back as before —
+     * including a CartItemUnavailableException raised after an approved payment, when a concurrent
+     * checkout took the last copies. That rollback discards the payment record along with the order,
+     * which is correct against the simulated gateway but would need a compensating refund against a
+     * real one; see the stock-reservation note in the README roadmap.
      */
     @Override
     public Order execute(UUID customerId, PaymentMethod paymentMethod) {
@@ -79,6 +83,9 @@ public class CheckoutService implements CheckoutUseCase {
         List<OrderItem> orderItems = new ArrayList<>();
 
         for (CartItem item : cart.getItems()) {
+            // This pass is a courtesy check, not the guarantee: it lets an obviously unfulfillable
+            // cart fail before the customer is charged. The binding check is the conditional
+            // decrement below, which is the only one the store evaluates atomically.
             // A book removed from the catalog since it was added counts as unavailable, not as a
             // missing resource — the customer gets the same "remove these items" outcome as an
             // out-of-stock one.
@@ -103,8 +110,18 @@ public class CheckoutService implements CheckoutUseCase {
                 order.getId(), customerId, order.getTotalAmount(), paymentMethod);
 
         if (result.approved()) {
+            // Each decrement is guarded by the store, so a checkout that lost the race for the last
+            // copies fails here instead of confirming an order the catalog cannot fulfil. Throwing
+            // rolls the transaction back — the payment row and any decrement already applied in this
+            // loop go with it, which is what keeps a partially-fulfilled order from existing.
+            List<UUID> soldOut = new ArrayList<>();
             for (OrderItem item : orderItems) {
-                bookStockPort.adjustStock(item.getBookId(), -item.getQuantity());
+                if (!bookStockPort.tryDecrementStock(item.getBookId(), item.getQuantity())) {
+                    soldOut.add(item.getBookId());
+                }
+            }
+            if (!soldOut.isEmpty()) {
+                throw new CartItemUnavailableException(soldOut);
             }
             order.transitionStatus(OrderStatus.CONFIRMED, customerId);
             Order saved = orderPersistencePort.save(order);
