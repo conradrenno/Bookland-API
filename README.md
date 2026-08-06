@@ -272,9 +272,49 @@ An admin-facing audit ledger for manual stock adjustments. Records every delta w
 ### Orders
 Manages the full purchase lifecycle:
 - **Cart** — one per customer, with real-time stock validation and price snapshotting
-- **Checkout** — validates stock, processes payment, decrements stock, and transitions the order atomically within a single transaction
+- **Checkout** — validates stock, processes payment, decrements stock, and transitions the order in a single transaction: either all four land or none do
 - **Order lifecycle** — `AWAITING_PAYMENT → CONFIRMED → SHIPPED → DELIVERED` (or `CANCELLED` / `PAYMENT_FAILED`)
 - **Cancellation** — from `AWAITING_PAYMENT` or `CONFIRMED`; the latter triggers stock restore and automatic refund
+
+#### Stock under concurrency
+
+A single transaction buys atomicity, not isolation — the two are separate guarantees and only the first one follows from wrapping the work in a transaction. Stock therefore moves only through **relative UPDATEs** evaluated by the database, never through a read-modify-write in Java.
+
+Checkout consumes units with a conditional decrement:
+
+```sql
+UPDATE books SET stock_quantity = stock_quantity - :quantity
+ WHERE id = :id AND active = true AND stock_quantity >= :quantity
+```
+
+`BookPersistencePort.tryDecrementSellableStock` returns whether that statement matched a row. Zero rows means the units are gone, which `CheckoutService` reports as `CartItemUnavailableException` (409) rather than confirming an order the catalog cannot fulfil.
+
+Cancellation returns them with the mirror statement, deliberately **without** the `active` filter — a delisted book must not be *sold*, but units coming back from a cancelled order are still units, and dropping them would leave the count wrong for good if the book is ever relisted:
+
+```sql
+UPDATE books SET stock_quantity = stock_quantity + :quantity WHERE id = :id
+```
+
+The asymmetry in the return types follows the same logic. A decrement has a guard that can legitimately fail, so it answers `boolean`; an increment has none, so it only reports whether the book existed at all, and `IncrementBookStockService` turns a miss into `BookNotFoundException` rather than discarding the units silently.
+
+**Three operations, not two.** Inventory's admin correction carries a *signed* delta, so `AdjustBookStockService` routes it to whichever relative UPDATE matches the sign. Its decrement is a third statement — the same guard against going negative, but again without the `active` filter, because admin write flows deliberately still reach delisted books and refusing to correct their count would strand it. Only selling requires the book to be active. The signature and the errors are unchanged from the read-modify-write version it replaces, `InsufficientStockException` (422) included, so nothing downstream noticed.
+
+`AdjustInventoryService` also gained a `TransactionPort`, and both halves of that change matter:
+
+- **The ledger and the stock now commit together.** Before, a failure to save the audit entry left the stock already changed and unrecorded.
+- **`previousQuantity` is derived, not read.** It used to call `getCurrentStock` and *then* adjust — two statements with a window between them, so the recorded "previous" could be a value this adjustment never started from, and the audit trail disagreed with the stock it existed to explain. Subtracting the delta from the result is exact, because the adjustment applied that delta atomically and the row lock it took is still held. `getCurrentStock` was removed from `BookStockAdjustmentPort` entirely — leaving it there is an invitation to reintroduce the bug.
+
+**Why not the alternatives.** The obvious read-modify-write — load the book, subtract in Java, save — is what this replaced, and it cannot hold the invariant no matter how the transaction is configured: two checkouts both read `stock=1`, both compute `0`, and both write the absolute value `0`. One unit is sold twice, silently, because a domain guard on the entity only ever sees the snapshot its own transaction read. A row lock does not save it either, since the value written is a constant computed before the lock was taken. `@Version` (optimistic locking) would protect every write to `books` rather than just this one, but it surfaces the conflict as an exception *after* the payment is approved, forcing a retry that re-charges or a compensating refund — and it turns a popular title into a retry storm. `PESSIMISTIC_WRITE` is correct but would hold the row lock across the payment gateway call, which sits inside the same transaction. The conditional `UPDATE` needs no version column, no migration, no retry, and no lock held over network I/O.
+
+**Where the guard is enforced.** In the SQL predicates, and only there. `Book` deliberately exposes **no method to move stock** — the old `Book.adjustStock`, which computed `stockQuantity + delta` in memory and threw when the result went negative, was deleted rather than left as dead code: it read like the safe way to change stock and was the exact read-modify-write this section is about, so keeping it around was a trap regardless of any warning attached to it. The invariant is now stated once, by the party that can evaluate it in the same statement that writes.
+
+The one absolute write left is `Book.update`, the admin edit that *sets* a stock quantity outright rather than moving it. It overwrites by intent — the admin is asserting a count, not a change — so it has no relative form and needs no guard.
+
+**Why three in-ports.** `DecrementBookStockUseCase` and `IncrementBookStockUseCase` are separate from `AdjustBookStockUseCase` because Orders never applies a signed adjustment — it consumes or returns a known number of units, and running out of stock mid-race is an expected outcome rather than an error, so it answers `boolean` instead of throwing. Inventory is the opposite: an admin submits a delta whose direction the caller does not know in advance, and a correction that would go negative is a genuine mistake worth a 422.
+
+**What this does not fix.** The stock reading that validates the cart is still a separate statement from the decrement, so a checkout can pass validation and then lose the race. It now *fails* instead of overselling — but it fails after the payment was approved, and the rollback that undoes the charge is only safe because the gateway is simulated. A real PSP would need a compensating refund. Closing that properly means reserving stock before charging rather than after; see **Future Improvements**.
+
+All of it is pinned by `StockConcurrencyIntegrationTest` (bookland-app), which races twenty checkouts for five copies, twenty cancellations returning a unit each, and twenty admin corrections of +1, all against the real database — a mocked persistence port would have passed against the broken implementation.
 
 ### Payments
 Simulated payment gateway supporting `CREDIT_CARD`, `DEBIT_CARD`, `PAYPAL`, and `PIX`. Records payment status and provides refund capability. Consumed by Orders via outbound ports — Orders never accesses Payment internals directly.
@@ -611,6 +651,7 @@ The current implementation intentionally keeps auth simple (direct JWT) to focus
 - **Admin promotion endpoint** — `PATCH /api/v1/admin/users/{id}/role` to promote users without direct database access
 - **CI/CD pipeline** — GitHub Actions workflow with test, build, Docker push, and deploy stages
 - **Rate limiting** — per-IP and per-user throttling on auth and checkout endpoints
+- **Stock reservation at checkout** — reserve units *before* charging and release them on failure or expiry, instead of decrementing after the payment is approved. Today a checkout that loses the race for the last copies fails cleanly (see [Stock under concurrency](#stock-under-concurrency)), but it fails with the payment already approved, which only rolls back safely because the gateway is simulated. A reservation with a TTL trades "sold what we did not have" for "held what we did not sell" — the cheaper of the two errors — and is the prerequisite for plugging in a real payment provider
 
 ---
 
