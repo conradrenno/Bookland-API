@@ -6,13 +6,12 @@ import com.devrenno.bookland.inventory.application.common.PageQuery;
 import com.devrenno.bookland.inventory.application.common.PageResult;
 import com.devrenno.bookland.inventory.application.dto.AdjustInventoryCommand;
 import com.devrenno.bookland.inventory.infrastructure.web.dto.AdjustInventoryRequest;
+import com.devrenno.bookland.websupport.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
 import java.util.UUID;
 
 @RestController
@@ -26,10 +25,10 @@ public class BookInventoryApiController {
     public ResponseEntity<InventoryEntryViewModel> adjust(
             @PathVariable UUID bookId,
             @Valid @RequestBody AdjustInventoryRequest request,
-            Principal principal
+            AuthenticatedUser caller
     ) {
         AdjustInventoryCommand command = new AdjustInventoryCommand(
-                bookId, request.delta(), request.reason(), extractUserId(principal)
+                bookId, request.delta(), request.reason(), caller.id()
         );
         return ResponseEntity.ok(inventoryController.adjust(command));
     }
@@ -41,13 +40,5 @@ public class BookInventoryApiController {
             @RequestParam(defaultValue = "20") int size
     ) {
         return ResponseEntity.ok(inventoryController.history(bookId, PageQuery.of(page, size)));
-    }
-
-    private UUID extractUserId(Principal principal) {
-        if (principal instanceof UsernamePasswordAuthenticationToken auth
-                && auth.getDetails() instanceof UUID userId) {
-            return userId;
-        }
-        return null;
     }
 }

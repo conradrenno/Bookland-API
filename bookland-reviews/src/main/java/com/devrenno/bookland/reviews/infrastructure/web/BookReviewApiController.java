@@ -6,14 +6,13 @@ import com.devrenno.bookland.reviews.adapters.viewmodel.ReviewViewModel;
 import com.devrenno.bookland.reviews.application.common.PageQuery;
 import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
 import com.devrenno.bookland.reviews.infrastructure.web.dto.CreateReviewRequest;
+import com.devrenno.bookland.websupport.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
 import java.util.UUID;
 
 @RestController
@@ -28,10 +27,10 @@ public class BookReviewApiController {
     public ResponseEntity<ReviewViewModel> create(
             @PathVariable UUID bookId,
             @Valid @RequestBody CreateReviewRequest request,
-            Principal principal
+            AuthenticatedUser caller
     ) {
         CreateReviewCommand command = new CreateReviewCommand(
-                bookId, extractUserId(principal), request.rating(), request.comment()
+                bookId, caller.id(), request.rating(), request.comment()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(reviewController.create(command));
     }
@@ -50,13 +49,5 @@ public class BookReviewApiController {
     public ResponseEntity<Void> moderate(@PathVariable UUID bookId, @PathVariable UUID reviewId) {
         reviewController.moderate(reviewId);
         return ResponseEntity.noContent().build();
-    }
-
-    private UUID extractUserId(Principal principal) {
-        if (principal instanceof UsernamePasswordAuthenticationToken auth
-                && auth.getDetails() instanceof UUID userId) {
-            return userId;
-        }
-        return null;
     }
 }

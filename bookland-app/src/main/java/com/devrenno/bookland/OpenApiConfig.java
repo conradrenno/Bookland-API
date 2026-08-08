@@ -1,12 +1,14 @@
 package com.devrenno.bookland;
 
 import com.devrenno.bookland.websupport.openapi.ErrorResponsesCustomizer;
+import com.devrenno.bookland.websupport.security.AuthenticatedUser;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,6 +16,14 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
     private static final String BEARER_AUTH = "bearerAuth";
+
+    static {
+        // AuthenticatedUser comes from the SecurityContext, never from the request. springdoc has
+        // no way to know that: to it an unannotated POJO parameter is a set of query parameters,
+        // so without this every handler taking a caller would publish bogus `id` and `email` query
+        // params and every generated client would offer to spoof them.
+        SpringDocUtils.getConfig().addRequestWrapperToIgnore(AuthenticatedUser.class);
+    }
 
     @Bean
     public OpenAPI booklandOpenApi() {

@@ -72,6 +72,24 @@ class OpenApiErrorContractIntegrationTest {
                 .andExpect(jsonPath("$.paths['" + path + "']." + method + ".responses.200").doesNotExist());
     }
 
+    /**
+     * {@code AuthenticatedUser} is supplied from the SecurityContext by an argument resolver, but to
+     * springdoc an unannotated POJO parameter is a set of query parameters to expand. Without the
+     * ignore registered in {@code OpenApiConfig} the document would offer `id` and `email` as query
+     * params on every handler taking a caller — an invitation to spoof another customer that the
+     * server would simply discard, which is the worst way for a document to be wrong.
+     */
+    @Test
+    @DisplayName("the resolved caller is not published as a query parameter")
+    void theAuthenticatedCallerIsNotAParameter() throws Exception {
+        mockMvc.perform(get("/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/cart'].get.parameters").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/wishlist'].get.parameters").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/orders'].get.parameters[*].name")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder("page", "size")));
+    }
+
     @Test
     @DisplayName("the bearer scheme is declared, so the UI can authorize")
     void bearerSchemeIsDeclared() throws Exception {

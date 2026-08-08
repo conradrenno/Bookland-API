@@ -9,13 +9,12 @@ import com.devrenno.bookland.orders.application.common.PageResult;
 import com.devrenno.bookland.orders.application.dto.UpdateOrderStatusCommand;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 import com.devrenno.bookland.orders.infrastructure.web.dto.UpdateOrderStatusRequest;
+import com.devrenno.bookland.websupport.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
 import java.util.UUID;
 
 @RestController
@@ -52,19 +51,10 @@ public class AdminOrderApiController {
     public ResponseEntity<OrderViewModel> updateStatus(
             @PathVariable UUID orderId,
             @Valid @RequestBody UpdateOrderStatusRequest request,
-            Principal principal
+            AuthenticatedUser admin
     ) {
-        UUID adminId = extractUserId(principal);
         return ResponseEntity.ok(ordersController.updateOrderStatus(
-                new UpdateOrderStatusCommand(orderId, request.newStatus(), adminId)
+                new UpdateOrderStatusCommand(orderId, request.newStatus(), admin.id())
         ));
-    }
-
-    private UUID extractUserId(Principal principal) {
-        if (principal instanceof UsernamePasswordAuthenticationToken auth
-                && auth.getDetails() instanceof UUID userId) {
-            return userId;
-        }
-        return null;
     }
 }
