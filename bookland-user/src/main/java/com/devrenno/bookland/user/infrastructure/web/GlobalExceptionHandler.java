@@ -1,6 +1,7 @@
 package com.devrenno.bookland.user.infrastructure.web;
 
 import com.devrenno.bookland.user.domain.exception.EmailAlreadyExistsException;
+import com.devrenno.bookland.user.domain.exception.UserAccessDeniedException;
 import com.devrenno.bookland.user.domain.exception.UserNotFoundException;
 import com.devrenno.bookland.websupport.ProblemDetails;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UserNotFoundException.class)
     public ProblemDetail handleUserNotFound(UserNotFoundException ex) {
         return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage(), "USER_NOT_FOUND");
+    }
+
+    /**
+     * A business 403: the token is fine and the role is irrelevant, the account simply is not the
+     * caller's. Distinct from {@code INSUFFICIENT_ROLE} — see docs/error-contract.md.
+     */
+    @ExceptionHandler(UserAccessDeniedException.class)
+    public ProblemDetail handleUserAccessDenied(UserAccessDeniedException ex) {
+        return ProblemDetails.of(HttpStatus.FORBIDDEN, ex.getMessage(), "USER_ACCESS_DENIED");
     }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)

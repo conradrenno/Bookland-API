@@ -4,6 +4,7 @@ import com.devrenno.bookland.user.application.dto.UpdateUserCommand;
 import com.devrenno.bookland.user.application.port.in.UpdateUserUseCase;
 import com.devrenno.bookland.user.application.port.out.UserPersistencePort;
 import com.devrenno.bookland.user.domain.entity.User;
+import com.devrenno.bookland.user.domain.exception.UserAccessDeniedException;
 import com.devrenno.bookland.user.domain.exception.UserNotFoundException;
 import com.devrenno.bookland.user.domain.valueobject.UserId;
 
@@ -20,7 +21,10 @@ public class UpdateUserService implements UpdateUserUseCase {
     }
 
     @Override
-    public User execute(UserId id, UpdateUserCommand command) {
+    public User execute(UserId id, UserId requesterId, UpdateUserCommand command) {
+        if (!id.equals(requesterId)) {
+            throw new UserAccessDeniedException(id.value());
+        }
         User user = persistencePort.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id.value()));
         if (command.name() != null) {

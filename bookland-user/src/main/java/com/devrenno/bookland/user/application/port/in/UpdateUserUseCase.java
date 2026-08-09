@@ -5,5 +5,5 @@ import com.devrenno.bookland.user.domain.entity.User;
 import com.devrenno.bookland.user.domain.valueobject.UserId;
 
 public interface UpdateUserUseCase {
-    User execute(UserId id, UpdateUserCommand command);
+    User execute(UserId id, UserId requesterId, UpdateUserCommand command);
 }

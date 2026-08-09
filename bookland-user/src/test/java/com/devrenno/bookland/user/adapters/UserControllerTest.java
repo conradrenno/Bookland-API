@@ -2,13 +2,17 @@ package com.devrenno.bookland.user.adapters;
 
 import com.devrenno.bookland.user.adapters.controller.UserController;
 import com.devrenno.bookland.user.adapters.viewmodel.UserViewModel;
+import com.devrenno.bookland.user.application.dto.UpdateUserCommand;
 import com.devrenno.bookland.user.application.port.out.UserPersistencePort;
 import com.devrenno.bookland.user.domain.entity.User;
 import com.devrenno.bookland.user.domain.entity.UserRole;
+import com.devrenno.bookland.user.domain.exception.UserAccessDeniedException;
 import com.devrenno.bookland.user.domain.exception.UserNotFoundException;
 import com.devrenno.bookland.user.domain.valueobject.Email;
 import com.devrenno.bookland.user.domain.valueobject.UserId;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,6 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,7 +51,7 @@ class UserControllerTest {
         UUID id = UUID.randomUUID();
         when(persistencePort.findById(UserId.of(id))).thenReturn(Optional.of(sampleUser(id)));
 
-        UserViewModel result = controller.getById(id);
+        UserViewModel result = controller.getById(id, id);
 
         assertThat(result.id()).isEqualTo(id);
         assertThat(result.email()).isEqualTo("alice@test.com");
@@ -59,7 +64,7 @@ class UserControllerTest {
         UUID id = UUID.randomUUID();
         when(persistencePort.findById(UserId.of(id))).thenReturn(Optional.of(sampleUser(id)));
 
-        controller.delete(id);
+        controller.delete(id, id);
 
         verify(persistencePort).delete(UserId.of(id));
     }
@@ -69,7 +74,55 @@ class UserControllerTest {
         UUID id = UUID.randomUUID();
         when(persistencePort.findById(UserId.of(id))).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> controller.delete(id))
+        assertThatThrownBy(() -> controller.delete(id, id))
                 .isInstanceOf(UserNotFoundException.class);
+    }
+
+    /**
+     * These routes address an account by id, so without the caller they cannot tell "my account"
+     * from "anyone's". They were reachable by any authenticated user, which made reading, rewriting
+     * and deleting somebody else's account — the admin's included — a matter of changing one UUID.
+     */
+    @Nested
+    @DisplayName("an account belongs to exactly one caller")
+    class Ownership {
+
+        private final UUID target = UUID.randomUUID();
+        private final UUID intruder = UUID.randomUUID();
+
+        @Test
+        @DisplayName("reading someone else's account is denied")
+        void getByIdDeniesAnotherAccount() {
+            assertThatThrownBy(() -> controller.getById(target, intruder))
+                    .isInstanceOf(UserAccessDeniedException.class);
+        }
+
+        @Test
+        @DisplayName("updating someone else's account is denied")
+        void updateDeniesAnotherAccount() {
+            assertThatThrownBy(() -> controller.update(target, intruder, new UpdateUserCommand("Mallory")))
+                    .isInstanceOf(UserAccessDeniedException.class);
+        }
+
+        @Test
+        @DisplayName("deleting someone else's account is denied")
+        void deleteDeniesAnotherAccount() {
+            assertThatThrownBy(() -> controller.delete(target, intruder))
+                    .isInstanceOf(UserAccessDeniedException.class);
+        }
+
+        /**
+         * The denial lands before the lookup, so the answer is the same whether or not the account
+         * exists. Otherwise a 403-versus-404 difference turns the route into an oracle for which
+         * user ids are real.
+         */
+        @Test
+        @DisplayName("the denial does not first reveal whether the account exists")
+        void deniesWithoutTouchingPersistence() {
+            assertThatThrownBy(() -> controller.getById(target, intruder))
+                    .isInstanceOf(UserAccessDeniedException.class);
+
+            verifyNoInteractions(persistencePort);
+        }
     }
 }
