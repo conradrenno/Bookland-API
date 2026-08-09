@@ -399,12 +399,16 @@ repeat a row); the only pagination parameters are `page` and `size`. There is no
 `sort` parameter — a request carrying one is answered normally with the standard
 order, not rejected, because unknown query parameters are ignored API-wide.
 
-### Payments — `/api/v1/payments`, `/api/v1/admin/payments`
+### Payments — `/api/v1/payments`
 
 | Method | Path | Access | Description |
 |---|---|---|---|
-| `GET` | `/payments/order/{orderId}` | Authenticated | Get payment record |
-| `POST` | `/admin/payments/order/{orderId}/refund` | Admin | Issue manual refund |
+| `GET` | `/payments/order/{orderId}` | Owner | Get the payment for your own order |
+
+There is no refund endpoint. A refund is one half of a cancellation — issuing it on its own left
+the order `CONFIRMED` and the stock never returned, which is the mirror of the admin-cancellation
+bug fixed earlier. Refunding is reached through `PATCH /admin/orders/{orderId}/status` → `CANCELLED`,
+which compensates stock and payment together via `OrderCancellation`.
 
 ### Reviews — `/api/v1/books/{bookId}/reviews`
 

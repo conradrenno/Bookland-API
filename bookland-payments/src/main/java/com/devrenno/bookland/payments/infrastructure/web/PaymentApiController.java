@@ -10,8 +10,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 /**
- * A customer reading the payment of their own order. Refunds and any back-office view live on
- * {@code /api/v1/admin/payments/**} with their own {@code hasRole("ADMIN")} rule.
+ * A customer reading the payment of their own order — the module's only route. A refund is not
+ * exposed here: it is one half of a cancellation, and reaching it on its own left the order
+ * CONFIRMED with the stock never returned. The whole operation is
+ * {@code PATCH /api/v1/admin/orders/{id}/status} → CANCELLED, which compensates through
+ * {@code OrderCancellation}.
  */
 @RestController
 @RequestMapping("/api/v1/payments")

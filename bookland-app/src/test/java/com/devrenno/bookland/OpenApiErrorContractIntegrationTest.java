@@ -61,8 +61,7 @@ class OpenApiErrorContractIntegrationTest {
             "/api/v1/books/{bookId},                       delete, 204",
             "/api/v1/books/{bookId}/reviews,               post,   201",
             "/api/v1/books/{bookId}/reviews/{reviewId},    delete, 204",
-            "/api/v1/users/{id},                           delete, 204",
-            "/api/v1/admin/payments/order/{orderId}/refund, post,  204"
+            "/api/v1/users/{id},                           delete, 204"
     })
     @DisplayName("handlers answering a non-200 status say so in the document")
     void successCodesMatchTheHandlers(String path, String method, String expected) throws Exception {
@@ -88,6 +87,24 @@ class OpenApiErrorContractIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/wishlist'].get.parameters").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/orders'].get.parameters[*].name")
                         .value(org.hamcrest.Matchers.containsInAnyOrder("page", "size")));
+    }
+
+    /**
+     * A refund is one half of a cancellation. Exposed on its own it left the order CONFIRMED and the
+     * stock never returned — the mirror of the admin-cancellation bug, and the last caller that wrote
+     * the effect outside the decision. The whole operation is
+     * {@code PATCH /admin/orders/{orderId}/status} → CANCELLED, which compensates through
+     * {@code OrderCancellation}. Re-publishing the route means deleting this test, which is the point.
+     */
+    @Test
+    @DisplayName("no route issues a refund on its own")
+    void refundIsNotAnEndpointOfItsOwn() throws Exception {
+        mockMvc.perform(get("/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/payments/order/{orderId}/refund']")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/orders/{orderId}/status'].patch")
+                        .exists());
     }
 
     @Test

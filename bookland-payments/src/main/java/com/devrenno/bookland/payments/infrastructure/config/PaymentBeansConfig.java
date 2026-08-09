@@ -12,8 +12,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Composition root of the payments module. Exposes the internal PaymentController (HTTP delivery)
- * plus the cross-module boundary use cases consumed by orders (process) and by orders + the admin
- * refund endpoint (refund).
+ * plus the cross-module boundary use cases consumed by orders (process, refund).
  */
 @Configuration
 public class PaymentBeansConfig {
@@ -30,7 +29,11 @@ public class PaymentBeansConfig {
         return ProcessPaymentService.create(gateway, persistence);
     }
 
-    /** Cross-module: consumed by orders (RefundAdapter) and the admin refund endpoint. */
+    /**
+     * Cross-module: consumed by orders (RefundAdapter) as part of a cancellation, and by nothing
+     * else. Deliberately not routed: a refund on its own leaves the order CONFIRMED and the stock
+     * short, which is the half-operation an admin endpoint used to expose.
+     */
     @Bean
     public RefundPaymentUseCase refundPaymentUseCase(PaymentPersistencePort persistence, PaymentGatewayPort gateway) {
         return RefundPaymentService.create(persistence, gateway);

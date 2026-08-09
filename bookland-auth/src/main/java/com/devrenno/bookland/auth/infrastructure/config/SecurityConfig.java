@@ -57,8 +57,8 @@ public class SecurityConfig {
                         // Cart and order routes (authenticated customers)
                         .requestMatchers("/api/v1/cart/**").authenticated()
                         .requestMatchers("/api/v1/orders/**").authenticated()
-                        // Payment routes
-                        .requestMatchers(HttpMethod.POST, "/api/v1/admin/payments/**").hasRole("ADMIN")
+                        // Payment routes. There is no admin payment route: a refund is half of a
+                        // cancellation and is reached only through PATCH /admin/orders/{id}/status.
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/**").authenticated()
                         // The container forwards here after an unhandled exception, on a dispatch
                         // the security chain also filters. Left authenticated, it answers the
