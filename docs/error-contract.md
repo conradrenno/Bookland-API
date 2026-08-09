@@ -146,6 +146,7 @@ routes.
 | orders | `INVALID_ORDER_STATUS_TRANSITION` | 409 |
 | orders | `PAYMENT_DECLINED` | 402 |
 | payments | `PAYMENT_NOT_FOUND` | 404 |
+| payments | `PAYMENT_ACCESS_DENIED` | 403 |
 | payments | `REFUND_NOT_ALLOWED` | 409 |
 | reviews | `REVIEW_NOT_FOUND` | 404 |
 | reviews | `DUPLICATE_REVIEW` | 409 |
@@ -156,16 +157,17 @@ routes.
 | any | `INVALID_ARGUMENT` | 400 |
 
 ⚠️ **Not every 403 is a role problem.** `ORDER_ACCESS_DENIED` (someone else's order),
-`USER_ACCESS_DENIED` (someone else's account) and `PURCHASE_REQUIRED` (reviewing a book you have
-not bought) are 403s that say nothing about the caller's role — only `INSUFFICIENT_ROLE` does. This
-is exactly why status alone is not enough to branch on.
+`USER_ACCESS_DENIED` (someone else's account), `PAYMENT_ACCESS_DENIED` (the payment of someone
+else's order) and `PURCHASE_REQUIRED` (reviewing a book you have not bought) are 403s that say
+nothing about the caller's role — only `INSUFFICIENT_ROLE` does. This is exactly why status alone
+is not enough to branch on.
 
-These are **resource-ownership** rules and none of them can live in `SecurityConfig`: whether an
-order or an account is yours is not derivable from the URL and the token alone. They belong to the
-use case that owns the aggregate, which takes the caller's id as a parameter — see
-`GetOrderByIdService`, `GetUserProfileService`. A handler that addresses a resource by id and does
-not declare an `AuthenticatedUser` parameter is the shape this class of bug takes, and is worth
-treating as a review smell.
+These four are **resource-ownership** rules and none of them can live in `SecurityConfig`: whether
+an order, an account or a payment is yours is not derivable from the URL and the token alone. They
+belong to the use case that owns the aggregate, which takes the caller's id as a parameter — see
+`GetOrderByIdService`, `GetUserProfileService`, `GetPaymentByOrderIdService`. A handler that
+addresses a resource by id and does not declare an `AuthenticatedUser` parameter is the shape this
+class of bug takes, and is worth treating as a review smell.
 
 `BOOK_NOT_FOUND` is raised by the catalog, reviews and wishlist advices alike; the code is the same
 everywhere, so a client never has to care which module answered.

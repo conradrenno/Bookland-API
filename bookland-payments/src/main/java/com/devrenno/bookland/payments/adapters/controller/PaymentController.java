@@ -27,7 +27,7 @@ public class PaymentController {
         return new PaymentController(GetPaymentByOrderIdService.create(persistence), PaymentPresenter.create());
     }
 
-    public PaymentViewModel getByOrderId(UUID orderId) {
-        return presenter.present(getPaymentByOrderIdUseCase.getByOrderId(orderId));
+    public PaymentViewModel getByOrderId(UUID orderId, UUID requesterId) {
+        return presenter.present(getPaymentByOrderIdUseCase.getByOrderId(orderId, requesterId));
     }
 }
