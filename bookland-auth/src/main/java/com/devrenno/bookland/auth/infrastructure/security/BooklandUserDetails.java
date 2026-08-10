@@ -2,6 +2,7 @@ package com.devrenno.bookland.auth.infrastructure.security;
 
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.user.domain.entity.UserRole;
+import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -36,18 +37,45 @@ import java.util.UUID;
  * {@code LoginService} did: it never consulted {@code active} either. Wiring {@code isEnabled()} to
  * it would be a behaviour change, and belongs in its own commit.
  */
-public final class BooklandUserDetails implements UserDetails {
+public final class BooklandUserDetails implements UserDetails, CredentialsContainer {
 
     private final UUID userId;
     private final String email;
-    private final String passwordHash;
+    /** Not final, and null once {@link #eraseCredentials()} has run. */
+    private String passwordHash;
     private final UserRole role;
 
+    /**
+     * {@code passwordHash} is deliberately not null-checked: it is null on every instance rebuilt
+     * from a stored authorization, because it was erased before being written there.
+     */
     public BooklandUserDetails(UUID userId, String email, String passwordHash, UserRole role) {
         this.userId = Objects.requireNonNull(userId, "userId");
         this.email = Objects.requireNonNull(email, "email");
-        this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
+        this.passwordHash = passwordHash;
         this.role = Objects.requireNonNull(role, "role");
+    }
+
+    /**
+     * Drops the password hash once authentication is over.
+     *
+     * <p>{@code ProviderManager} calls this after a successful authentication, but only on a
+     * principal that implements {@link CredentialsContainer} — Spring's own {@code User} does, which
+     * is why nobody notices the contract until they write their own. Without it the hash rides along
+     * into {@code oauth2_authorization.attributes} and is stored, verified against a real PostgreSQL:
+     *
+     * <pre>
+     * java.security.Principal.principal.passwordHash = '$2a$10$qT3sIpnWje5vcSAl...'
+     * </pre>
+     *
+     * <p>A BCrypt hash in the same database that already holds {@code users.password_hash} is not a
+     * breach. It is a credential copied into a second table with a different lifetime, reached by
+     * code that has no reason to handle credentials, and carried into every backup of it — for no
+     * benefit at all, since nothing re-checks a password from here.
+     */
+    @Override
+    public void eraseCredentials() {
+        this.passwordHash = null;
     }
 
     public static BooklandUserDetails from(AuthUserDto user) {
