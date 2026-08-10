@@ -12,6 +12,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -48,7 +50,7 @@ class AuthenticatedUserArgumentResolverTest {
     }
 
     @Test
-    @DisplayName("hands the handler the id the filter put in the details, plus the caller's email")
+    @DisplayName("hands the handler the id from sub, plus the email from its own claim")
     void resolvesTheAuthenticatedCaller() throws Exception {
         UUID userId = UUID.randomUUID();
         authenticate(userId, "customer@bookland.com");
@@ -83,28 +85,65 @@ class AuthenticatedUserArgumentResolverTest {
     }
 
     /**
-     * Authenticated but carrying no id is a wiring bug — the filter and this resolver having drifted
+     * Authenticated but not by a token is a wiring bug — the filter and this resolver having drifted
      * apart, which is exactly what a change of authentication mechanism causes. It must not be
      * mistaken for a client error, so it is not an {@code AuthenticationException}.
      */
     @Test
-    @DisplayName("authenticated without an id in the details: fails as a server bug, not a 401")
-    void rejectsAnAuthenticationWithoutAUserId() {
+    @DisplayName("authenticated by something other than a JWT: fails as a server bug, not a 401")
+    void rejectsAnAuthenticationWithoutAToken() {
         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                 "customer@bookland.com", null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
-        auth.setDetails("not-a-uuid");
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         assertThatThrownBy(() -> resolver.resolveArgument(parameterOf(0), null, null, null))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("no user id");
+                .hasMessageContaining("not backed by a JWT");
+    }
+
+    /**
+     * The trap section 3.3 of the plan is about: leave the token customizer out and {@code sub}
+     * falls back to the e-mail. It has to be loud, because that value flows on into
+     * {@code customer_id}.
+     */
+    @Test
+    @DisplayName("a sub that is not a user id fails rather than being passed on as a caller")
+    void rejectsASubjectThatIsNotAUserId() {
+        SecurityContextHolder.getContext().setAuthentication(
+                tokenFor("customer@bookland.com", "customer@bookland.com"));
+
+        assertThatThrownBy(() -> resolver.resolveArgument(parameterOf(0), null, null, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not a Bookland user id");
+    }
+
+    /**
+     * The silent one: {@code getName()} returns the subject, so reading the e-mail from it would
+     * fill the field with a UUID. Nothing breaks — the type is {@code String} either way — and every
+     * log line naming the caller quietly starts showing an opaque identifier.
+     */
+    @Test
+    @DisplayName("the email comes from the email claim, not from the subject")
+    void emailIsReadFromItsOwnClaim() throws Exception {
+        UUID userId = UUID.randomUUID();
+        authenticate(userId, "customer@bookland.com");
+
+        AuthenticatedUser caller = resolver.resolveArgument(parameterOf(0), null, null, null);
+
+        assertThat(caller.email()).doesNotContain(userId.toString());
     }
 
     private void authenticate(UUID userId, String email) {
-        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                email, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
-        auth.setDetails(userId);
-        SecurityContextHolder.getContext().setAuthentication(auth);
+        SecurityContextHolder.getContext().setAuthentication(tokenFor(userId.toString(), email));
+    }
+
+    private JwtAuthenticationToken tokenFor(String subject, String email) {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .subject(subject)
+                .claim("email", email)
+                .build();
+        return new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
     }
 
     private MethodParameter parameterOf(int index) throws NoSuchMethodException {

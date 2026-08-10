@@ -5,6 +5,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -41,6 +42,14 @@ import java.util.UUID;
  */
 public class AuthenticatedUserArgumentResolver implements HandlerMethodArgumentResolver {
 
+    /**
+     * The standard OIDC claim. It has to be read explicitly now that {@code sub} holds the user id:
+     * {@code Authentication.getName()} returns the subject, so the previous code would have filled
+     * the e-mail field with a UUID — nothing would break, and every log line and screen showing the
+     * caller's e-mail would quietly show an opaque identifier instead.
+     */
+    private static final String EMAIL_CLAIM = "email";
+
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
         return AuthenticatedUser.class.equals(parameter.getParameterType());
@@ -59,14 +68,31 @@ public class AuthenticatedUserArgumentResolver implements HandlerMethodArgumentR
                             + "and the request has none — check the SecurityConfig rule for this route");
         }
 
-        if (!(authentication.getDetails() instanceof UUID userId)) {
+        if (!(authentication.getPrincipal() instanceof Jwt token)) {
             throw new IllegalStateException(
-                    "The authentication in the SecurityContext carries no user id in its details ("
+                    "The authentication in the SecurityContext is not backed by a JWT ("
                             + authentication.getClass().getName() + "). The authenticating filter "
                             + "and " + getClass().getSimpleName() + " have drifted apart.");
         }
 
-        return new AuthenticatedUser(userId, authentication.getName());
+        return new AuthenticatedUser(subjectOf(token), token.getClaimAsString(EMAIL_CLAIM));
+    }
+
+    /**
+     * The {@code sub} claim, which the Authorization Server fills with the Bookland user id.
+     *
+     * <p>A {@code sub} that is not a UUID is a wiring bug, not a client error — most likely the
+     * token customizer having stopped overriding the default, which is the e-mail. It has to stay
+     * loud: the value flows on into {@code customer_id}, and a caller silently identified by
+     * something that is not a user id is the failure this class exists to prevent.
+     */
+    private UUID subjectOf(Jwt token) {
+        try {
+            return UUID.fromString(token.getSubject());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new IllegalStateException(
+                    "The token's sub claim is not a Bookland user id: " + token.getSubject(), e);
+        }
     }
 
     /**

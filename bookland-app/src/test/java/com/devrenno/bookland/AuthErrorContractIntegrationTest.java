@@ -1,23 +1,17 @@
 package com.devrenno.bookland;
 
-import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
-import org.junit.jupiter.api.Test;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-
-import javax.crypto.SecretKey;
-import java.time.Instant;
-import java.util.Date;
-import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -43,10 +37,23 @@ class AuthErrorContractIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private TokenProviderPort tokenProvider;
+    private JWKSource<SecurityContext> jwkSource;
 
-    @Value("${bookland.jwt.secret}")
-    private String jwtSecret;
+    @Value("${bookland.oauth2.issuer}")
+    private String issuer;
+
+    @Value("${bookland.oauth2.api-audience}")
+    private String apiAudience;
+
+    @Value("${bookland.oauth2.client.client-id}")
+    private String clientId;
+
+    private TestAccessTokens tokens;
+
+    @BeforeEach
+    void setUp() {
+        tokens = new TestAccessTokens(jwkSource, issuer, apiAudience);
+    }
 
     @Test
     @DisplayName("no token: 401 TOKEN_MISSING with a bare Bearer challenge")
@@ -73,7 +80,7 @@ class AuthErrorContractIntegrationTest {
     @Test
     @DisplayName("expired token: 401 TOKEN_EXPIRED — the signal for the client to refresh")
     void expiredToken() throws Exception {
-        mockMvc.perform(get(CUSTOMER_ROUTE).header("Authorization", "Bearer " + expiredJwt()))
+        mockMvc.perform(get(CUSTOMER_ROUTE).header("Authorization", "Bearer " + tokens.expired()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("TOKEN_EXPIRED"));
     }
@@ -89,14 +96,38 @@ class AuthErrorContractIntegrationTest {
     @Test
     @DisplayName("valid CUSTOMER token on an admin route: 403 INSUFFICIENT_ROLE — refreshing is pointless")
     void validTokenWithoutTheRole() throws Exception {
-        String token = tokenProvider
-                .generate(UUID.randomUUID().toString(), "customer@bookland.com", "CUSTOMER")
-                .value();
-
-        mockMvc.perform(get(ADMIN_ROUTE).header("Authorization", "Bearer " + token))
+        mockMvc.perform(get(ADMIN_ROUTE).header("Authorization", "Bearer " + tokens.forRole("CUSTOMER")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("INSUFFICIENT_ROLE"))
                 .andExpect(jsonPath("$.title").value("Forbidden"));
+    }
+
+    /**
+     * The other half of the rule above, and the one that fails loudly if the {@code role} claim ever
+     * stops being mapped to an authority: without {@code JwtAuthenticationConverter} the token still
+     * verifies, the caller is still authenticated, and every admin route answers 403 — including to
+     * an admin.
+     */
+    @Test
+    @DisplayName("the role claim becomes an authority, so an ADMIN token reaches an admin route")
+    void adminRoleClaimGrantsTheAdminRoute() throws Exception {
+        mockMvc.perform(get(ADMIN_ROUTE).header("Authorization", "Bearer " + tokens.forRole("ADMIN")))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * The audience half of the contract. An {@code id_token} is addressed to the client, carries the
+     * same issuer and the same signature, and would otherwise be a perfectly good Bearer credential:
+     * the default decoder validates no audience at all, and the generator gives both tokens
+     * {@code aud = client_id} unless the customizer intervenes.
+     */
+    @Test
+    @DisplayName("a token addressed to the client, not the API, is refused as invalid")
+    void tokenForAnotherAudienceIsRefused() throws Exception {
+        mockMvc.perform(get(CUSTOMER_ROUTE)
+                        .header("Authorization", "Bearer " + tokens.addressedTo(clientId)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TOKEN_INVALID"));
     }
 
     @Test
@@ -107,20 +138,5 @@ class AuthErrorContractIntegrationTest {
                 .andExpect(header().string("Content-Type",
                         org.hamcrest.Matchers.containsString(MediaType.APPLICATION_PROBLEM_JSON_VALUE)))
                 .andExpect(jsonPath("$.detail").isNotEmpty());
-    }
-
-    /** Signed with the real key, so it is rejected for being expired and not for being forged. */
-    private String expiredJwt() {
-        Instant issuedAt = Instant.now().minusSeconds(7200);
-        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
-
-        return Jwts.builder()
-                .subject(UUID.randomUUID().toString())
-                .claim("email", "customer@bookland.com")
-                .claim("role", "CUSTOMER")
-                .issuedAt(Date.from(issuedAt))
-                .expiration(Date.from(issuedAt.plusSeconds(60)))
-                .signWith(key)
-                .compact();
     }
 }

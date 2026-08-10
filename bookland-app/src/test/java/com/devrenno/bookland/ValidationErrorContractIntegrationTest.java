@@ -1,16 +1,17 @@
 package com.devrenno.bookland;
 
-import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.UUID;
 
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -38,7 +39,20 @@ class ValidationErrorContractIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private TokenProviderPort tokenProvider;
+    private JWKSource<SecurityContext> jwkSource;
+
+    @Value("${bookland.oauth2.issuer}")
+    private String issuer;
+
+    @Value("${bookland.oauth2.api-audience}")
+    private String apiAudience;
+
+    private TestAccessTokens tokens;
+
+    @BeforeEach
+    void setUp() {
+        tokens = new TestAccessTokens(jwkSource, issuer, apiAudience);
+    }
 
     @Test
     @DisplayName("every broken field lands in errors, keyed by its own name")
@@ -134,9 +148,7 @@ class ValidationErrorContractIntegrationTest {
     @Test
     @DisplayName("catalog fields are bounded by their columns, so a long value is a 400 not a 500")
     void bookFieldsAreBoundedByTheirColumns() throws Exception {
-        String adminToken = tokenProvider
-                .generate(UUID.randomUUID().toString(), "admin@bookland.com", "ADMIN")
-                .value();
+        String adminToken = tokens.forRole("ADMIN");
 
         mockMvc.perform(post("/api/v1/books")
                         .header("Authorization", "Bearer " + adminToken)

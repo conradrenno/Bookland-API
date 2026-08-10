@@ -30,6 +30,15 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-web</artifactId>
         </dependency>
+        <!--
+            For the Jwt type the AuthenticatedUserArgumentResolver reads claims from. Framework, not
+            domain: the rule for this module forbids domain types and bookland-* modules, and how
+            identity rides on the Authentication is precisely the platform concern it exists to own.
+        -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+        </dependency>
 
         <!-- Optional: only the module that publishes an OpenAPI document needs this on its
              classpath, and it instantiates ErrorResponsesCustomizer itself. -->

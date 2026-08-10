@@ -1,5 +1,7 @@
 package com.devrenno.bookland.auth.infrastructure.config;
 
+import com.devrenno.bookland.auth.infrastructure.security.AccessTokenExpiryValidator;
+import com.devrenno.bookland.auth.infrastructure.security.ApiAudienceValidator;
 import com.devrenno.bookland.auth.infrastructure.security.AuthorizationJsonMapperFactory;
 import com.devrenno.bookland.auth.infrastructure.security.BooklandTokenCustomizer;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -16,7 +18,11 @@ import org.springframework.jdbc.support.lob.DefaultLobHandler;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
@@ -47,9 +53,8 @@ import java.util.Base64;
  *
  * <p>Three chains now live in this application and the order is load-bearing. This one is first and
  * claims only the protocol endpoints, through the matcher the configurer itself publishes. The login
- * form is second. The API chain — {@code SecurityConfig} — is last and still catches everything
- * else, which is why nothing about the API's behaviour changes yet: the old
- * {@code JwtAuthenticationFilter} is still the thing authenticating callers.
+ * form is second. The API chain — {@code SecurityConfig} — is last and catches everything else,
+ * validating the tokens issued here against the public half of the same key.
  *
  * <p>The first two chains are stateful, holding an HTTP session, while the API chain stays
  * {@code STATELESS}. Two session models coexisting is not an accident to be tidied up later; it is
@@ -133,9 +138,36 @@ public class AuthorizationServerConfig {
         return new ImmutableJWKSet<>(new JWKSet(key));
     }
 
+    /**
+     * Verifies every token this application accepts — both at the API and at {@code /userinfo}.
+     *
+     * <p>Built from the public key rather than by fetching the JWKS: same process, so a network hop
+     * to ourselves would buy nothing. What matters is that the key is the <em>public</em> half.
+     * Under the outgoing HMAC scheme the same secret signed and verified, which meant every
+     * component able to check a token was also able to mint one; here the private half never leaves
+     * the signing path.
+     *
+     * <p>Setting the validator replaces the defaults wholesale, so all three checks are listed
+     * explicitly — and the audience one is the reason this bean is not just
+     * {@code OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource)}. Without it an
+     * {@code id_token} passes as a Bearer credential, because the default decoder validates no
+     * audience whatsoever.
+     */
     @Bean
-    public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
-        return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
+    public JwtDecoder jwtDecoder(AuthorizationServerProperties properties) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder
+                .withPublicKey(readPublicKey(properties.getJwk().getPublicKey()))
+                .build();
+
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                new JwtIssuerValidator(properties.getIssuer()),
+                // Ours first, for a machine-readable expiry code; the framework's stays for nbf and
+                // as the authoritative check of exp.
+                new AccessTokenExpiryValidator(),
+                new JwtTimestampValidator(),
+                new ApiAudienceValidator(properties.getApiAudience())));
+
+        return decoder;
     }
 
     @Bean
