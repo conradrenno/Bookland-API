@@ -3,53 +3,33 @@ package com.devrenno.bookland.auth.application.service;
 import com.devrenno.bookland.auth.application.dto.AuthUserDto;
 import com.devrenno.bookland.auth.application.dto.RegisterCommand;
 import com.devrenno.bookland.auth.application.port.in.RegisterUseCase;
-import com.devrenno.bookland.auth.application.port.out.RefreshTokenPersistencePort;
-import com.devrenno.bookland.auth.application.port.out.TokenProviderPort;
 import com.devrenno.bookland.auth.application.port.out.UserRegistrationPort;
-import com.devrenno.bookland.auth.domain.entity.RefreshToken;
-import com.devrenno.bookland.auth.domain.valueobject.AuthTokens;
-import com.devrenno.bookland.auth.domain.valueobject.Token;
 
+/**
+ * Creates the account, and stops there.
+ *
+ * <p>It used to finish by minting an access token and a refresh token. It cannot any more: issuing a
+ * token outside the authorization code flow would be inventing a grant the Authorization Server does
+ * not define, and would put a second, hand-rolled issuer next to the one that now owns the job.
+ *
+ * <p>What replaced that step is not in this class and must not be: establishing the caller's session
+ * is an HTTP concern, and this layer is framework-free — it has no session, no request and no
+ * response to touch. See the web layer.
+ */
 public class RegisterService implements RegisterUseCase {
 
     private final UserRegistrationPort userRegistrationPort;
-    private final TokenProviderPort tokenProviderPort;
-    private final RefreshTokenPersistencePort refreshTokenPersistencePort;
-    private final long refreshTokenExpirationMs;
 
-    private RegisterService(UserRegistrationPort userRegistrationPort,
-                            TokenProviderPort tokenProviderPort,
-                            RefreshTokenPersistencePort refreshTokenPersistencePort,
-                            long refreshTokenExpirationMs) {
+    private RegisterService(UserRegistrationPort userRegistrationPort) {
         this.userRegistrationPort = userRegistrationPort;
-        this.tokenProviderPort = tokenProviderPort;
-        this.refreshTokenPersistencePort = refreshTokenPersistencePort;
-        this.refreshTokenExpirationMs = refreshTokenExpirationMs;
     }
 
-    public static RegisterService create(UserRegistrationPort userRegistrationPort,
-                                         TokenProviderPort tokenProviderPort,
-                                         RefreshTokenPersistencePort refreshTokenPersistencePort,
-                                         long refreshTokenExpirationMs) {
-        return new RegisterService(userRegistrationPort, tokenProviderPort,
-                refreshTokenPersistencePort, refreshTokenExpirationMs);
+    public static RegisterService create(UserRegistrationPort userRegistrationPort) {
+        return new RegisterService(userRegistrationPort);
     }
 
     @Override
-    public AuthTokens execute(RegisterCommand command) {
-        AuthUserDto user = userRegistrationPort.register(
-                command.name(), command.email(), command.rawPassword()
-        );
-
-        Token accessToken = tokenProviderPort.generate(
-                user.id().toString(), user.email(), user.role().name()
-        );
-
-        RefreshToken refreshToken = RefreshToken.create(
-                user.id(), user.email(), user.role().name(), refreshTokenExpirationMs
-        );
-        refreshTokenPersistencePort.save(refreshToken);
-
-        return new AuthTokens(accessToken, refreshToken);
+    public AuthUserDto execute(RegisterCommand command) {
+        return userRegistrationPort.register(command.name(), command.email(), command.rawPassword());
     }
 }

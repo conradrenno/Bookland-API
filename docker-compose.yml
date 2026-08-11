@@ -10,9 +10,16 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/bookland
       DB_USER: ${POSTGRES_USER:-bookland}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-900000}
-      JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS:-604800000}
+      # Must be the URL clients actually reach the server on — it is published in the discovery
+      # document and lands in the iss claim, and a mismatch only surfaces at validation time.
+      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-http://localhost:8080}
+      # Base64 of the DER, single-line. The private half is the secret that used to be JWT_SECRET:
+      # whoever holds it mints admin tokens.
+      OAUTH2_JWK_PUBLIC_KEY: ${OAUTH2_JWK_PUBLIC_KEY}
+      OAUTH2_JWK_PRIVATE_KEY: ${OAUTH2_JWK_PRIVATE_KEY}
+      OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-bookland-web}
+      OAUTH2_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET}
+      OAUTH2_CLIENT_REDIRECT_URIS: ${OAUTH2_CLIENT_REDIRECT_URIS}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       STORAGE_COVERS_LOCATION: /var/bookland/covers

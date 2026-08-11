@@ -53,17 +53,13 @@ class BusinessErrorContractIntegrationTest {
                 .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"));
     }
 
-    @Test
-    @DisplayName("401 on bad credentials carries INVALID_CREDENTIALS, not a token code")
-    void invalidCredentials() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"email": "%s", "password": "wrong-password-1"}
-                                """.formatted(SEEDED_EMAIL)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
-    }
+    /**
+     * There used to be a case here for INVALID_CREDENTIALS on POST /api/v1/auth/login. Both the code
+     * and the route are gone: checking a password is now the Authorization Server's form login, which
+     * answers a bad password by re-rendering the form with an error — an HTML flow, not a JSON error
+     * contract. Nothing in this contract covers it any more, and nothing should: the contract is
+     * about what the API answers, and the API never sees a password.
+     */
 
     /**
      * The container forwards an unhandled exception to /error. While that path required

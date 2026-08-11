@@ -1,0 +1,24 @@
+-- =============================================================================
+-- Bookland — a tabela refresh_tokens sai
+--
+-- Ela sustentava a implementação artesanal de refresh token do módulo auth:
+-- /api/v1/auth/refresh trocava um valor opaco por um par novo, e /auth/logout o
+-- revogava. Esses três endpoints deixaram de existir. Quem guarda refresh token
+-- agora é o Authorization Server, na coluna refresh_token_value de
+-- oauth2_authorization, com rotação de uso único configurada no client.
+--
+-- Nada é migrado das linhas antigas para lá, de propósito. Um refresh token da
+-- implementação anterior não tem correspondente no modelo novo — ele não está
+-- ligado a nenhum client registrado, não tem escopo, e o access token que ele
+-- renovaria era assinado com o segredo HMAC que também saiu. Migrá-lo seria
+-- fabricar uma autorização que nunca foi concedida.
+--
+-- Consequência aceita: quem tinha sessão aberta quando esta migração rodar
+-- precisa entrar de novo. Como a autenticação inteira mudou de mecanismo no
+-- mesmo deploy, isso já era verdade — a tabela só deixaria de ser consultada.
+--
+-- O índice idx_refresh_tokens_user cai junto com a tabela; não precisa de DROP
+-- próprio, nos dois bancos.
+-- =============================================================================
+
+drop table refresh_tokens;

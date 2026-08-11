@@ -37,19 +37,12 @@ spring:
     locations: classpath:db/migration
 
 bookland:
-  jwt:
-    secret: ZmY0YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTZlNzk4YTliNGQ2ZjQ4YzZjNGQ3ZTY=
-    # 15 min. Logout revokes the refresh token but cannot revoke a stateless access token, so the
-    # window in which a signed-out token still works is exactly this TTL — keep it short.
-    expiration-ms: 900000
-    refresh-token-expiration-ms: 604800000
   oauth2:
     issuer: http://localhost:8080
     api-audience: bookland-api
     jwk:
       key-id: bookland-dev-key
-      # Development key pair, committed on purpose exactly like bookland.jwt.secret above: this is
-      # a throwaway identity for a local H2 database. Base64 of the DER — public in X.509, private
+      # Development key pair, committed on purpose: a throwaway identity for a local H2 database. Base64 of the DER — public in X.509, private
       # in PKCS#8 — single-line so the production values fit an environment variable.
       # Regenerate with:
       #   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform DER -out k.der
@@ -110,10 +103,6 @@ spring:
       enabled: false
 
 bookland:
-  jwt:
-    secret: ${JWT_SECRET}
-    expiration-ms: ${JWT_EXPIRATION_MS:900000}
-    refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
   oauth2:
     # Must be the URL clients actually reach the server on: it is published in the discovery
     # document and lands in the iss claim, and a mismatch is only noticed at validation time.
@@ -122,7 +111,7 @@ bookland:
     jwk:
       key-id: ${OAUTH2_JWK_KEY_ID:bookland-key-1}
       public-key: ${OAUTH2_JWK_PUBLIC_KEY}
-      # Secret of the same weight as JWT_SECRET: whoever holds it mints admin tokens.
+      # The secret of the whole system: whoever holds it mints admin tokens.
       private-key: ${OAUTH2_JWK_PRIVATE_KEY}
     client:
       client-id: ${OAUTH2_CLIENT_ID}

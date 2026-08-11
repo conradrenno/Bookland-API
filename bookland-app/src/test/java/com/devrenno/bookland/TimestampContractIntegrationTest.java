@@ -31,10 +31,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("dev")
 class TimestampContractIntegrationTest {
 
-    /** Seeded by DevDataLoader. */
-    private static final String SEEDED_EMAIL = "joao@bookland.com";
-    private static final String SEEDED_PASSWORD = "joao1234";
-
     /** ISO-8601 instant: the trailing Z is the whole point. */
     private static final String INSTANT_WITH_ZONE = "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z";
 
@@ -58,28 +54,11 @@ class TimestampContractIntegrationTest {
     }
 
     @Test
-    @DisplayName("the token pair reports expiry as a zoned instant")
-    void loginDatesCarryZone() throws Exception {
-        mockMvc.perform(login())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessTokenExpiresAt").value(matchesPattern(INSTANT_WITH_ZONE)))
-                .andExpect(jsonPath("$.refreshTokenExpiresAt").value(matchesPattern(INSTANT_WITH_ZONE)));
-    }
-
-    @Test
     @DisplayName("the cart reports updatedAt as a zoned instant")
     void cartDateCarriesZone() throws Exception {
         mockMvc.perform(get("/api/v1/cart").header("Authorization", "Bearer " + tokens.forRole("CUSTOMER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updatedAt").value(matchesPattern(INSTANT_WITH_ZONE)));
-    }
-
-    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder login() {
-        return post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {"email": "%s", "password": "%s"}
-                        """.formatted(SEEDED_EMAIL, SEEDED_PASSWORD));
     }
 
 }

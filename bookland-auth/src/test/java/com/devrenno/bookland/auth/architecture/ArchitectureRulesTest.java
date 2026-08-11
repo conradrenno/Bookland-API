@@ -29,10 +29,25 @@ class ArchitectureRulesTest {
             "com.devrenno.bookland.websupport.."
     };
 
+    /**
+     * The auth module currently has <strong>no domain layer</strong>, and that is a finding rather
+     * than an accident: every class that used to live there — {@code RefreshToken}, {@code Token},
+     * {@code AuthTokens} and the four token exceptions — existed to support a hand-rolled
+     * implementation of what the Authorization Server now does. What is left of the module is an
+     * adapter between Spring Security and {@code bookland-user}, and the business rules of
+     * registering (e-mail uniqueness, the default role, the invariants of {@code User.create}) were
+     * always in the user module, never here.
+     *
+     * <p>The rule is kept, empty, instead of deleted: it costs nothing and it is the guard that
+     * fires the day someone puts a domain class back. {@code allowEmptyShould} is what lets a rule
+     * that matches nothing pass — without it ArchUnit fails on the assumption that a rule checking
+     * zero classes is a typo, which is usually right.
+     */
     @ArchTest
     static final ArchRule domain_is_framework_free =
             noClasses().that().resideInAPackage("..auth.domain..")
-                    .should().dependOnClassesThat().resideInAnyPackage(FRAMEWORK_PACKAGES);
+                    .should().dependOnClassesThat().resideInAnyPackage(FRAMEWORK_PACKAGES)
+                    .allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule application_is_framework_free =
@@ -47,7 +62,10 @@ class ArchitectureRulesTest {
     @ArchTest
     static final ArchRule dependencies_point_inward = layeredArchitecture()
             .consideringOnlyDependenciesInLayers()
-            .layer("Domain").definedBy("..auth.domain..")
+            // optionalLayer, not layer: the domain package is empty today (see above). A plain
+            // layer() would fail the build for being empty, which would say "your architecture is
+            // broken" about a module that simply has no business rules of its own.
+            .optionalLayer("Domain").definedBy("..auth.domain..")
             .layer("Application").definedBy("..auth.application..")
             .layer("Adapters").definedBy("..auth.adapters..")
             .layer("Infrastructure").definedBy("..auth.infrastructure..")
