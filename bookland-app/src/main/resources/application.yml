@@ -58,6 +58,11 @@ bookland:
       redirect-uris:
         - http://127.0.0.1:8080/authorized
         - http://127.0.0.1:8080/login/oauth2/code/bookland-web
+        # Where the Swagger UI sends the browser back to. It reports this URL from the host the
+        # page was loaded on, so the API document must be opened at 127.0.0.1 and not localhost —
+        # the server rejects the literal hostname, and the redirect page talks to its opener
+        # window, which would be cross-origin between the two names.
+        - http://127.0.0.1:8080/swagger-ui/oauth2-redirect.html
       post-logout-redirect-uris:
         - http://127.0.0.1:8080/
       # Without "openid" the server issues no id_token at all.
@@ -78,9 +83,20 @@ springdoc:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
-    # The registered client requires PKCE. Without this the Authorize button starts a flow the
-    # Authorization Server refuses, and the UI reports it as a generic authorization failure.
-    use-pkce-with-authorization-code-grant: true
+    oauth:
+      # The registered client requires PKCE. Without this the Authorize button starts a flow the
+      # Authorization Server refuses, and the UI reports it as a generic authorization failure.
+      # Note the nesting: the property lives under swagger-ui.oauth, and setting it one level up
+      # is ignored silently — the value simply never reaches /api-docs/swagger-config.
+      use-pkce-with-authorization-code-grant: true
+      # Pre-fills the Authorize dialog. Not a secret: a client id is published by design.
+      client-id: bookland-web
+      # The client secret is deliberately NOT pre-filled. Our client is confidential
+      # (client_secret_basic), so the UI must send it at the token step or the exchange answers
+      # invalid_client — type `bookland-web-secret` into the Authorize dialog in dev. Putting it
+      # here would serve a secret inside swagger-initializer.js to every browser, and would be
+      # copied into prod by whoever reads this file next. The cleaner fix, when a browser tool
+      # needs this routinely, is a second registered client that is public (PKCE, no secret).
 
 ---
 spring:
