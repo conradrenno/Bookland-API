@@ -26,8 +26,6 @@ the credential is fine but the role is not.** A 403 is never worth a token refre
 | Access token expired | 401 | `TOKEN_EXPIRED` | `Bearer error="invalid_token", …` |
 | Access token malformed / bad signature | 401 | `TOKEN_INVALID` | `Bearer error="invalid_token", …` |
 | Authenticated, lacks the required role | 403 | `INSUFFICIENT_ROLE` | `Bearer error="insufficient_scope", …` |
-| `POST /auth/login` with bad credentials | 401 | `INVALID_CREDENTIALS` | — |
-| `POST /auth/refresh` or `/auth/logout` with a dead refresh token | 401 | `INVALID_REFRESH_TOKEN` | — |
 
 Example:
 
@@ -49,11 +47,21 @@ Example:
 | `TOKEN_EXPIRED` | Refresh once, replay the original request; if the replay fails too, end the session |
 | `TOKEN_INVALID` | End the session — refreshing will not help |
 | `INSUFFICIENT_ROLE` | Show a forbidden screen; do **not** refresh, do **not** end the session |
-| `INVALID_CREDENTIALS` | Show a login error |
-| `INVALID_REFRESH_TOKEN` | End the session and send the user to login |
 
-Note that a stale token on a **public** endpoint (`GET /api/v1/books/**`, …) does not fail the
-request: the filter chain carries on unauthenticated and the endpoint answers normally.
+Refreshing is no longer an API call: a client renews by exchanging its refresh token at the
+Authorization Server's `POST /oauth2/token` with `grant_type=refresh_token`, and failures there are
+OAuth2 errors (`{"error": "invalid_grant"}`), not this contract. `INVALID_CREDENTIALS` and
+`INVALID_REFRESH_TOKEN` are gone with the endpoints that produced them — a wrong password is now
+answered by the Authorization Server's login form, which is HTML, and never reaches the API.
+
+**A rejected token now fails the request even on a public endpoint.** `GET /api/v1/books` with an
+expired token answers 401 rather than serving the catalogue. This changed when the API became a
+resource server: its filter refuses an unusable credential wherever one is presented, where the
+previous hand-written filter recorded the reason and carried on. Routes that are not the API at all
+— `/error`, `/media/**`, the console, the API document — are on a chain of their own and keep the
+tolerant behaviour, which matters most for `/error`: the container forwards there carrying the
+original headers, and answering that forward with 401 would hide every 500 behind an expired-session
+message.
 
 ## Validation and malformed requests
 

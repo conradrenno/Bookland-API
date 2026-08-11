@@ -106,12 +106,25 @@ class OpenApiErrorContractIntegrationTest {
                         .exists());
     }
 
+    /**
+     * Two schemes: the flow the UI can actually run, and the paste-a-token fallback. The
+     * authorization and token URLs are asserted because a document naming a host that never issued
+     * the token sends the UI somewhere that cannot answer — and the failure looks like a login
+     * problem rather than a documentation one.
+     */
     @Test
-    @DisplayName("the bearer scheme is declared, so the UI can authorize")
-    void bearerSchemeIsDeclared() throws Exception {
+    @DisplayName("both security schemes are declared, so the UI can authorize either way")
+    void securitySchemesAreDeclared() throws Exception {
         mockMvc.perform(get("/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
-                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat").value("JWT"));
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat").value("JWT"))
+                .andExpect(jsonPath("$.components.securitySchemes.oauth2.type").value("oauth2"))
+                .andExpect(jsonPath(
+                        "$.components.securitySchemes.oauth2.flows.authorizationCode.authorizationUrl")
+                        .value("http://localhost:8080/oauth2/authorize"))
+                .andExpect(jsonPath(
+                        "$.components.securitySchemes.oauth2.flows.authorizationCode.tokenUrl")
+                        .value("http://localhost:8080/oauth2/token"));
     }
 }

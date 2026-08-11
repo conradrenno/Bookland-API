@@ -78,6 +78,9 @@ springdoc:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
+    # The registered client requires PKCE. Without this the Authorize button starts a flow the
+    # Authorization Server refuses, and the UI reports it as a generic authorization failure.
+    use-pkce-with-authorization-code-grant: true
 
 ---
 spring:

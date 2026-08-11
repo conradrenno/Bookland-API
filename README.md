@@ -257,7 +257,7 @@ Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` i
 Manages customer identity and profile. Stores hashed passwords, name, email, role (`CUSTOMER` / `ADMIN`), and active status. Exposes use-case interfaces consumed by the Auth module.
 
 ### Auth
-Handles the full JWT lifecycle: registration, login, access-token refresh, and logout. Issues short-lived **access tokens** (15 minutes) and long-lived **refresh tokens** (7 days) with single-use rotation. The `JwtAuthenticationFilter` populates Spring Security's context on every request.
+Hosts an **OAuth2 Authorization Server with OIDC** (Spring Authorization Server). Login is `authorization_code` + PKCE at `/oauth2/authorize` and `/oauth2/token`, which issue an access token (15 minutes), an `id_token` and a refresh token (7 days, single-use rotation). Every other module is a Resource Server, verifying those tokens against the public key published at `/oauth2/jwks`. Registration stays in this module as `POST /api/v1/auth/register`, because it is business logic rather than authentication.
 
 ### Catalog
 The source of truth for book data and stock quantity. Supports full-text search, filtering by category, price range, and average rating. Exposes stock adjustment and low-stock query use cases consumed by Inventory and Orders. ISBNs are normalised to their canonical 13-digit form on the way in.
@@ -442,9 +442,11 @@ All authorization rules for every module live in a single `SecurityConfig`, insi
 
 The filter stores the **userId in `Authentication.getDetails()`**; controllers read it via `extractUserId(Principal)` rather than trusting a path variable.
 
-**Known limitation — logout does not invalidate the access token.** `POST /auth/logout` revokes the refresh token, so the session cannot be extended past the current access token. But the access token is stateless: nothing is looked up when it is validated, so it keeps working until it expires. A user who signed out stays authenticable for up to the access-token TTL — which is why that TTL is 15 minutes and not hours. This is the standard trade-off of stateless JWT, and the standard mitigation is exactly this: keep the access token short and let rotation do the rest. Making logout immediate requires server-side state on every request — a revocation list keyed by token id, listed under [Future Improvements](#future-improvements) as part of the Redis item.
+**Known limitation — ending a session does not invalidate the access token.** `/connect/logout` (OIDC) ends the Authorization Server session and the refresh token stops working, so the session cannot be extended past the current access token. But the access token is stateless: nothing is looked up when it is validated, so it keeps working until it expires. A user who signed out stays authenticable for up to the access-token TTL — which is why that TTL is 15 minutes and not hours. This is the standard trade-off of stateless JWT, and the standard mitigation is exactly this: keep the access token short and let rotation do the rest. Making logout immediate requires server-side state on every request — a revocation list keyed by token id, listed under [Future Improvements](#future-improvements) as part of the Redis item.
 
-**Public routes:** `POST /api/v1/auth/**`, `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/error`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Everything else requires authentication; `/api/v1/admin/**` and all catalog/inventory writes require `ROLE_ADMIN`.
+**Public routes:** `POST /api/v1/auth/register`, the Authorization Server's own endpoints (`/oauth2/**`, `/login`, `/.well-known/**`), `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/error`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Everything else requires authentication; `/api/v1/admin/**` and all catalog/inventory writes require `ROLE_ADMIN`.
+
+Note that "public" no longer means a bad token is ignored. The resource server refuses an unusable Bearer token wherever one is presented, so `GET /api/v1/books` with an expired token answers 401 rather than serving the catalogue. The exceptions are the routes that are not the API at all — `/error`, `/media/**`, the console and the API document — which sit on a chain without a resource server precisely so that a stale token cannot turn a 500 into a 401.
 
 **`/error` is public on purpose and must stay that way.** Boot registers the security chain for the `ERROR` dispatch too, so when an unhandled exception makes the container forward to `/error`, an authenticated `/error` answers the *forward* with `401 TOKEN_MISSING`. The real 500 never reaches the client — it arrives disguised as an expired session, which makes the client refresh its token and then log the user out over a server-side bug.
 
@@ -520,7 +522,7 @@ Versions are **timestamps**, not sequential numbers, so parallel branches cannot
 
 Both bootstrap runners are **idempotent** — they check before inserting. This matters because the in-memory database survives a `spring-boot-devtools` restart (`DB_CLOSE_DELAY=-1` keeps it alive for the life of the JVM) and Flyway, unlike `create-drop`, does not wipe it.
 
-> Foreign keys exist only **within** a module. Columns that reference another module (`cart_items.book_id`, `orders.customer_id`, `payments.order_id`, `refresh_tokens.user_id`, …) are indexed `uuid` values with no referential constraint — mirroring the absence of JPA relationships across module boundaries. Integrity is enforced in the application layer.
+> Foreign keys exist only **within** a module. Columns that reference another module (`cart_items.book_id`, `orders.customer_id`, `payments.order_id`, …) are indexed `uuid` values with no referential constraint — mirroring the absence of JPA relationships across module boundaries. Integrity is enforced in the application layer.
 
 ---
 
@@ -592,9 +594,14 @@ Copy `.env.example` to `.env` and fill in the values before running with Docker.
 |---|---|---|
 | `POSTGRES_USER` | Prod | PostgreSQL username |
 | `POSTGRES_PASSWORD` | Prod | PostgreSQL password |
-| `JWT_SECRET` | Prod | Base64-encoded HMAC-SHA256 key (min 256 bits) |
-| `JWT_EXPIRATION_MS` | Optional | Access token TTL in ms (default: 900000 — 15 min). Raising it widens the logout window — see [Security Model](#security-model) |
-| `JWT_REFRESH_EXPIRATION_MS` | Optional | Refresh token TTL in ms (default: 604800000 — 7d) |
+| `OAUTH2_ISSUER` | Prod | The URL clients actually reach the server on. Published in the discovery document and written into the `iss` claim; a mismatch is only noticed at validation time |
+| `OAUTH2_JWK_PRIVATE_KEY` | Prod | RSA private key, base64 of the PKCS#8 DER, single-line. **The secret of the whole system** — whoever holds it mints admin tokens |
+| `OAUTH2_JWK_PUBLIC_KEY` | Prod | RSA public key, base64 of the X.509 DER. Published at `/oauth2/jwks`; publishing it is the point |
+| `OAUTH2_CLIENT_ID` | Prod | Client id of the one registered client |
+| `OAUTH2_CLIENT_SECRET` | Prod | Its secret, in plain text — `ClientBootstrap` BCrypts it before it reaches the table |
+| `OAUTH2_CLIENT_REDIRECT_URIS` | Prod | Comma-separated. Must be loopback IPs rather than `localhost`, which the server rejects (RFC 8252) |
+| `OAUTH2_ACCESS_TOKEN_TTL_MINUTES` | Optional | Access token TTL (default: 15). Raising it widens the window after sign-out — see [Security Model](#security-model) |
+| `OAUTH2_REFRESH_TOKEN_TTL_DAYS` | Optional | Refresh token TTL (default: 7) |
 | `ADMIN_EMAIL` | Prod | Bootstrap admin email |
 | `ADMIN_PASSWORD` | Prod | Bootstrap admin password |
 | `DB_URL` | Injected | JDBC URL. `docker-compose.yml` sets it to `jdbc:postgresql://postgres:5432/bookland` — the service name on the compose network. Not set in `.env`; the `application.yml` default (`localhost:5432`) covers running the app from the host |
