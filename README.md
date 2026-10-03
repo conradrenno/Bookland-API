@@ -607,9 +607,13 @@ Copy `.env.example` to `.env` and fill in the values before running with Docker.
 | `DB_URL` | Injected | JDBC URL. `docker-compose.yml` sets it to `jdbc:postgresql://postgres:5432/bookland` — the service name on the compose network. Not set in `.env`; the `application.yml` default (`localhost:5432`) covers running the app from the host |
 | `STORAGE_COVERS_LOCATION` | Optional | Where cover images are written (default `/var/bookland/covers`). Mount a volume so uploads survive restarts |
 
-Generate a secure JWT secret:
+Generate the RSA key pair (base64 of the DER, single-line):
 ```bash
-openssl rand -base64 64
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform DER -out k.der
+openssl pkcs8 -topk8 -nocrypt -inform DER -in k.der -outform DER -out private.der
+openssl rsa -in k.der -inform DER -pubout -outform DER -out public.der
+openssl base64 -A -in private.der    # OAUTH2_JWK_PRIVATE_KEY
+openssl base64 -A -in public.der     # OAUTH2_JWK_PUBLIC_KEY
 ```
 
 ---
