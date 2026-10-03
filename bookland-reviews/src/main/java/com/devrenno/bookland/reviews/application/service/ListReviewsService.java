@@ -5,7 +5,6 @@ import com.devrenno.bookland.reviews.application.common.PageResult;
 import com.devrenno.bookland.reviews.application.dto.ReviewList;
 import com.devrenno.bookland.reviews.application.dto.ReviewView;
 import com.devrenno.bookland.reviews.application.port.in.ListReviewsUseCase;
-import com.devrenno.bookland.reviews.application.port.out.CustomerNamePort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
 
@@ -17,24 +16,19 @@ import java.util.stream.Collectors;
 public class ListReviewsService implements ListReviewsUseCase {
 
     private final ReviewPersistencePort reviewPersistencePort;
-    private final CustomerNamePort customerNamePort;
 
-    private ListReviewsService(ReviewPersistencePort reviewPersistencePort,
-                               CustomerNamePort customerNamePort) {
+    private ListReviewsService(ReviewPersistencePort reviewPersistencePort) {
         this.reviewPersistencePort = reviewPersistencePort;
-        this.customerNamePort = customerNamePort;
     }
 
-    public static ListReviewsService create(ReviewPersistencePort reviewPersistencePort,
-                                            CustomerNamePort customerNamePort) {
-        return new ListReviewsService(reviewPersistencePort, customerNamePort);
+    public static ListReviewsService create(ReviewPersistencePort reviewPersistencePort) {
+        return new ListReviewsService(reviewPersistencePort);
     }
 
     @Override
     public ReviewList execute(UUID bookId, PageQuery pageQuery) {
-        ReviewViewAssembler assembler = new ReviewViewAssembler(customerNamePort);
         PageResult<ReviewView> page = reviewPersistencePort.findByBookId(bookId, pageQuery)
-                .map(assembler::toView);
+                .map(ReviewView::from);
 
         List<Review> all = reviewPersistencePort.findAllActiveByBookId(bookId);
         double avg = all.stream().mapToInt(Review::getRating).average().orElse(0.0);

@@ -14,6 +14,7 @@ import com.devrenno.bookland.reviews.domain.exception.PurchaseRequiredException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -66,6 +67,26 @@ class CreateReviewServiceTest {
         verify(bookRatingUpdatePort).updateRating(eq(bookId), anyDouble());
     }
 
+    /**
+     * The name is looked up once, at creation, and written onto the review — that is what lets the
+     * listing stop asking the user module for every author.
+     */
+    @Test
+    void execute_shouldStoreTheAuthorsNameOnTheReview() {
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 4, null);
+        when(bookExistsPort.exists(bookId)).thenReturn(true);
+        when(purchaseVerificationPort.hasPurchasedBook(customerId, bookId)).thenReturn(true);
+        when(reviewPersistencePort.findByBookIdAndCustomerId(bookId, customerId)).thenReturn(Optional.empty());
+        when(reviewPersistencePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(customerNamePort.getCustomerName(customerId)).thenReturn("Ana Souza");
+
+        service.execute(command);
+
+        ArgumentCaptor<Review> stored = ArgumentCaptor.forClass(Review.class);
+        verify(reviewPersistencePort).save(stored.capture());
+        assertThat(stored.getValue().getCustomerName()).isEqualTo("Ana Souza");
+    }
+
     @Test
     void execute_shouldThrowBookNotFoundException_whenBookDoesNotExist() {
         CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 5, null);
@@ -101,6 +122,7 @@ class CreateReviewServiceTest {
     }
 
     private Review buildReview(int rating) {
-        return Review.reconstitute(UUID.randomUUID(), bookId, customerId, rating, null, Instant.now(), false);
+        return Review.reconstitute(UUID.randomUUID(), bookId, customerId, "Ana Souza", rating, null,
+                Instant.now(), false);
     }
 }

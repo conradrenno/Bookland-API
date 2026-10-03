@@ -56,12 +56,17 @@ public class CreateReviewService implements CreateReviewUseCase {
         reviewPersistencePort.findByBookIdAndCustomerId(command.bookId(), command.customerId())
                 .ifPresent(r -> { throw new DuplicateReviewException(command.customerId(), command.bookId()); });
 
-        Review review = Review.create(command.bookId(), command.customerId(), command.rating(), command.comment());
+        // Looked up once, here, and stored: from now on the review carries its author's name and
+        // listing it asks nobody. A failed lookup fails the creation rather than storing a null
+        // that nothing would ever correct.
+        String customerName = customerNamePort.getCustomerName(command.customerId());
+        Review review = Review.create(command.bookId(), command.customerId(), customerName,
+                command.rating(), command.comment());
         Review saved = reviewPersistencePort.save(review);
 
         recalculateRating(command.bookId());
 
-        return new ReviewViewAssembler(customerNamePort).toView(saved);
+        return ReviewView.from(saved);
     }
 
     private void recalculateRating(UUID bookId) {

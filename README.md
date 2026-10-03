@@ -186,6 +186,7 @@ bookland-reviews
     ├── BookExistsPort           → GetBookByIdUseCase                (catalog)
     ├── BookRatingUpdatePort     → UpdateBookAverageRatingUseCase    (catalog)
     └── CustomerNamePort         → GetUserByIdUseCase                (user)
+                                   called once, at creation; the name is stored on the review
 
 bookland-wishlist
     ├── CartAddPort             → AddCartItemUseCase                 (orders)
@@ -215,7 +216,7 @@ Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` i
 | **Repository Pattern** | All persistence behind `*PersistencePort` interfaces |
 | **Adapter Pattern** | Cross-domain and infrastructure adapters implement out-ports |
 | **Dependency Inversion across modules** | `ActiveOrderCheckPort` is declared by catalog and implemented by orders, keeping catalog a leaf |
-| **Read Model (query-side DTO)** | `CartView`, `WishlistView`, `ReviewView`, `LowStockBook` — assembled in the application layer from the aggregate plus a cross-module lookup |
+| **Read Model (query-side DTO)** | `CartView`, `WishlistView`, `LowStockBook` — assembled in the application layer from the aggregate plus a cross-module lookup |
 | **Graceful Degradation** | A cart or wishlist item whose book left the catalog renders as `"Unavailable"` / `available: false` instead of failing the whole response |
 | **Framework-free Transactions** | `TransactionPort.inTransaction(Supplier<T>)`, implemented with `TransactionTemplate`; no `@Transactional` on application services |
 | **Framework-free Pagination** | `PageQuery` / `PageResult<T>` per module; adapters translate to and from Spring's `PageRequest` / `Page` |
@@ -323,7 +324,7 @@ All of it is pinned by `StockConcurrencyIntegrationTest` (bookland-app), which r
 Simulated payment gateway supporting `CREDIT_CARD`, `DEBIT_CARD`, `PAYPAL`, and `PIX`. Records payment status and provides refund capability. Consumed by Orders via outbound ports — Orders never accesses Payment internals directly.
 
 ### Reviews
-Purchase-verified review system. Before creating a review, the service verifies (via `PurchaseVerificationPort → VerifyPurchaseUseCase` in Orders) that the customer has a `DELIVERED` order containing that book. On creation, the book's average rating in Catalog is recalculated automatically.
+Purchase-verified review system. Before creating a review, the service verifies (via `PurchaseVerificationPort → VerifyPurchaseUseCase` in Orders) that the customer has a `DELIVERED` order containing that book. On creation, the book's average rating in Catalog is recalculated automatically, and the author's display name is stored on the review — so listing reviews never asks the User module, and a review keeps the name its author had when writing it.
 
 ### Wishlist
 Customer wishlist with atomic **move-to-cart** — removes the item from the wishlist and adds it to the cart in a single operation, reusing the cart's stock validation.
@@ -520,6 +521,7 @@ V20260730120000__timestamps_with_time_zone.sql
 V20260810093000__oauth2_authorization_server_schema.sql
                                             ← the Authorization Server's three oauth2_* tables
 V20260810210000__drop_refresh_tokens.sql    ← the hand-rolled refresh token table, retired
+V20261003120000__reviews_customer_name.sql  ← author name stored on the review, backfilled from users
 ```
 
 Versions are **timestamps**, not sequential numbers, so parallel branches cannot collide on the same version.
@@ -665,10 +667,10 @@ Four kinds of test:
 | catalog | `CreateBookServiceTest`, `GetBookByIdServiceTest`, `RemoveBookServiceTest`, `AdjustBookStockServiceTest`, `DecrementBookStockServiceTest`, `IncrementBookStockServiceTest`, `CatalogControllerTest`, `ISBNTest`, `ArchitectureRulesTest` |
 | orders | `CheckoutServiceTest`, `CancelOrderServiceTest`, `UpdateOrderStatusServiceTest`, `CheckActiveOrdersServiceTest`, `GetCartServiceTest`, `ArchitectureRulesTest` |
 | payments | `ProcessPaymentServiceTest`, `GetPaymentByOrderIdServiceTest`, `ArchitectureRulesTest` |
-| reviews | `CreateReviewServiceTest`, `ArchitectureRulesTest` |
+| reviews | `CreateReviewServiceTest`, `ListReviewsServiceTest`, `ArchitectureRulesTest` |
 | inventory | `AdjustInventoryServiceTest`, `ArchitectureRulesTest` |
 | wishlist | `AddWishlistItemServiceTest`, `ArchitectureRulesTest` |
-| app | `BooklandApplicationTests`, `AuthorizationCodeFlowIntegrationTest`, `AuthErrorContractIntegrationTest`, `AuthenticatedUserArgumentResolverTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest`, `OpenApiErrorContractIntegrationTest`, `TimestampContractIntegrationTest`, `OrderHistoryOrderingIntegrationTest`, `StockConcurrencyIntegrationTest`, `ProblemDetailErrorControllerTest`, `WebLayerRulesTest`, `TimestampRulesTest` |
+| app | `BooklandApplicationTests`, `AuthorizationCodeFlowIntegrationTest`, `AuthErrorContractIntegrationTest`, `AuthenticatedUserArgumentResolverTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest`, `OpenApiErrorContractIntegrationTest`, `TimestampContractIntegrationTest`, `OrderHistoryOrderingIntegrationTest`, `ReviewAuthorNameIntegrationTest`, `StockConcurrencyIntegrationTest`, `ProblemDetailErrorControllerTest`, `WebLayerRulesTest`, `TimestampRulesTest` |
 | web-support | — (exercised entirely through the app's contract tests) |
 
 ---

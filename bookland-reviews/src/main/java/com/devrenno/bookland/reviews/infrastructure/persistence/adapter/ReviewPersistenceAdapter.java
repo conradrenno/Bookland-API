@@ -57,6 +57,7 @@ public class ReviewPersistenceAdapter implements ReviewPersistencePort {
                 .id(review.getId())
                 .bookId(review.getBookId())
                 .customerId(review.getCustomerId())
+                .customerName(review.getCustomerName())
                 .rating(review.getRating())
                 .comment(review.getComment())
                 .createdAt(review.getCreatedAt())
@@ -69,6 +70,7 @@ public class ReviewPersistenceAdapter implements ReviewPersistencePort {
                 entity.getId(),
                 entity.getBookId(),
                 entity.getCustomerId(),
+                entity.getCustomerName(),
                 entity.getRating(),
                 entity.getComment(),
                 entity.getCreatedAt(),

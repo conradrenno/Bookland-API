@@ -25,6 +25,9 @@ public class ReviewJpaEntity {
     @Column(name = "customer_id", nullable = false)
     private UUID customerId;
 
+    @Column(name = "customer_name")
+    private String customerName;
+
     @Column(nullable = false)
     private int rating;
 

@@ -49,7 +49,7 @@ public class ReviewController {
         return new ReviewController(
                 CreateReviewService.create(reviewPersistencePort, bookExistsPort,
                         purchaseVerificationPort, bookRatingUpdatePort, customerNamePort),
-                ListReviewsService.create(reviewPersistencePort, customerNamePort),
+                ListReviewsService.create(reviewPersistencePort),
                 ModerateReviewService.create(reviewPersistencePort, bookRatingUpdatePort),
                 ReviewPresenter.create()
         );
