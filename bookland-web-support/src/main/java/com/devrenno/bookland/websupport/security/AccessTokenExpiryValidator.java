@@ -1,4 +1,4 @@
-package com.devrenno.bookland.auth.infrastructure.security;
+package com.devrenno.bookland.websupport.security;
 
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;

@@ -59,7 +59,8 @@ bookland/                       ← Parent POM (dependency management)
 ├── bookland-app/               ← Spring Boot entry point — no business logic
 │                                 Assembles all domain modules; hosts application.yml
 │
-├── bookland-web-support/       ← Platform library — the HTTP error contract.
+├── bookland-web-support/       ← Platform library — the HTTP error contract and
+│                                 Bearer-token validation.
 │                                 Not a domain; not a shared kernel
 │
 ├── bookland-user/              ← User identity and profile management
@@ -74,7 +75,7 @@ bookland/                       ← Parent POM (dependency management)
 
 `bookland-app` has no business logic — it exists solely to assemble all domain modules into a single deployable artifact.
 
-**`bookland-web-support` is the one module every other module depends on**, and the "duplicate it per module" rule does not apply to it. It holds the glue that renders the HTTP error contract — `ProblemDetails`, `ProblemDetailWriter`, `ProblemDetailErrorController`, the Spring Security entry points, the single bean-validation advice, and the OpenAPI error-response customizer. It exists because that contract has to be **byte-identical across all 8 domains**: duplicated, the shape drifts — one module emitting a `code`, another not; one answering in English, another in whatever language the JVM defaults to.
+**`bookland-web-support` is the one module every other module depends on**, and the "duplicate it per module" rule does not apply to it. It holds the glue that renders the HTTP error contract — `ProblemDetails`, `ProblemDetailWriter`, `ProblemDetailErrorController`, the Spring Security entry points, the single bean-validation advice, the OpenAPI error-response customizer — and the resource-server half of security (`ResourceServerConfig`: the `JwtDecoder` and its validators), so that a service can validate a token without depending on `bookland-auth` and its private key. It exists because that contract has to be **byte-identical across all 8 domains**: duplicated, the shape drifts — one module emitting a `code`, another not; one answering in English, another in whatever language the JVM defaults to.
 
 It is not a shared kernel. Anything with domain meaning is still duplicated per module (`PageQuery`, `PageResult`). This module may never contain a domain type or depend on another `bookland-*` module, and **only `*.infrastructure` packages may import it** — a rule the ArchUnit suite enforces by listing `com.devrenno.bookland.websupport..` next to `org.springframework..` in the framework packages banned from the inner layers. To domain, application and adapters, it *is* a framework. It is packaged separately so the error contract survives a future split into independently deployed services.
 

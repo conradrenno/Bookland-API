@@ -1,4 +1,4 @@
-package com.devrenno.bookland.auth.infrastructure.security;
+package com.devrenno.bookland.websupport.security;
 
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -15,10 +15,11 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * bytecode of {@code JwtGenerator}, which builds the audience from {@code getClientId()} once,
  * with no branch on token type.
  *
- * <p>So this validator is only half a fix. The other half is in {@link BooklandTokenCustomizer},
- * which gives the access token an audience of its own; asking for {@code client_id} here would
- * accept both tokens and separate nothing. Neither half works alone, and the pair is pinned by the
- * test that presents an {@code id_token} to the API and expects a 401.
+ * <p>So this validator is only half a fix. The other half is in the Authorization Server's token
+ * customizer ({@code BooklandTokenCustomizer}, bookland-auth), which gives the access token an
+ * audience of its own; asking for {@code client_id} here would accept both tokens and separate
+ * nothing. Neither half works alone, and the pair is pinned by the test that presents an
+ * {@code id_token} to the API and expects a 401.
  */
 public class ApiAudienceValidator implements OAuth2TokenValidator<Jwt> {
 

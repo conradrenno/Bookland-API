@@ -1,9 +1,6 @@
 package com.devrenno.bookland.auth.infrastructure.config;
 
-import com.devrenno.bookland.auth.infrastructure.security.BearerTokenErrorClassifier;
-import com.devrenno.bookland.websupport.ProblemDetailWriter;
-import com.devrenno.bookland.websupport.security.RestAccessDeniedHandler;
-import com.devrenno.bookland.websupport.security.RestAuthenticationEntryPoint;
+import com.devrenno.bookland.websupport.security.ResourceServerConfig;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,12 +12,9 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @EnableWebSecurity
@@ -144,45 +138,8 @@ public class SecurityConfig {
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(ResourceServerConfig.jwtAuthenticationConverter())))
                 .build();
-    }
-
-    /**
-     * Turns the {@code role} claim into the authority {@code hasRole(...)} looks for.
-     *
-     * <p>Without it every {@code hasRole("ADMIN")} rule above fails: the token verifies, the caller
-     * is authenticated, and carries no authority whatsoever — so the answer is 403 for everyone,
-     * admin included. The default converter reads {@code scope}/{@code scp} and prefixes with
-     * {@code SCOPE_}, which is the OAuth2 convention for permissions granted to a <em>client</em>;
-     * what the Bookland rules ask about is the role of the <em>person</em>, which the customizer
-     * writes into {@code role}.
-     */
-    private JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName("role");
-        authorities.setAuthorityPrefix("ROLE_");
-
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(authorities);
-        return converter;
-    }
-
-    /**
-     * The classifier wraps the renderer: it reads the rejection reason out of the exception chain
-     * and records it, then lets {@code RestAuthenticationEntryPoint} write the body. That split is
-     * what preserves {@code TOKEN_EXPIRED} vs {@code TOKEN_INVALID} now that the two {@code catch}
-     * blocks of the old filter are gone.
-     */
-    @Bean
-    public AuthenticationEntryPoint restAuthenticationEntryPoint(ObjectMapper objectMapper) {
-        return new BearerTokenErrorClassifier(
-                new RestAuthenticationEntryPoint(new ProblemDetailWriter(objectMapper)));
-    }
-
-    @Bean
-    public AccessDeniedHandler restAccessDeniedHandler(ObjectMapper objectMapper) {
-        return new RestAccessDeniedHandler(new ProblemDetailWriter(objectMapper));
     }
 
     @Bean

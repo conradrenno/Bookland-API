@@ -12,7 +12,8 @@
     <artifactId>bookland-web-support</artifactId>
     <name>Bookland - Web Support</name>
     <description>
-        Platform library: HTTP error-contract glue shared by every module (RFC 7807 problem+json).
+        Platform library: HTTP error-contract glue shared by every module (RFC 7807 problem+json),
+        and the Bearer-token validation every service needs to act as a resource server.
         Contains framework infrastructure only — no domain types, no business rules, and no
         dependency on any other bookland module. Only *.infrastructure packages may use it.
     </description>
@@ -38,6 +39,14 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-oauth2-jose</artifactId>
+        </dependency>
+        <!--
+            For the role-claim converter (ResourceServerConfig). Validating a Bearer token is the same
+            kind of platform concern as rendering its rejection, and every service needs both.
+        -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-resource-server</artifactId>
         </dependency>
 
         <!-- Optional: only the module that publishes an OpenAPI document needs this on its

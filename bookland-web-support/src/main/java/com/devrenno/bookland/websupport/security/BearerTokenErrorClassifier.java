@@ -1,6 +1,5 @@
-package com.devrenno.bookland.auth.infrastructure.security;
+package com.devrenno.bookland.websupport.security;
 
-import com.devrenno.bookland.websupport.security.AuthErrorCode;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,7 +23,8 @@ import java.io.IOException;
  * <p>It wraps rather than replaces {@code RestAuthenticationEntryPoint} on purpose: the shape of the
  * 401 body, the {@code WWW-Authenticate} challenge and the problem+json writing stay in
  * bookland-web-support, shared with everything else. What is OAuth2-specific — how to read a
- * {@code JwtValidationException} — stays here, in the module that owns the security configuration.
+ * {@code JwtValidationException} — is this class. Both halves live in this module because every
+ * service that validates tokens needs both, and none of them should need bookland-auth to do it.
  *
  * <p>Setting no attribute is meaningful: {@code AuthErrorCode.fromRequest} defaults to
  * {@code TOKEN_MISSING}, which is the right answer when the request never carried a credential and
