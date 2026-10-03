@@ -452,7 +452,7 @@ which compensates stock and payment together via `OrderCancellation`.
 - **Admin bootstrap** — `AdminBootstrap` runs on every startup and idempotently ensures the configured admin account exists, driven by environment variables in production
 - **Password hashing** — BCrypt; registration hashes through `PasswordEncoderPort`, and the login checks the password through Spring's `DaoAuthenticationProvider`
 
-All authorization rules for every module live in a single `SecurityConfig`, inside `bookland-auth`. Rule order matters: specific admin routes are declared before broad `permitAll` patterns, and the whole `/api/v1/admin/**` prefix is admin-only, so a new back-office controller is closed by default.
+**Each module declares its own access rules**, next to the controllers they protect, as an `AuthorizationRules` bean — so a module extracted into a service takes its rules with it. A module lists only what departs from the default (its public routes, and admin routes outside `/api/v1/admin`); `SecurityConfig` applies them all, then the default: the whole `/api/v1/admin/**` prefix is admin-only, so a new back-office controller is closed by default, and everything else requires authentication. Rules of different modules are written so they can never match the same request, which makes their order irrelevant. `AccessMatrixIntegrationTest` pins who may call every route and fails the build on a new route nobody classified.
 
 A handler that needs the caller declares an **`AuthenticatedUser`** parameter, resolved from the token's `sub` — never a path variable, `Principal` or `SecurityContextHolder`.
 
@@ -671,7 +671,7 @@ Four kinds of test:
 | reviews | `CreateReviewServiceTest`, `ListReviewsServiceTest`, `ArchitectureRulesTest` |
 | inventory | `AdjustInventoryServiceTest`, `ArchitectureRulesTest` |
 | wishlist | `AddWishlistItemServiceTest`, `ArchitectureRulesTest` |
-| app | `BooklandApplicationTests`, `AuthorizationCodeFlowIntegrationTest`, `AuthErrorContractIntegrationTest`, `AuthenticatedUserArgumentResolverTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest`, `OpenApiErrorContractIntegrationTest`, `TimestampContractIntegrationTest`, `OrderHistoryOrderingIntegrationTest`, `ReviewAuthorNameIntegrationTest`, `StockConcurrencyIntegrationTest`, `ProblemDetailErrorControllerTest`, `WebLayerRulesTest`, `TimestampRulesTest` |
+| app | `BooklandApplicationTests`, `AuthorizationCodeFlowIntegrationTest`, `AuthErrorContractIntegrationTest`, `AuthenticatedUserArgumentResolverTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest`, `OpenApiErrorContractIntegrationTest`, `TimestampContractIntegrationTest`, `OrderHistoryOrderingIntegrationTest`, `ReviewAuthorNameIntegrationTest`, `AccessMatrixIntegrationTest`, `StockConcurrencyIntegrationTest`, `ProblemDetailErrorControllerTest`, `WebLayerRulesTest`, `TimestampRulesTest` |
 | web-support | — (exercised entirely through the app's contract tests) |
 
 ---

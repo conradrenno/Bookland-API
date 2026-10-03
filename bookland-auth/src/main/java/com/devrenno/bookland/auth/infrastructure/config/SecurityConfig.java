@@ -1,11 +1,11 @@
 package com.devrenno.bookland.auth.infrastructure.config;
 
+import com.devrenno.bookland.websupport.security.AuthorizationRules;
 import com.devrenno.bookland.websupport.security.ResourceServerConfig;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -15,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -72,56 +74,32 @@ public class SecurityConfig {
      * everything the previous three did not claim. The order is explicit rather than left to the
      * default lowest precedence, because "the API chain happens to sort last" is not something a
      * reader should have to work out.
+     *
+     * <p>It owns no route-specific rule. Each module publishes its own exceptions to the default as
+     * an {@link AuthorizationRules} bean, next to the controllers they protect, so that a module
+     * extracted into a service takes its rules with it. What is left here is the default every
+     * route falls back to.
      */
     @Bean
     @Order(4)
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   List<AuthorizationRules> moduleRules,
                                                    AuthenticationEntryPoint authenticationEntryPoint,
                                                    AccessDeniedHandler accessDeniedHandler) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
-                        // Inventory admin routes (must be before the broad GET permitAll for books)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/books/*/inventory/history").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/v1/inventory/low-stock").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/books/*/inventory").hasRole("ADMIN")
-                        // Catalog public routes
-                        .requestMatchers(HttpMethod.GET, "/api/v1/books/**", "/api/v1/books").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/categories/**", "/api/v1/categories").permitAll()
-                        // Cover images (static media)
-                        .requestMatchers(HttpMethod.GET, "/media/**").permitAll()
-                        // Catalog admin routes
-                        .requestMatchers(HttpMethod.POST, "/api/v1/books/*/cover").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/v1/books").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/books/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/books/**").hasRole("ADMIN")
-                        // The whole /admin prefix, so a new back-office controller is closed by default
-                        // instead of falling through to anyRequest().authenticated()
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                        // Cart and order routes (authenticated customers)
-                        .requestMatchers("/api/v1/cart/**").authenticated()
-                        .requestMatchers("/api/v1/orders/**").authenticated()
-                        // Payment routes. There is no admin payment route: a refund is half of a
-                        // cancellation and is reached only through PATCH /admin/orders/{id}/status.
-                        .requestMatchers(HttpMethod.GET, "/api/v1/payments/**").authenticated()
-                        // The container forwards here after an unhandled exception, on a dispatch
-                        // the security chain also filters. Left authenticated, it answers the
-                        // forward with 401 TOKEN_MISSING and the real 500 never reaches the client
-                        // — a server bug arriving disguised as an expired session, which is the
-                        // one thing a client must not retry a refresh for.
-                        .requestMatchers("/error").permitAll()
-                        .requestMatchers("/h2-console/**").permitAll()
-                        .requestMatchers(
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/api-docs/**",
-                                "/api-docs.yaml"
-                        ).permitAll()
-                        .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(auth -> {
+                    // Each module's own exceptions first. They cannot overlap (see AuthorizationRules),
+                    // so the order in which the beans arrive does not matter.
+                    moduleRules.forEach(rules -> rules.configure(auth));
+                    auth
+                            // The whole /admin prefix, so a new back-office controller is closed by
+                            // default instead of falling through to anyRequest().authenticated()
+                            .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                            .anyRequest().authenticated();
+                })
                 // Without these two the chain falls back to Http403ForbiddenEntryPoint, which
                 // answers every denial — missing token, expired token, wrong role — with an empty
                 // 403 that no client can act on.
