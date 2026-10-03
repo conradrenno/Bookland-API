@@ -6,6 +6,7 @@ import com.devrenno.bookland.user.application.dto.UpdateUserCommand;
 import com.devrenno.bookland.user.application.port.out.UserPersistencePort;
 import com.devrenno.bookland.user.domain.entity.User;
 import com.devrenno.bookland.user.domain.entity.UserRole;
+import com.devrenno.bookland.user.domain.exception.AdminAccountDeactivationException;
 import com.devrenno.bookland.user.domain.exception.UserAccessDeniedException;
 import com.devrenno.bookland.user.domain.exception.UserNotFoundException;
 import com.devrenno.bookland.user.domain.valueobject.Email;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -24,6 +26,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -60,13 +64,42 @@ class UserControllerTest {
     }
 
     @Test
-    void delete_shouldRemoveUser_whenUserExists() {
+    void delete_shouldDeactivateInsteadOfRemoving() {
         UUID id = UUID.randomUUID();
         when(persistencePort.findById(UserId.of(id))).thenReturn(Optional.of(sampleUser(id)));
 
         controller.delete(id, id);
 
-        verify(persistencePort).delete(UserId.of(id));
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(persistencePort).save(saved.capture());
+        assertThat(saved.getValue().getId().value()).isEqualTo(id);
+        assertThat(saved.getValue().isActive()).isFalse();
+    }
+
+    @Test
+    void delete_shouldRefuseAnAdminAccount() {
+        UUID id = UUID.randomUUID();
+        User admin = User.reconstitute(
+                UserId.of(id), "Admin", Email.of("admin@test.com"), "hash",
+                UserRole.ADMIN, Instant.now(), Instant.now(), true);
+        when(persistencePort.findById(UserId.of(id))).thenReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> controller.delete(id, id))
+                .isInstanceOf(AdminAccountDeactivationException.class);
+        verify(persistencePort, never()).save(any());
+    }
+
+    @Test
+    void deactivatedAccount_shouldBeNotFound_toEveryIdLookup() {
+        UUID id = UUID.randomUUID();
+        User user = sampleUser(id);
+        user.deactivate();
+        when(persistencePort.findById(UserId.of(id))).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> controller.getById(id, id)).isInstanceOf(UserNotFoundException.class);
+        assertThatThrownBy(() -> controller.update(id, id, new UpdateUserCommand("Bob")))
+                .isInstanceOf(UserNotFoundException.class);
+        assertThatThrownBy(() -> controller.delete(id, id)).isInstanceOf(UserNotFoundException.class);
     }
 
     @Test

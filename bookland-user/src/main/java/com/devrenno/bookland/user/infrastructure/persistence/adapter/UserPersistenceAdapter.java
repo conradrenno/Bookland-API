@@ -34,11 +34,6 @@ public class UserPersistenceAdapter implements UserPersistencePort {
     }
 
     @Override
-    public void delete(UserId id) {
-        jpaRepository.deleteById(id.value());
-    }
-
-    @Override
     public boolean existsByEmail(Email email) {
         return jpaRepository.existsByEmail(email.value());
     }

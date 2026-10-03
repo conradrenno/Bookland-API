@@ -1,5 +1,6 @@
 package com.devrenno.bookland.user.infrastructure.web;
 
+import com.devrenno.bookland.user.domain.exception.AdminAccountDeactivationException;
 import com.devrenno.bookland.user.domain.exception.EmailAlreadyExistsException;
 import com.devrenno.bookland.user.domain.exception.UserAccessDeniedException;
 import com.devrenno.bookland.user.domain.exception.UserNotFoundException;
@@ -29,6 +30,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UserAccessDeniedException.class)
     public ProblemDetail handleUserAccessDenied(UserAccessDeniedException ex) {
         return ProblemDetails.of(HttpStatus.FORBIDDEN, ex.getMessage(), "USER_ACCESS_DENIED");
+    }
+
+    @ExceptionHandler(AdminAccountDeactivationException.class)
+    public ProblemDetail handleAdminAccountDeactivation(AdminAccountDeactivationException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "ADMIN_ACCOUNT_NOT_DELETABLE");
     }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)

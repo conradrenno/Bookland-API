@@ -26,6 +26,7 @@ public class UpdateUserService implements UpdateUserUseCase {
             throw new UserAccessDeniedException(id.value());
         }
         User user = persistencePort.findById(id)
+                .filter(User::isActive)
                 .orElseThrow(() -> new UserNotFoundException(id.value()));
         if (command.name() != null) {
             user.updateName(command.name());

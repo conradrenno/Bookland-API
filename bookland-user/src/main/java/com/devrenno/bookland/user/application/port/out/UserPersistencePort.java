@@ -10,6 +10,5 @@ public interface UserPersistencePort {
     User save(User user);
     Optional<User> findById(UserId id);
     Optional<User> findByEmail(Email email);
-    void delete(UserId id);
     boolean existsByEmail(Email email);
 }

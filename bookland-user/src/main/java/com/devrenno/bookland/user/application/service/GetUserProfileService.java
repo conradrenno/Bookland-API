@@ -31,6 +31,7 @@ public class GetUserProfileService implements GetUserProfileUseCase {
             throw new UserAccessDeniedException(id.value());
         }
         return persistencePort.findById(id)
+                .filter(User::isActive)
                 .orElseThrow(() -> new UserNotFoundException(id.value()));
     }
 }

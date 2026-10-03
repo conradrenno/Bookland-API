@@ -348,7 +348,7 @@ All endpoints are documented interactively at **`/swagger-ui.html`** when the ap
 |---|---|---|---|
 | `GET` | `/{id}` | Authenticated | Get user profile |
 | `PUT` | `/{id}` | Authenticated | Update user name |
-| `DELETE` | `/{id}` | Authenticated | Deactivate account |
+| `DELETE` | `/{id}` | Authenticated | Deactivate own account — login and refresh stop working, the e-mail stays taken; an admin account answers 409 |
 
 ### Catalog — `/api/v1/books`, `/api/v1/categories`
 

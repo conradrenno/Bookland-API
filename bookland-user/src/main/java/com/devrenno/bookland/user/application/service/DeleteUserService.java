@@ -2,6 +2,7 @@ package com.devrenno.bookland.user.application.service;
 
 import com.devrenno.bookland.user.application.port.in.DeleteUserUseCase;
 import com.devrenno.bookland.user.application.port.out.UserPersistencePort;
+import com.devrenno.bookland.user.domain.entity.User;
 import com.devrenno.bookland.user.domain.exception.UserAccessDeniedException;
 import com.devrenno.bookland.user.domain.exception.UserNotFoundException;
 import com.devrenno.bookland.user.domain.valueobject.UserId;
@@ -23,9 +24,10 @@ public class DeleteUserService implements DeleteUserUseCase {
         if (!id.equals(requesterId)) {
             throw new UserAccessDeniedException(id.value());
         }
-        if (persistencePort.findById(id).isEmpty()) {
-            throw new UserNotFoundException(id.value());
-        }
-        persistencePort.delete(id);
+        User user = persistencePort.findById(id)
+                .filter(User::isActive)
+                .orElseThrow(() -> new UserNotFoundException(id.value()));
+        user.deactivate();
+        persistencePort.save(user);
     }
 }

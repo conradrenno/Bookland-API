@@ -21,6 +21,7 @@ public class GetUserByIdService implements GetUserByIdUseCase {
     @Override
     public User execute(UserId id) {
         return persistencePort.findById(id)
+                .filter(User::isActive)
                 .orElseThrow(() -> new UserNotFoundException(id.value()));
     }
 }

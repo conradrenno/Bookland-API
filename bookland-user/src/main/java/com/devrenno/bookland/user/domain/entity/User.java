@@ -1,5 +1,6 @@
 package com.devrenno.bookland.user.domain.entity;
 
+import com.devrenno.bookland.user.domain.exception.AdminAccountDeactivationException;
 import com.devrenno.bookland.user.domain.valueobject.Email;
 import com.devrenno.bookland.user.domain.valueobject.UserId;
 import lombok.Getter;
@@ -67,7 +68,15 @@ public class User {
         this.updatedAt = Instant.now();
     }
 
+    /**
+     * What deleting an account does: the row stays, so the e-mail stays taken and can never be
+     * registered again by someone else. An admin account cannot be deactivated — the bootstrap admin
+     * is looked up by e-mail, so a deactivated one would leave the system with no admin for good.
+     */
     public void deactivate() {
+        if (role == UserRole.ADMIN) {
+            throw new AdminAccountDeactivationException(id.value());
+        }
         this.active = false;
         this.updatedAt = Instant.now();
     }

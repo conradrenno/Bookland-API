@@ -138,6 +138,7 @@ routes.
 | user | `USER_NOT_FOUND` | 404 |
 | user | `EMAIL_ALREADY_EXISTS` | 409 |
 | user | `USER_ACCESS_DENIED` | 403 |
+| user | `ADMIN_ACCOUNT_NOT_DELETABLE` | 409 |
 | catalog | `BOOK_NOT_FOUND` | 404 |
 | catalog | `CATEGORY_NOT_FOUND` | 404 |
 | catalog | `ISBN_ALREADY_EXISTS` | 409 |
