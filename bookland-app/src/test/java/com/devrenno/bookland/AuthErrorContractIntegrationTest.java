@@ -103,6 +103,20 @@ class AuthErrorContractIntegrationTest {
     }
 
     /**
+     * Pins the rule to the whole {@code /api/v1/admin} prefix rather than to the controllers that
+     * exist today. Scoped to {@code /admin/orders/**}, this route fell through to
+     * {@code anyRequest().authenticated()} and a CUSTOMER got a 404 — the same path a new admin
+     * controller would take, answering 200.
+     */
+    @Test
+    @DisplayName("CUSTOMER token on an admin route no controller serves yet: still 403")
+    void adminPrefixIsClosedByDefault() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/users").header("Authorization", "Bearer " + tokens.forRole("CUSTOMER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_ROLE"));
+    }
+
+    /**
      * The other half of the rule above, and the one that fails loudly if the {@code role} claim ever
      * stops being mapped to an authority: without {@code JwtAuthenticationConverter} the token still
      * verifies, the caller is still authenticated, and every admin route answers 403 — including to

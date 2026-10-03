@@ -104,8 +104,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/books").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/books/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/books/**").hasRole("ADMIN")
-                        // Order admin routes (must be before the broad authenticated cart/orders rules)
-                        .requestMatchers("/api/v1/admin/orders/**").hasRole("ADMIN")
+                        // The whole /admin prefix, so a new back-office controller is closed by default
+                        // instead of falling through to anyRequest().authenticated()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         // Cart and order routes (authenticated customers)
                         .requestMatchers("/api/v1/cart/**").authenticated()
                         .requestMatchers("/api/v1/orders/**").authenticated()
