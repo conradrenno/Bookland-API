@@ -35,7 +35,7 @@ Bookland is a fully functional e-commerce API for an online bookstore. It covers
 The project was built with a deliberate focus on **software architecture and design**, using it as a vehicle to apply and validate enterprise-grade patterns in a real, runnable codebase. Every architectural decision — module isolation, port/adapter boundaries, use-case granularity — was made intentionally, not as boilerplate.
 
 **What it covers:**
-- User registration and JWT-based authentication (access + refresh token rotation)
+- User registration and an embedded OAuth2/OIDC Authorization Server (authorization code + PKCE, RS256 tokens, single-use refresh rotation)
 - Book catalog with search, filtering, and category browsing
 - Real-time stock management and inventory auditing
 - Shopping cart with price snapshot at add time
@@ -63,7 +63,7 @@ bookland/                       ← Parent POM (dependency management)
 │                                 Not a domain; not a shared kernel
 │
 ├── bookland-user/              ← User identity and profile management
-├── bookland-auth/              ← JWT authentication and token lifecycle
+├── bookland-auth/              ← OAuth2/OIDC Authorization Server + registration
 ├── bookland-catalog/           ← Book catalog, search, categories, stock quantity
 ├── bookland-inventory/         ← Stock movement ledger and low-stock observability
 ├── bookland-orders/            ← Shopping cart, checkout, order lifecycle
@@ -127,7 +127,7 @@ com.devrenno.bookland.{domain}/
     ├── persistence/     ← JPA entities, Spring Data repos, persistence adapters
     ├── adapter/         ← Cross-module adapters implementing this module's out-ports
     ├── transaction/     ← TransactionAdapter implementing TransactionPort
-    └── security/        ← JWT filter, BCrypt adapter (user/auth only)
+    └── security/        ← Token customizer and validators, UserDetails, BCrypt adapter (user/auth only)
 ```
 
 **The dependency rule points inward and is enforced by tests:**
@@ -166,18 +166,19 @@ Modules communicate exclusively through **use-case interfaces** — never by imp
 
 ```
 bookland-auth
-    ├── UserLookupPort          → GetUserByEmailUseCase              (user)
+    ├── UserLookupPort          → GetUserByEmailUseCase
+    │                             + GetUserByIdUseCase               (user)
     └── UserRegistrationPort    → RegisterUserUseCase                (user)
 
 bookland-orders
     ├── BookInfoPort            → GetBookByIdUseCase                 (catalog)
-    ├── BookStockPort           → AdjustBookStockUseCase             (catalog)
+    ├── BookStockPort           → DecrementBookStockUseCase
+    │                             + IncrementBookStockUseCase        (catalog)
     ├── PaymentPort             → ProcessPaymentUseCase              (payments)
     └── RefundPort              → RefundPaymentUseCase               (payments)
 
 bookland-inventory
-    ├── BookStockAdjustmentPort → GetBookStockUseCase
-    │                             + AdjustBookStockUseCase           (catalog)
+    ├── BookStockAdjustmentPort → AdjustBookStockUseCase             (catalog)
     └── LowStockBooksPort       → GetLowStockBooksUseCase            (catalog)
 
 bookland-reviews
@@ -220,7 +221,7 @@ Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` i
 | **Framework-free Pagination** | `PageQuery` / `PageResult<T>` per module; adapters translate to and from Spring's `PageRequest` / `Page` |
 | **Domain Event (implicit)** | Status transitions recorded as `StatusTransition` history in `Order` |
 | **Idempotent Bootstrap** | `AdminBootstrap` guarantees exactly one admin on every startup |
-| **Soft Delete** | Books are deactivated, never deleted — invisible outside the catalog, still reachable by admin write flows |
+| **Soft Delete** | Books are deactivated, never deleted — invisible outside the catalog, still reachable by admin write flows. User accounts likewise: `DELETE` deactivates, and the e-mail stays taken |
 | **Optimistic Price Snapshot** | Cart freezes unit price at add time; Order freezes price, title and cover at checkout |
 | **Append-only Ledger** | `InventoryEntry` — insert-only, no updates, full audit trail |
 | **Token Rotation** | Refresh tokens are single-use; each refresh issues a new pair |
@@ -240,7 +241,7 @@ Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` i
 | Database (prod) | PostgreSQL 16 |
 | Schema migrations | Flyway 11 (`spring-boot-starter-flyway`) — owns the schema in dev and prod |
 | File storage | Local filesystem behind `ImageStoragePort` (swappable for S3/GCS) |
-| Authentication | JWT (JJWT 0.12.6) — HS256 |
+| Authentication | Spring Authorization Server (OAuth2 + OIDC) — RS256; every module is a Resource Server |
 | Object Mapping | MapStruct |
 | Boilerplate reduction | Lombok |
 | API Documentation | SpringDoc OpenAPI 3 (Swagger UI) |
@@ -254,7 +255,9 @@ Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` i
 ## Domain Overview
 
 ### User
-Manages customer identity and profile. Stores hashed passwords, name, email, role (`CUSTOMER` / `ADMIN`), and active status. Exposes use-case interfaces consumed by the Auth module.
+Manages customer identity and profile. Stores hashed passwords, name, email, role (`CUSTOMER` / `ADMIN`), and active status. Exposes use-case interfaces consumed by the Auth and Reviews modules.
+
+**Deleting an account deactivates it.** The row stays, so the e-mail can never be registered again by someone else; to every lookup by id the account is gone (404), the login refuses it, and a refresh token issued before the deletion answers `invalid_grant`. An admin account cannot be deleted (409), since `AdminBootstrap` would otherwise find it deactivated and leave the system without an admin.
 
 ### Auth
 Hosts an **OAuth2 Authorization Server with OIDC** (Spring Authorization Server). Login is `authorization_code` + PKCE at `/oauth2/authorize` and `/oauth2/token`, which issue an access token (15 minutes), an `id_token` and a refresh token (7 days, single-use rotation). Every other module is a Resource Server, verifying those tokens against the public key published at `/oauth2/jwks`. Registration stays in this module as `POST /api/v1/auth/register`, because it is business logic rather than authentication.
@@ -337,10 +340,18 @@ All endpoints are documented interactively at **`/swagger-ui.html`** when the ap
 
 | Method | Path | Access | Description |
 |---|---|---|---|
-| `POST` | `/register` | Public | Register and receive token pair |
-| `POST` | `/login` | Public | Authenticate and receive token pair |
-| `POST` | `/refresh` | Public | Rotate refresh token, get new access token |
-| `POST` | `/logout` | Public | Revoke refresh token |
+| `POST` | `/register` | Public | Register — answers 201 with the account (`id`, `email`, `role`), no token, and signs the caller in to the Authorization Server |
+
+There is no login, refresh or logout endpoint under `/api/v1/auth`. Those are protocol endpoints of the Authorization Server:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /oauth2/authorize` | Start the authorization code flow (PKCE required); redirects to `/login` when there is no session |
+| `POST /oauth2/token` | Exchange the code (`grant_type=authorization_code`) or refresh (`grant_type=refresh_token`, single-use) |
+| `GET /oauth2/jwks` | Public key that verifies the tokens |
+| `GET /userinfo` | OIDC claims of the caller |
+| `GET /connect/logout` | End the Authorization Server session |
+| `GET /.well-known/openid-configuration` | Discovery document |
 
 ### Users — `/api/v1/users`
 
@@ -431,16 +442,17 @@ which compensates stock and payment together via `OrderCancellation`.
 
 ## Security Model
 
-- **Stateless JWT** — no server-side session; the filter validates the token on every request
-- **Access token** — short-lived (15 min default), carries `userId`, `email`, and `role` claims
-- **Refresh token** — long-lived (7 days), single-use with rotation; stored in the database
-- **Role-based access** — `CUSTOMER` for standard routes, `ADMIN` for management endpoints; enforced by Spring Security `hasRole()` rules in `SecurityConfig`
+- **Authorization Server + Resource Server** — `bookland-auth` issues the tokens; the API validates them as a resource server, statelessly, against the public key
+- **Access token** — short-lived (15 min default), RS256, `aud = bookland-api`; carries `sub` (the user id, never the e-mail), `email` and `role`
+- **`id_token`** — addressed to the client, not the API; refused as a Bearer credential
+- **Refresh token** — long-lived (7 days), single-use with rotation, stored in `oauth2_authorization`. A refresh looks the account up again: a deleted account is `invalid_grant`, and the new token carries the role the account has now
+- **Role-based access** — `CUSTOMER` for standard routes, `ADMIN` for management endpoints; the `role` claim becomes a `ROLE_*` authority checked by `hasRole()` rules in `SecurityConfig`
 - **Admin bootstrap** — `AdminBootstrap` runs on every startup and idempotently ensures the configured admin account exists, driven by environment variables in production
-- **Password hashing** — BCrypt via `PasswordEncoderPort` — infrastructure detail hidden behind an out-port
+- **Password hashing** — BCrypt; registration hashes through `PasswordEncoderPort`, and the login checks the password through Spring's `DaoAuthenticationProvider`
 
-All authorization rules for every module live in a single `SecurityConfig`, inside `bookland-auth`. Rule order matters: specific admin routes are declared before broad `permitAll` patterns.
+All authorization rules for every module live in a single `SecurityConfig`, inside `bookland-auth`. Rule order matters: specific admin routes are declared before broad `permitAll` patterns, and the whole `/api/v1/admin/**` prefix is admin-only, so a new back-office controller is closed by default.
 
-The filter stores the **userId in `Authentication.getDetails()`**; controllers read it via `extractUserId(Principal)` rather than trusting a path variable.
+A handler that needs the caller declares an **`AuthenticatedUser`** parameter, resolved from the token's `sub` — never a path variable, `Principal` or `SecurityContextHolder`.
 
 **Known limitation — ending a session does not invalidate the access token.** `/connect/logout` (OIDC) ends the Authorization Server session and the refresh token stops working, so the session cannot be extended past the current access token. But the access token is stateless: nothing is looked up when it is validated, so it keeps working until it expires. A user who signed out stays authenticable for up to the access-token TTL — which is why that TTL is 15 minutes and not hours. This is the standard trade-off of stateless JWT, and the standard mitigation is exactly this: keep the access token short and let rotation do the rest. Making logout immediate requires server-side state on every request — a revocation list keyed by token id, listed under [Future Improvements](#future-improvements) as part of the Redis item.
 
@@ -505,6 +517,9 @@ V20260726164500__init_schema.sql            ← 15 tables, FKs, indexes
 V20260726164600__reference_categories.sql   ← category reference data
 V20260730120000__timestamps_with_time_zone.sql
                                             ← every timestamp column → timestamptz
+V20260810093000__oauth2_authorization_server_schema.sql
+                                            ← the Authorization Server's three oauth2_* tables
+V20260810210000__drop_refresh_tokens.sql    ← the hand-rolled refresh token table, retired
 ```
 
 Versions are **timestamps**, not sequential numbers, so parallel branches cannot collide on the same version.
@@ -559,6 +574,8 @@ The application starts on `http://localhost:8080`.
 | OpenAPI JSON | http://localhost:8080/api-docs |
 
 > H2 Console JDBC URL: `jdbc:h2:mem:booklanddb`
+
+> To use Swagger's **Authorize** button, open it at `http://127.0.0.1:8080/swagger-ui.html`, not `localhost`: the Authorization Server rejects `localhost` redirect URIs (RFC 8252). The dialog asks for the client id and secret (`bookland-web` / `bookland-web-secret` in dev), then sends you through the login page.
 
 ---
 
@@ -628,7 +645,7 @@ openssl base64 -A -in public.der     # OAUTH2_JWK_PUBLIC_KEY
 ./mvnw test -pl bookland-orders
 
 # Run a single test class
-./mvnw test -pl bookland-auth -Dtest=LoginServiceTest
+./mvnw test -pl bookland-auth -Dtest=BooklandTokenCustomizerTest
 ```
 
 **Inside a domain module** the tests are plain JUnit 5 + Mockito + AssertJ against mocked ports — no Spring context, no database, no `@WebMvcTest` slices. `TransactionPort` is faked with a pass-through implementation rather than mocked. That is what the manual composition root buys: a use case is constructed with `new`, so testing it needs no framework.
@@ -644,23 +661,23 @@ Four kinds of test:
 | Module | Test classes |
 |---|---|
 | user | `UserDomainServiceTest`, `RegisterUserServiceTest`, `UserControllerTest`, `ArchitectureRulesTest` |
-| auth | `LoginServiceTest`, `RegisterServiceTest`, `RefreshAccessTokenServiceTest`, `LogoutServiceTest`, `AuthControllerTest`, `ArchitectureRulesTest` |
-| catalog | `CreateBookServiceTest`, `GetBookByIdServiceTest`, `RemoveBookServiceTest`, `CatalogControllerTest`, `ISBNTest`, `ArchitectureRulesTest` |
-| orders | `CheckoutServiceTest`, `CancelOrderServiceTest`, `CheckActiveOrdersServiceTest`, `GetCartServiceTest`, `ArchitectureRulesTest` |
-| payments | `ProcessPaymentServiceTest`, `ArchitectureRulesTest` |
+| auth | `RegisterServiceTest`, `AuthControllerTest`, `BooklandTokenCustomizerTest`, `ArchitectureRulesTest` |
+| catalog | `CreateBookServiceTest`, `GetBookByIdServiceTest`, `RemoveBookServiceTest`, `AdjustBookStockServiceTest`, `DecrementBookStockServiceTest`, `IncrementBookStockServiceTest`, `CatalogControllerTest`, `ISBNTest`, `ArchitectureRulesTest` |
+| orders | `CheckoutServiceTest`, `CancelOrderServiceTest`, `UpdateOrderStatusServiceTest`, `CheckActiveOrdersServiceTest`, `GetCartServiceTest`, `ArchitectureRulesTest` |
+| payments | `ProcessPaymentServiceTest`, `GetPaymentByOrderIdServiceTest`, `ArchitectureRulesTest` |
 | reviews | `CreateReviewServiceTest`, `ArchitectureRulesTest` |
 | inventory | `AdjustInventoryServiceTest`, `ArchitectureRulesTest` |
 | wishlist | `AddWishlistItemServiceTest`, `ArchitectureRulesTest` |
-| app | `BooklandApplicationTests`, `AuthErrorContractIntegrationTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest`, `OpenApiErrorContractIntegrationTest`, `TimestampContractIntegrationTest`, `OrderHistoryOrderingIntegrationTest`, `ProblemDetailErrorControllerTest`, `WebLayerRulesTest`, `TimestampRulesTest` |
+| app | `BooklandApplicationTests`, `AuthorizationCodeFlowIntegrationTest`, `AuthErrorContractIntegrationTest`, `AuthenticatedUserArgumentResolverTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest`, `OpenApiErrorContractIntegrationTest`, `TimestampContractIntegrationTest`, `OrderHistoryOrderingIntegrationTest`, `StockConcurrencyIntegrationTest`, `ProblemDetailErrorControllerTest`, `WebLayerRulesTest`, `TimestampRulesTest` |
 | web-support | — (exercised entirely through the app's contract tests) |
 
 ---
 
 ## Future Improvements
 
-The current implementation intentionally keeps auth simple (direct JWT) to focus on domain architecture. The roadmap includes:
+The roadmap includes:
 
-- **OAuth2 Authorization Code + PKCE** — replace the current JWT flow with a proper OAuth2 Authorization Server (Spring Authorization Server), moving toward a BFF (Backend for Frontend) pattern where the browser never touches tokens directly
+- **BFF (Backend for Frontend)** — the Authorization Server is in place; the next step on the client side is a BFF that holds the tokens server-side, so the browser never touches them
 - **Event-driven cross-domain communication** — replace in-process port calls with domain events via a message broker (e.g. Kafka or RabbitMQ), enabling true decoupling and eventual consistency between modules
 - **Notification domain** — email/push notifications triggered by domain events (order confirmed, shipped, review approved)
 - **Elasticsearch integration** — replace JPA-based book search with a dedicated search index for full-text, faceted, and relevance-ranked queries
