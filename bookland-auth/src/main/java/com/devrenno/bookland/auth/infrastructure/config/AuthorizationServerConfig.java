@@ -1,5 +1,6 @@
 package com.devrenno.bookland.auth.infrastructure.config;
 
+import com.devrenno.bookland.auth.application.port.out.UserLookupPort;
 import com.devrenno.bookland.auth.infrastructure.security.AccessTokenExpiryValidator;
 import com.devrenno.bookland.auth.infrastructure.security.ApiAudienceValidator;
 import com.devrenno.bookland.auth.infrastructure.security.AuthorizationJsonMapperFactory;
@@ -171,8 +172,9 @@ public class AuthorizationServerConfig {
     }
 
     @Bean
-    public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(AuthorizationServerProperties properties) {
-        return new BooklandTokenCustomizer(properties.getApiAudience());
+    public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(AuthorizationServerProperties properties,
+                                                                     UserLookupPort userLookupPort) {
+        return new BooklandTokenCustomizer(properties.getApiAudience(), userLookupPort);
     }
 
     @Bean

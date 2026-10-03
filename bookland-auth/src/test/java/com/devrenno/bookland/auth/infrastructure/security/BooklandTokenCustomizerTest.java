@@ -1,9 +1,14 @@
 package com.devrenno.bookland.auth.infrastructure.security;
 
+import com.devrenno.bookland.auth.application.dto.AuthUserDto;
+import com.devrenno.bookland.auth.application.port.out.UserLookupPort;
 import com.devrenno.bookland.user.domain.entity.UserRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -13,9 +18,14 @@ import org.springframework.security.oauth2.server.authorization.token.JwtEncodin
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * The customizer is where the two claims the rest of Bookland depends on are written, and both of
@@ -26,7 +36,8 @@ class BooklandTokenCustomizerTest {
     private static final String API_AUDIENCE = "bookland-api";
     private static final String CLIENT_ID = "bookland-web";
 
-    private final BooklandTokenCustomizer customizer = new BooklandTokenCustomizer(API_AUDIENCE);
+    private final UserLookupPort userLookupPort = mock(UserLookupPort.class);
+    private final BooklandTokenCustomizer customizer = new BooklandTokenCustomizer(API_AUDIENCE, userLookupPort);
 
     private final UUID userId = UUID.randomUUID();
 
@@ -115,15 +126,56 @@ class BooklandTokenCustomizerTest {
         assertThat(subjectOf(context)).isEqualTo("admin@bookland.com");
     }
 
+    /**
+     * The principal on a refresh is the one stored at login. The framework issues the new token from
+     * it without asking any user store, so without this lookup a deleted account keeps refreshing
+     * for the refresh token's whole lifetime.
+     */
+    @Test
+    @DisplayName("a refresh for an account that no longer exists is invalid_grant")
+    void refreshForADeletedAccountIsRefused() {
+        when(userLookupPort.findActiveById(userId)).thenReturn(Optional.empty());
+        JwtEncodingContext context = contextFor(OAuth2TokenType.ACCESS_TOKEN, AuthorizationGrantType.REFRESH_TOKEN);
+
+        assertThatThrownBy(() -> customizer.customize(context))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, e ->
+                        assertThat(e.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+    }
+
+    @Test
+    @DisplayName("a refresh writes the role the account has now, not the one stored at login")
+    void refreshWritesTheCurrentRole() {
+        when(userLookupPort.findActiveById(userId)).thenReturn(Optional.of(
+                new AuthUserDto(userId, "admin@bookland.com", "hashed", UserRole.CUSTOMER, true)));
+        JwtEncodingContext context = contextFor(OAuth2TokenType.ACCESS_TOKEN, AuthorizationGrantType.REFRESH_TOKEN);
+
+        customizer.customize(context);
+
+        assertThat(claim(context, "role")).isEqualTo("CUSTOMER");
+    }
+
+    @Test
+    @DisplayName("the code exchange trusts the principal it just authenticated — no lookup")
+    void codeExchangeDoesNotLookTheAccountUp() {
+        customizer.customize(contextFor(OAuth2TokenType.ACCESS_TOKEN, AuthorizationGrantType.AUTHORIZATION_CODE));
+
+        verifyNoInteractions(userLookupPort);
+    }
+
     private JwtEncodingContext contextFor(OAuth2TokenType tokenType) {
+        return contextFor(tokenType, AuthorizationGrantType.AUTHORIZATION_CODE);
+    }
+
+    private JwtEncodingContext contextFor(OAuth2TokenType tokenType, AuthorizationGrantType grantType) {
         BooklandUserDetails principal = new BooklandUserDetails(
-                userId, "admin@bookland.com", "hashed", UserRole.ADMIN);
+                userId, "admin@bookland.com", "hashed", UserRole.ADMIN, true);
 
         return JwtEncodingContext
                 .with(JwsHeader.with(SignatureAlgorithm.RS256), baseClaims())
                 .principal(new UsernamePasswordAuthenticationToken(
                         principal, null, principal.getAuthorities()))
                 .tokenType(tokenType)
+                .authorizationGrantType(grantType)
                 .build();
     }
 

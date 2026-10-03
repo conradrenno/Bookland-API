@@ -33,9 +33,9 @@ import java.util.UUID;
  * this class carries the id as a field of its own, and {@link BooklandTokenCustomizer} — the
  * extension point the framework publishes for exactly this — reads it when writing the claims.
  *
- * <p>The account flags stay at their permissive defaults, matching what the outgoing
- * {@code LoginService} did: it never consulted {@code active} either. Wiring {@code isEnabled()} to
- * it would be a behaviour change, and belongs in its own commit.
+ * <p>{@code enabled} is the account's {@code active} flag. {@code DaoAuthenticationProvider} reads it
+ * at login and refuses a deleted account. It is serialised with the rest, but nothing reads it back:
+ * a refresh does not trust this snapshot, {@link BooklandTokenCustomizer} looks the account up again.
  */
 public final class BooklandUserDetails implements UserDetails, CredentialsContainer {
 
@@ -44,16 +44,19 @@ public final class BooklandUserDetails implements UserDetails, CredentialsContai
     /** Not final, and null once {@link #eraseCredentials()} has run. */
     private String passwordHash;
     private final UserRole role;
+    private final boolean enabled;
 
     /**
      * {@code passwordHash} is deliberately not null-checked: it is null on every instance rebuilt
      * from a stored authorization, because it was erased before being written there.
      */
-    public BooklandUserDetails(UUID userId, String email, String passwordHash, UserRole role) {
+    public BooklandUserDetails(UUID userId, String email, String passwordHash, UserRole role,
+                               boolean enabled) {
         this.userId = Objects.requireNonNull(userId, "userId");
         this.email = Objects.requireNonNull(email, "email");
         this.passwordHash = passwordHash;
         this.role = Objects.requireNonNull(role, "role");
+        this.enabled = enabled;
     }
 
     /**
@@ -79,7 +82,7 @@ public final class BooklandUserDetails implements UserDetails, CredentialsContai
     }
 
     public static BooklandUserDetails from(AuthUserDto user) {
-        return new BooklandUserDetails(user.id(), user.email(), user.passwordHash(), user.role());
+        return new BooklandUserDetails(user.id(), user.email(), user.passwordHash(), user.role(), user.active());
     }
 
     public UUID getUserId() {
@@ -103,5 +106,10 @@ public final class BooklandUserDetails implements UserDetails, CredentialsContai
     @Override
     public String getUsername() {
         return email;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return enabled;
     }
 }

@@ -12,6 +12,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -21,9 +22,14 @@ import java.util.Base64;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.endsWith;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -50,6 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuthorizationCodeFlowIntegrationTest {
 
     private static final String REDIRECT_URI = "http://127.0.0.1:8080/authorized";
+    private static final String PASSWORD = "senha1234";
 
     @Autowired
     private MockMvc mockMvc;
@@ -165,6 +172,85 @@ class AuthorizationCodeFlowIntegrationTest {
         assertThat(attributes).doesNotContain("$2a$");
     }
 
+    // --- account lifecycle ---------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a refresh token from the real flow refreshes while the account exists")
+    void refreshWorksForALiveAccount() throws Exception {
+        Registration registration = register();
+        String verifier = "e".repeat(64);
+        JsonNode tokens = exchange(authorize(registration.session(), challengeFor(verifier)), verifier);
+
+        JsonNode refreshed = json.readTree(refresh(tokens.get("refresh_token").asText())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+
+        assertThat(subjectOf(refreshed.get("access_token").asText()))
+                .isEqualTo(registration.userId().toString());
+    }
+
+    /**
+     * The refresh path issues tokens from the principal stored at login and never asks a user store
+     * on its own. Before the customizer looked the account up again, this refresh answered 200 -
+     * for the whole seven-day life of the refresh token.
+     */
+    @Test
+    @DisplayName("once the account is deleted, its refresh token is invalid_grant")
+    void refreshIsRefusedAfterTheAccountIsDeleted() throws Exception {
+        Registration registration = register();
+        String verifier = "f".repeat(64);
+        JsonNode tokens = exchange(authorize(registration.session(), challengeFor(verifier)), verifier);
+
+        mockMvc.perform(delete("/api/v1/users/" + registration.userId())
+                        .header("Authorization", "Bearer " + tokens.get("access_token").asText()))
+                .andExpect(status().isNoContent());
+
+        refresh(tokens.get("refresh_token").asText())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_grant"));
+    }
+
+    @Test
+    @DisplayName("a refresh carries the role the account has now, not the one it logged in with")
+    void refreshCarriesTheCurrentRole() throws Exception {
+        Registration registration = register();
+        String verifier = "g".repeat(64);
+        JsonNode tokens = exchange(authorize(registration.session(), challengeFor(verifier)), verifier);
+        assertThat(payloadOf(tokens.get("access_token").asText()).get("role").asText()).isEqualTo("CUSTOMER");
+
+        jdbcTemplate.update("update users set role = 'ADMIN' where id = ?", registration.userId());
+
+        JsonNode refreshed = json.readTree(refresh(tokens.get("refresh_token").asText())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        assertThat(payloadOf(refreshed.get("access_token").asText()).get("role").asText()).isEqualTo("ADMIN");
+    }
+
+    @Test
+    @DisplayName("a deleted account can neither log in again nor have its e-mail registered by someone else")
+    void deletedAccountIsLockedOutAndItsEmailStaysTaken() throws Exception {
+        Registration registration = register();
+        String verifier = "h".repeat(64);
+        JsonNode tokens = exchange(authorize(registration.session(), challengeFor(verifier)), verifier);
+        mockMvc.perform(delete("/api/v1/users/" + registration.userId())
+                        .header("Authorization", "Bearer " + tokens.get("access_token").asText()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/login").with(csrf())
+                        .param("username", registration.email())
+                        .param("password", PASSWORD))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string("Location", endsWith("/login?error")));
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Someone Else", "email": "%s", "password": "outra1234"}
+                                """.formatted(registration.email())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"));
+    }
+
     // --- flow steps ----------------------------------------------------------------------------
 
     private Registration register() throws Exception {
@@ -173,8 +259,8 @@ class AuthorizationCodeFlowIntegrationTest {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name": "Flow Tester", "email": "%s", "password": "senha1234"}
-                                """.formatted(email)))
+                                {"name": "Flow Tester", "email": "%s", "password": "%s"}
+                                """.formatted(email, PASSWORD)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -184,7 +270,7 @@ class AuthorizationCodeFlowIntegrationTest {
         MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
         assertThat(session).as("registering must establish a session").isNotNull();
 
-        return new Registration(UUID.fromString(body.get("id").asText()), session);
+        return new Registration(UUID.fromString(body.get("id").asText()), email, session);
     }
 
     private String authorize(MockHttpSession session, String challenge) throws Exception {
@@ -208,6 +294,13 @@ class AuthorizationCodeFlowIntegrationTest {
                 .andReturn();
 
         return json.readTree(result.getResponse().getContentAsString());
+    }
+
+    private ResultActions refresh(String refreshToken) throws Exception {
+        return mockMvc.perform(post("/oauth2/token")
+                .with(httpBasic(clientId, clientSecret))
+                .param("grant_type", "refresh_token")
+                .param("refresh_token", refreshToken));
     }
 
     // --- helpers -------------------------------------------------------------------------------
@@ -253,6 +346,6 @@ class AuthorizationCodeFlowIntegrationTest {
         return json.readTree(payload);
     }
 
-    private record Registration(UUID userId, MockHttpSession session) {
+    private record Registration(UUID userId, String email, MockHttpSession session) {
     }
 }

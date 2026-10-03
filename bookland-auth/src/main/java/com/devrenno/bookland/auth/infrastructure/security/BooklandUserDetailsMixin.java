@@ -44,6 +44,7 @@ abstract class BooklandUserDetailsMixin {
     BooklandUserDetailsMixin(@JsonProperty("userId") UUID userId,
                              @JsonProperty("email") String email,
                              @JsonProperty("passwordHash") String passwordHash,
-                             @JsonProperty("role") UserRole role) {
+                             @JsonProperty("role") UserRole role,
+                             @JsonProperty("enabled") boolean enabled) {
     }
 }

@@ -1,5 +1,12 @@
 package com.devrenno.bookland.auth.infrastructure.security;
 
+import com.devrenno.bookland.auth.application.dto.AuthUserDto;
+import com.devrenno.bookland.auth.application.port.out.UserLookupPort;
+import com.devrenno.bookland.user.domain.entity.UserRole;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
@@ -26,22 +33,38 @@ import java.util.Collections;
  * <p>{@code email} becomes an explicit claim because it stops being implicit in {@code sub}. It is
  * the standard OIDC claim for it, and it is where {@code AuthenticatedUserArgumentResolver} will
  * read the caller's e-mail once {@code getName()} starts returning a UUID.
+ *
+ * <p><strong>A refresh re-reads the account.</strong> The principal handed to a refresh is the one
+ * stored at login, up to seven days old, and the framework never consults a user store on that
+ * path. Trusting it would keep issuing tokens to a deleted account, and with the role it had at
+ * login. So on a refresh the account is looked up again by id: gone or deactivated is
+ * {@code invalid_grant} — the standard signal for "log in again" — and otherwise the current role
+ * is written, not the stored one.
  */
 public class BooklandTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingContext> {
 
     private final String apiAudience;
+    private final UserLookupPort userLookupPort;
 
-    public BooklandTokenCustomizer(String apiAudience) {
+    public BooklandTokenCustomizer(String apiAudience, UserLookupPort userLookupPort) {
         this.apiAudience = apiAudience;
+        this.userLookupPort = userLookupPort;
     }
 
     @Override
     public void customize(JwtEncodingContext context) {
         if (context.getPrincipal().getPrincipal() instanceof BooklandUserDetails user) {
+            UserRole role = user.getRole();
+            if (AuthorizationGrantType.REFRESH_TOKEN.equals(context.getAuthorizationGrantType())) {
+                role = userLookupPort.findActiveById(user.getUserId())
+                        .map(AuthUserDto::role)
+                        .orElseThrow(() -> new OAuth2AuthenticationException(new OAuth2Error(
+                                OAuth2ErrorCodes.INVALID_GRANT, "The account no longer exists", null)));
+            }
             context.getClaims()
                     .subject(user.getUserId().toString())
                     .claim("email", user.getUsername())
-                    .claim("role", user.getRole().name());
+                    .claim("role", role.name());
         }
 
         if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {

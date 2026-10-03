@@ -35,7 +35,7 @@ public class RegistrationSessionEstablisher {
 
     public void establish(HttpServletRequest request, RegisteredUserViewModel user) {
         BooklandUserDetails principal =
-                new BooklandUserDetails(user.id(), user.email(), null, user.role());
+                new BooklandUserDetails(user.id(), user.email(), null, user.role(), true);
 
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(new UsernamePasswordAuthenticationToken(

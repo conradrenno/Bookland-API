@@ -8,5 +8,6 @@ public record AuthUserDto(
         UUID id,
         String email,
         String passwordHash,
-        UserRole role
+        UserRole role,
+        boolean active
 ) {}
