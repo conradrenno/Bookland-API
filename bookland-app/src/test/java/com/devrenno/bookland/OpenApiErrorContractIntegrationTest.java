@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -126,5 +128,19 @@ class OpenApiErrorContractIntegrationTest {
                 .andExpect(jsonPath(
                         "$.components.securitySchemes.oauth2.flows.authorizationCode.tokenUrl")
                         .value("http://127.0.0.1:8080/oauth2/token"));
+    }
+
+    /**
+     * The registered client requires PKCE and authenticates with client_secret_basic only. The UI
+     * does neither by default: without PKCE the authorize step is refused, and with the secret in the
+     * form body the token step answers 401 invalid_client — both after the user has typed a password.
+     */
+    @Test
+    @DisplayName("the Swagger UI runs the login the registered client accepts")
+    void swaggerUiUsesPkceAndBasicClientAuthentication() throws Exception {
+        mockMvc.perform(get("/swagger-ui/swagger-initializer.js"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"usePkceWithAuthorizationCodeGrant\":true")))
+                .andExpect(content().string(containsString("\"useBasicAuthenticationWithAccessCodeGrant\":true")));
     }
 }

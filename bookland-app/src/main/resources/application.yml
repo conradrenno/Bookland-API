@@ -114,8 +114,13 @@ springdoc:
       # The registered client requires PKCE. Without this the Authorize button starts a flow the
       # Authorization Server refuses, and the UI reports it as a generic authorization failure.
       # Note the nesting: the property lives under swagger-ui.oauth, and setting it one level up
-      # is ignored silently — the value simply never reaches /api-docs/swagger-config.
+      # is ignored silently — the value simply never reaches ui.initOAuth(...) in
+      # /swagger-ui/swagger-initializer.js, which is where these settings land.
       use-pkce-with-authorization-code-grant: true
+      # The registered client authenticates with client_secret_basic only. By default the UI sends
+      # the id and secret in the form body (client_secret_post), which the token endpoint answers
+      # with 401 invalid_client; this makes it send an Authorization: Basic header instead.
+      use-basic-authentication-with-access-code-grant: true
       # Pre-fills the Authorize dialog. Not a secret: a client id is published by design.
       client-id: bookland-web
       # The client secret is deliberately NOT pre-filled. Our client is confidential
