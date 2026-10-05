@@ -10,27 +10,29 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.awaitility.Awaitility.await;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The author's name is written onto the review when it is created and read back from there, so
- * listing reviews no longer asks the user module for each author. That is a precondition for
- * extracting the user module into its own service: across a network, the old lookup would be one
- * call per author on every listing.
+ * A book's rating travels from the reviews module to the catalog as a Kafka event, not as a call: the
+ * request that publishes or moderates a review returns before the catalog has applied it, so the test
+ * waits for the rating to arrive rather than reading it right after the response.
  *
- * <p>Runs end to end because the change spans a migration, the JPA mapping and two use cases — a
- * column the mapping forgot would pass every unit test.
+ * <p>End to end because each half is unit-tested against the other's JSON, and only a real broker
+ * shows they agree on the topic, the key and the listener's wiring.
  */
 @BooklandIntegrationTest
-class ReviewAuthorNameIntegrationTest {
+class BookRatingEventIntegrationTest {
+
+    private static final Duration DELIVERY = Duration.ofSeconds(30);
 
     @Autowired
     private MockMvc mockMvc;
@@ -57,36 +59,46 @@ class ReviewAuthorNameIntegrationTest {
     }
 
     @Test
-    @DisplayName("a review keeps the name its author had when writing it")
-    void reviewKeepsTheNameItWasWrittenWith() throws Exception {
-        UUID customerId = register("Ana Original");
-        UUID bookId = jdbcTemplate.queryForObject("select id from books where active = true limit 1", UUID.class);
+    @DisplayName("publishing and moderating a review reach the book's rating through Kafka")
+    void ratingFollowsTheReviews() throws Exception {
+        UUID bookId = jdbcTemplate.queryForObject("""
+                select b.id from books b
+                where b.active = true
+                  and not exists (select 1 from reviews r where r.book_id = b.id)
+                limit 1
+                """, UUID.class);
+        UUID customerId = register();
         deliverOrderOf(customerId, bookId);
 
-        mockMvc.perform(post("/api/v1/books/" + bookId + "/reviews")
+        String created = mockMvc.perform(post("/api/v1/books/" + bookId + "/reviews")
                         .header("Authorization", "Bearer " + tokens.forCaller(customerId, "CUSTOMER"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"rating": 5, "comment": "Great"}
+                                {"rating": 4, "comment": "Good"}
                                 """))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
 
-        assertThat(jdbcTemplate.queryForObject(
-                "select customer_name from reviews where customer_id = ? and book_id = ?",
-                String.class, customerId, bookId))
-                .isEqualTo("Ana Original");
+        await().atMost(DELIVERY).untilAsserted(() -> assertThat(ratingOf(bookId)).isEqualTo(4.0));
 
-        jdbcTemplate.update("update users set name = 'Ana Renamed' where id = ?", customerId);
+        UUID reviewId = UUID.fromString(json.readTree(created).get("id").asText());
+        mockMvc.perform(delete("/api/v1/books/" + bookId + "/reviews/" + reviewId)
+                        .header("Authorization", "Bearer " + tokens.forRole("ADMIN")))
+                .andExpect(status().isNoContent());
 
-        assertThat(listedNameOf(customerId, bookId)).isEqualTo("Ana Original");
+        await().atMost(DELIVERY).untilAsserted(() -> assertThat(ratingOf(bookId)).isZero());
     }
 
-    private UUID register(String name) throws Exception {
+    private double ratingOf(UUID bookId) {
+        return jdbcTemplate.queryForObject("select avg_rating from books where id = ?", Double.class, bookId);
+    }
+
+    private UUID register() throws Exception {
         String body = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name": "%s", "email": "review-%s@bookland.com", "password": "senha1234"}
-                                """.formatted(name, UUID.randomUUID())))
+                                {"name": "Rating Reader", "email": "rating-%s@bookland.com", "password": "senha1234"}
+                                """.formatted(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return UUID.fromString(json.readTree(body).get("id").asText());
@@ -103,17 +115,5 @@ class ReviewAuthorNameIntegrationTest {
                 insert into order_items (id, order_id, book_id, title, quantity, unit_price)
                 values (?, ?, ?, 'A book', 1, 10.00)
                 """, UUID.randomUUID(), orderId, bookId);
-    }
-
-    private String listedNameOf(UUID customerId, UUID bookId) throws Exception {
-        String body = mockMvc.perform(get("/api/v1/books/" + bookId + "/reviews?size=100"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        for (JsonNode review : json.readTree(body).get("reviews").get("content")) {
-            if (review.get("customerId").asText().equals(customerId.toString())) {
-                return review.get("customerName").asText();
-            }
-        }
-        throw new AssertionError("the review is not in the listing");
     }
 }

@@ -118,6 +118,13 @@
             <artifactId>archunit-junit5</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- In-JVM Kafka broker for the full-context tests: every one of them starts the listener and
+             the producer, and ./mvnw test must not need Docker. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

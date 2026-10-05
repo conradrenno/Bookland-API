@@ -7,10 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -25,9 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * denial produces which status and code — is decided entirely inside it, so a unit test against
  * mocked ports would prove nothing.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@BooklandIntegrationTest
 class AuthErrorContractIntegrationTest {
 
     private static final String CUSTOMER_ROUTE = "/api/v1/cart";

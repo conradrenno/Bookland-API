@@ -11,11 +11,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -52,9 +49,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * <p>Written before the rules were moved out of {@code SecurityConfig} into each module, so that the
  * move could be checked against an unchanged matrix.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@BooklandIntegrationTest
 class AccessMatrixIntegrationTest {
 
     enum Access { PUBLIC, AUTHENTICATED, ADMIN }

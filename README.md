@@ -128,6 +128,7 @@ com.devrenno.bookland.{domain}/
     ├── persistence/     ← JPA entities, Spring Data repos, persistence adapters
     ├── adapter/         ← Cross-module adapters implementing this module's out-ports
     ├── transaction/     ← TransactionAdapter implementing TransactionPort
+    ├── messaging/       ← Kafka producers (implementing out-ports) and @KafkaListener inbound adapters
     └── security/        ← Token customizer and validators, UserDetails, BCrypt adapter (user/auth only)
 ```
 
@@ -185,7 +186,8 @@ bookland-inventory
 bookland-reviews
     ├── PurchaseVerificationPort → VerifyPurchaseUseCase             (orders)
     ├── BookExistsPort           → GetBookByIdUseCase                (catalog)
-    ├── BookRatingUpdatePort     → UpdateBookAverageRatingUseCase    (catalog)
+    ├── BookRatingEventPort      → Kafka topic bookland.reviews.book-rating-changed
+    │                              consumed by catalog's BookRatingChangedListener
     └── CustomerNamePort         → GetUserByIdUseCase                (user)
                                    called once, at creation; the name is stored on the review
 
@@ -325,7 +327,7 @@ All of it is pinned by `StockConcurrencyIntegrationTest` (bookland-app), which r
 Simulated payment gateway supporting `CREDIT_CARD`, `DEBIT_CARD`, `PAYPAL`, and `PIX`. Records payment status and provides refund capability. Consumed by Orders via outbound ports — Orders never accesses Payment internals directly.
 
 ### Reviews
-Purchase-verified review system. Before creating a review, the service verifies (via `PurchaseVerificationPort → VerifyPurchaseUseCase` in Orders) that the customer has a `DELIVERED` order containing that book. On creation, the book's average rating in Catalog is recalculated automatically, and the author's display name is stored on the review — so listing reviews never asks the User module, and a review keeps the name its author had when writing it.
+Purchase-verified review system. Before creating a review, the service verifies (via `PurchaseVerificationPort → VerifyPurchaseUseCase` in Orders) that the customer has a `DELIVERED` order containing that book. On creation and on moderation, the book's new average rating is published as a `BookRatingChanged` Kafka event that Catalog consumes — so the rating updates a moment after the response, not within it — and the author's display name is stored on the review — so listing reviews never asks the User module, and a review keeps the name its author had when writing it.
 
 ### Wishlist
 Customer wishlist with atomic **move-to-cart** — removes the item from the wishlist and adds it to the cart in a single operation, reusing the cart's stock validation.

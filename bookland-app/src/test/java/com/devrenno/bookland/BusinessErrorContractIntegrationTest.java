@@ -3,10 +3,7 @@ package com.devrenno.bookland;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
@@ -21,9 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * matching on status plus route. Only the cases reachable without a fixture are covered here; the
  * codes themselves are listed in docs/error-contract.md.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@BooklandIntegrationTest
 class BusinessErrorContractIntegrationTest {
 
     /** Seeded by DevDataLoader. */

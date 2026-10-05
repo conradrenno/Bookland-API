@@ -1,10 +1,11 @@
 package com.devrenno.bookland.reviews.application.service;
 
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
+import com.devrenno.bookland.reviews.application.dto.BookRatingChanged;
 import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
 import com.devrenno.bookland.reviews.application.dto.ReviewView;
 import com.devrenno.bookland.reviews.application.port.out.BookExistsPort;
-import com.devrenno.bookland.reviews.application.port.out.BookRatingUpdatePort;
+import com.devrenno.bookland.reviews.application.port.out.BookRatingEventPort;
 import com.devrenno.bookland.reviews.application.port.out.CustomerNamePort;
 import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
@@ -34,7 +35,7 @@ class CreateReviewServiceTest {
     @Mock private ReviewPersistencePort reviewPersistencePort;
     @Mock private BookExistsPort bookExistsPort;
     @Mock private PurchaseVerificationPort purchaseVerificationPort;
-    @Mock private BookRatingUpdatePort bookRatingUpdatePort;
+    @Mock private BookRatingEventPort bookRatingEventPort;
     @Mock private CustomerNamePort customerNamePort;
 
     private CreateReviewService service;
@@ -45,7 +46,7 @@ class CreateReviewServiceTest {
     @BeforeEach
     void setUp() {
         service = CreateReviewService.create(reviewPersistencePort, bookExistsPort,
-                purchaseVerificationPort, bookRatingUpdatePort, customerNamePort);
+                purchaseVerificationPort, bookRatingEventPort, customerNamePort);
     }
 
     @Test
@@ -64,7 +65,27 @@ class CreateReviewServiceTest {
 
         assertThat(result.rating()).isEqualTo(5);
         assertThat(result.customerName()).isEqualTo("Ana Souza");
-        verify(bookRatingUpdatePort).updateRating(eq(bookId), anyDouble());
+    }
+
+    /** The event carries the resulting average and count over every active review, not just the new one. */
+    @Test
+    void execute_shouldPublishTheBooksNewRating() {
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 5, null);
+        when(bookExistsPort.exists(bookId)).thenReturn(true);
+        when(purchaseVerificationPort.hasPurchasedBook(customerId, bookId)).thenReturn(true);
+        when(reviewPersistencePort.findByBookIdAndCustomerId(bookId, customerId)).thenReturn(Optional.empty());
+        when(reviewPersistencePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(reviewPersistencePort.findAllActiveByBookId(bookId)).thenReturn(List.of(buildReview(5), buildReview(2)));
+        when(customerNamePort.getCustomerName(customerId)).thenReturn("Ana Souza");
+
+        service.execute(command);
+
+        ArgumentCaptor<BookRatingChanged> published = ArgumentCaptor.forClass(BookRatingChanged.class);
+        verify(bookRatingEventPort).publish(published.capture());
+        assertThat(published.getValue().bookId()).isEqualTo(bookId);
+        assertThat(published.getValue().averageRating()).isEqualTo(3.5);
+        assertThat(published.getValue().reviewCount()).isEqualTo(2);
+        assertThat(published.getValue().eventId()).isNotNull();
     }
 
     /**
@@ -119,6 +140,8 @@ class CreateReviewServiceTest {
 
         assertThatThrownBy(() -> service.execute(command))
                 .isInstanceOf(DuplicateReviewException.class);
+
+        verifyNoInteractions(bookRatingEventPort);
     }
 
     private Review buildReview(int rating) {

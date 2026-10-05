@@ -10,8 +10,6 @@ import com.devrenno.bookland.catalog.domain.valueobject.Price;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -39,8 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 0 — one unit sold twice, no exception raised, nothing a mocked port could have caught. A test
  * with a stubbed persistence port would have passed against the broken code.</p>
  */
-@SpringBootTest
-@ActiveProfiles("dev")
+@BooklandIntegrationTest
 class StockConcurrencyIntegrationTest {
 
     /** Seeded by V2 and referenced literally by DevDataLoader; any active category works here. */

@@ -10,6 +10,17 @@ spring:
   # docker-compose injects kafka:29092; the default reaches the compose broker from the host.
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      # Wait for the broker to have the record before calling it sent (already the client default).
+      acks: all
+      properties:
+        # How long send() may block waiting for the broker's metadata — i.e. how long a request
+        # stalls when the broker is down. The client default is 60s.
+        max.block.ms: 5000
+    consumer:
+      # A consumer group seen for the first time starts at the oldest record, not the newest:
+      # events published before the group first joined are still applied.
+      auto-offset-reset: earliest
 
 # What the API needs to validate an access token. Read by ResourceServerConfig (bookland-web-support).
 # The values are the Authorization Server's own, because in the monolith they are the same server.

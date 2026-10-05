@@ -5,9 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -18,9 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * The published document has to describe the error bodies, or a client generating types off it ends
  * up hand-writing the one type it is guaranteed to receive.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@BooklandIntegrationTest
 class OpenApiErrorContractIntegrationTest {
 
     @Autowired

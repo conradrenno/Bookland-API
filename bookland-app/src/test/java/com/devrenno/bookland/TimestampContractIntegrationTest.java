@@ -7,10 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.matchesPattern;
@@ -26,9 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * field survives anywhere; this proves what actually reaches the client, which is the part a
  * consumer codes against. The two together are the contract: a date field ends in {@code Z}.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@BooklandIntegrationTest
 class TimestampContractIntegrationTest {
 
     /** ISO-8601 instant: the trailing Z is the whole point. */
