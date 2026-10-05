@@ -35,7 +35,7 @@ The Dockerfile enumerates every module twice (one `COPY` for the `pom.xml`, one 
 
 **Dev endpoints:**
 - API: `http://localhost:8080`
-- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Swagger UI: `http://127.0.0.1:8080/swagger-ui.html` — **127.0.0.1, not localhost**, for the Authorize button: the redirect URIs must be the loopback IP (RFC 8252), and the dev issuer is `http://127.0.0.1:8080` so the UI's `fetch` to the token endpoint is same-origin (under `localhost` the browser blocks it as cross-origin — the server sends no CORS headers)
 - H2 Console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:booklanddb`)
 - Redpanda Console (topics, messages, consumer offsets): `http://localhost:8081` — a UI only; the broker is Apache Kafka (KRaft, single node), reachable at `localhost:9092` from the host and `kafka:29092` inside the compose network
 

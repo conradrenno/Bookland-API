@@ -61,7 +61,11 @@ spring:
 
 bookland:
   oauth2:
-    issuer: http://localhost:8080
+    # 127.0.0.1, not localhost: the redirect URIs below must be the loopback IP (RFC 8252), so the
+    # browser half of the login lives on 127.0.0.1 — and the Swagger UI exchanges the code with a
+    # fetch to the token URL built from this issuer. Under localhost that fetch is cross-origin,
+    # the server sends no CORS headers, and the browser blocks it ("Failed to fetch").
+    issuer: http://127.0.0.1:8080
     api-audience: bookland-api
     jwk:
       key-id: bookland-dev-key

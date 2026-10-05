@@ -580,7 +580,7 @@ The application starts on `http://localhost:8080`.
 
 > H2 Console JDBC URL: `jdbc:h2:mem:booklanddb`
 
-> To use Swagger's **Authorize** button, open it at `http://127.0.0.1:8080/swagger-ui.html`, not `localhost`: the Authorization Server rejects `localhost` redirect URIs (RFC 8252). The dialog asks for the client id and secret (`bookland-web` / `bookland-web-secret` in dev), then sends you through the login page.
+> To use Swagger's **Authorize** button, open it at `http://127.0.0.1:8080/swagger-ui.html`, not `localhost`: the Authorization Server rejects `localhost` redirect URIs (RFC 8252), and the dev issuer is `http://127.0.0.1:8080` for the same reason — the UI exchanges the code with a `fetch` to the issuer's token endpoint, which from a page on the other host name is a cross-origin call the browser blocks (`Failed to fetch`). The dialog asks for the client id and secret (`bookland-web` / `bookland-web-secret` in dev), then sends you through the login page.
 
 ---
 

@@ -12,7 +12,7 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
       # Must be the URL clients actually reach the server on — it is published in the discovery
       # document and lands in the iss claim, and a mismatch only surfaces at validation time.
-      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-http://localhost:8080}
+      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-http://127.0.0.1:8080}
       # Base64 of the DER, single-line. The private half is the secret that used to be JWT_SECRET:
       # whoever holds it mints admin tokens.
       OAUTH2_JWK_PUBLIC_KEY: ${OAUTH2_JWK_PUBLIC_KEY}

@@ -107,6 +107,11 @@ class OpenApiErrorContractIntegrationTest {
      * the token sends the UI somewhere that cannot answer — and the failure looks like a login
      * problem rather than a documentation one.
      */
+    /**
+     * The flow URLs are on 127.0.0.1 because the UI is: its redirect URI must be the loopback IP, and
+     * it exchanges the code with a fetch to the token URL — on localhost that fetch is cross-origin
+     * and the browser blocks it.
+     */
     @Test
     @DisplayName("both security schemes are declared, so the UI can authorize either way")
     void securitySchemesAreDeclared() throws Exception {
@@ -117,9 +122,9 @@ class OpenApiErrorContractIntegrationTest {
                 .andExpect(jsonPath("$.components.securitySchemes.oauth2.type").value("oauth2"))
                 .andExpect(jsonPath(
                         "$.components.securitySchemes.oauth2.flows.authorizationCode.authorizationUrl")
-                        .value("http://localhost:8080/oauth2/authorize"))
+                        .value("http://127.0.0.1:8080/oauth2/authorize"))
                 .andExpect(jsonPath(
                         "$.components.securitySchemes.oauth2.flows.authorizationCode.tokenUrl")
-                        .value("http://localhost:8080/oauth2/token"));
+                        .value("http://127.0.0.1:8080/oauth2/token"));
     }
 }

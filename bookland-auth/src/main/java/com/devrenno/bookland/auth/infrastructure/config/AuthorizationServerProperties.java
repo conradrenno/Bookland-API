@@ -27,7 +27,7 @@ public class AuthorizationServerProperties {
      * clients actually reach the server on. A mismatch is rejected at validation time, not at
      * issuing time — the token is emitted happily and refused everywhere.
      */
-    private String issuer = "http://localhost:8080";
+    private String issuer = "http://127.0.0.1:8080";
 
     /**
      * The {@code aud} of the access token. It names the resource server, not the client — which is
