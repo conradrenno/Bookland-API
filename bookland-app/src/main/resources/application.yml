@@ -7,6 +7,9 @@ spring:
     multipart:
       max-file-size: 5MB
       max-request-size: 5MB
+  # docker-compose injects kafka:29092; the default reaches the compose broker from the host.
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 # What the API needs to validate an access token. Read by ResourceServerConfig (bookland-web-support).
 # The values are the Authorization Server's own, because in the monolith they are the same server.

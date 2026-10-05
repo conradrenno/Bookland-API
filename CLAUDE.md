@@ -11,7 +11,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build skipping tests
 ./mvnw clean install -DskipTests
 
-# Run the application (dev profile with H2)
+# Run the application (dev profile with H2) — start the broker first
+docker compose up -d kafka redpanda-console
 ./mvnw spring-boot:run -pl bookland-app
 
 # Run all tests
@@ -36,6 +37,7 @@ The Dockerfile enumerates every module twice (one `COPY` for the `pom.xml`, one 
 - API: `http://localhost:8080`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - H2 Console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:booklanddb`)
+- Redpanda Console (topics, messages, consumer offsets): `http://localhost:8081` — a UI only; the broker is Apache Kafka (KRaft, single node), reachable at `localhost:9092` from the host and `kafka:29092` inside the compose network
 
 ## Git Conventions
 
@@ -184,6 +186,7 @@ Public endpoints: `POST /api/v1/auth/register`, `/oauth2/**`, `/login`, `/.well-
 - **H2** in dev (`spring.profiles.active=dev`), **PostgreSQL 16** in prod. Both JDBC drivers are declared in `bookland-app` (the assembly module), not in a domain module
 - **Flyway owns the schema in both profiles**, and `ddl-auto` is `validate` in both (Flyway creates, Hibernate verifies the mapping and refuses to boot on a drift). Migrations live in `bookland-app/src/main/resources/db/migration`, versioned by **timestamp** (`V20260726164500__init_schema.sql`) so parallel branches cannot collide. Dev runs the same migrations against H2 opened with `MODE=PostgreSQL` — so **migration SQL must stay in the PostgreSQL/H2 common subset**, and a migration that breaks fails on the next dev boot rather than in prod. There is no `import.sql`; the categories are reference data in `V2`. **Boot 4 gotcha:** `flyway-core` alone does nothing — the auto-configuration lives in `spring-boot-flyway`, so the dependency must be `spring-boot-starter-flyway` (plus `flyway-database-postgresql`; H2 support is inside `flyway-core`). Without it Flyway fails silently: no error, no migrations applied
 - **`AdminBootstrap` and `DevDataLoader` must both stay idempotent** — they look up before inserting (`GetUserByEmailUseCase`; `IsbnAlreadyExistsException` per book). The in-memory H2 survives a devtools restart (`DB_CLOSE_DELAY=-1`) and Flyway no longer wipes it as `create-drop` did, so a non-idempotent seed breaks the second start. The category UUIDs in `V2` are referenced literally by `DevDataLoader`'s constants — changing them breaks the book seed
+- **Kafka** (`spring-boot-starter-kafka` in the producing/consuming modules; bootstrap servers `${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}`). Same Boot 4 gotcha as Flyway: the auto-configuration lives in `spring-boot-kafka`, so plain `spring-kafka` compiles but creates no `KafkaTemplate` and no listener container — it must be the starter
 - **Datasource URL is `${DB_URL:jdbc:postgresql://localhost:5432/bookland}`.** `docker-compose.yml` injects `DB_URL` pointing at the `postgres` service name; the default covers running the app from the host against the compose Postgres (port 5432 is published)
 - **FKs exist only within a module.** Cross-module columns (`cart_items.book_id`, `orders.customer_id`, `payments.order_id`, …) are indexed `uuid` with no constraint, mirroring the absence of cross-module JPA relationships. Do not add them without discussing the module-split implications
 - **Spring Authorization Server** (via `spring-boot-starter-security-oauth2-authorization-server`, versionless — it inherits `spring-security.version`). Issuer, RSA key pair, API audience and the one registered client are configured under `bookland.oauth2.*`; Flyway creates the three `oauth2_*` tables and `ClientBootstrap` writes the client row, idempotently. **Do not add JJWT back** — nothing signs tokens by hand any more
