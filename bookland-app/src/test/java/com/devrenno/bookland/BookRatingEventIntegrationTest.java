@@ -23,8 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * A book's rating travels from the reviews module to the catalog as a Kafka event, not as a call: the
- * request that publishes or moderates a review returns before the catalog has applied it, so the test
- * waits for the rating to arrive rather than reading it right after the response.
+ * request that publishes or moderates a review stores the event in the outbox and returns, the relay
+ * sends it, and the catalog applies it — so the test waits for the rating to arrive rather than
+ * reading it right after the response.
  *
  * <p>End to end because each half is unit-tested against the other's JSON, and only a real broker
  * shows they agree on the topic, the key and the listener's wiring.
@@ -87,6 +88,12 @@ class BookRatingEventIntegrationTest {
                 .andExpect(status().isNoContent());
 
         await().atMost(DELIVERY).untilAsserted(() -> assertThat(ratingOf(bookId)).isZero());
+
+        // Both events went through the outbox: one row per change, each stamped by the relay.
+        await().atMost(DELIVERY).untilAsserted(() -> assertThat(jdbcTemplate.queryForList(
+                "select published_at from reviews_outbox where aggregate_id = ?", bookId))
+                .hasSize(2)
+                .allSatisfy(row -> assertThat(row.get("published_at")).isNotNull()));
     }
 
     private double ratingOf(UUID bookId) {

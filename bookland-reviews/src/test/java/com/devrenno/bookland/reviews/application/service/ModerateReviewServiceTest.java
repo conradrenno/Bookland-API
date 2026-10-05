@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,13 +28,15 @@ class ModerateReviewServiceTest {
     @Mock private ReviewPersistencePort reviewPersistencePort;
     @Mock private BookRatingEventPort bookRatingEventPort;
 
+    private final FakeTransactionPort transactionPort = new FakeTransactionPort();
+
     private ModerateReviewService service;
 
     private final UUID bookId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
-        service = ModerateReviewService.create(reviewPersistencePort, bookRatingEventPort);
+        service = ModerateReviewService.create(reviewPersistencePort, bookRatingEventPort, transactionPort);
     }
 
     @Test
@@ -62,6 +65,24 @@ class ModerateReviewServiceTest {
         BookRatingChanged event = publishedEvent();
         assertThat(event.averageRating()).isZero();
         assertThat(event.reviewCount()).isZero();
+    }
+
+    @Test
+    void execute_shouldSoftDeleteAndPublishInOneTransaction() {
+        Review moderated = buildReview(3);
+        when(reviewPersistencePort.findById(moderated.getId())).thenReturn(Optional.of(moderated));
+        when(reviewPersistencePort.save(any())).thenAnswer(invocation -> {
+            assertThat(transactionPort.isActive()).as("soft delete saved inside the transaction").isTrue();
+            return invocation.getArgument(0);
+        });
+        doAnswer(invocation -> {
+            assertThat(transactionPort.isActive()).as("event published inside the transaction").isTrue();
+            return null;
+        }).when(bookRatingEventPort).publish(any());
+
+        service.execute(moderated.getId());
+
+        verify(bookRatingEventPort).publish(any());
     }
 
     @Test

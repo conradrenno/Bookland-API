@@ -38,6 +38,8 @@ class CreateReviewServiceTest {
     @Mock private BookRatingEventPort bookRatingEventPort;
     @Mock private CustomerNamePort customerNamePort;
 
+    private final FakeTransactionPort transactionPort = new FakeTransactionPort();
+
     private CreateReviewService service;
 
     private final UUID bookId = UUID.randomUUID();
@@ -46,7 +48,7 @@ class CreateReviewServiceTest {
     @BeforeEach
     void setUp() {
         service = CreateReviewService.create(reviewPersistencePort, bookExistsPort,
-                purchaseVerificationPort, bookRatingEventPort, customerNamePort);
+                purchaseVerificationPort, bookRatingEventPort, customerNamePort, transactionPort);
     }
 
     @Test
@@ -86,6 +88,28 @@ class CreateReviewServiceTest {
         assertThat(published.getValue().averageRating()).isEqualTo(3.5);
         assertThat(published.getValue().reviewCount()).isEqualTo(2);
         assertThat(published.getValue().eventId()).isNotNull();
+    }
+
+    /** The event goes to the outbox; only inside the review's transaction are the two stored together. */
+    @Test
+    void execute_shouldSaveTheReviewAndPublishItsEventInOneTransaction() {
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 4, null);
+        when(bookExistsPort.exists(bookId)).thenReturn(true);
+        when(purchaseVerificationPort.hasPurchasedBook(customerId, bookId)).thenReturn(true);
+        when(reviewPersistencePort.findByBookIdAndCustomerId(bookId, customerId)).thenReturn(Optional.empty());
+        when(customerNamePort.getCustomerName(customerId)).thenReturn("Ana Souza");
+        when(reviewPersistencePort.save(any())).thenAnswer(invocation -> {
+            assertThat(transactionPort.isActive()).as("review saved inside the transaction").isTrue();
+            return invocation.getArgument(0);
+        });
+        doAnswer(invocation -> {
+            assertThat(transactionPort.isActive()).as("event published inside the transaction").isTrue();
+            return null;
+        }).when(bookRatingEventPort).publish(any());
+
+        service.execute(command);
+
+        verify(bookRatingEventPort).publish(any());
     }
 
     /**

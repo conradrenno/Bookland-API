@@ -6,6 +6,7 @@ import com.devrenno.bookland.reviews.application.port.out.BookRatingEventPort;
 import com.devrenno.bookland.reviews.application.port.out.CustomerNamePort;
 import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
+import com.devrenno.bookland.reviews.application.port.out.TransactionPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -21,8 +22,9 @@ public class ReviewBeansConfig {
                                              BookExistsPort bookExistsPort,
                                              PurchaseVerificationPort purchaseVerificationPort,
                                              BookRatingEventPort bookRatingEventPort,
-                                             CustomerNamePort customerNamePort) {
+                                             CustomerNamePort customerNamePort,
+                                             TransactionPort transactionPort) {
         return ReviewController.create(reviewPersistencePort, bookExistsPort,
-                purchaseVerificationPort, bookRatingEventPort, customerNamePort);
+                purchaseVerificationPort, bookRatingEventPort, customerNamePort, transactionPort);
     }
 }

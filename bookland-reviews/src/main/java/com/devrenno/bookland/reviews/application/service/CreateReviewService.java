@@ -9,6 +9,7 @@ import com.devrenno.bookland.reviews.application.port.out.BookRatingEventPort;
 import com.devrenno.bookland.reviews.application.port.out.CustomerNamePort;
 import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
+import com.devrenno.bookland.reviews.application.port.out.TransactionPort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
 import com.devrenno.bookland.reviews.domain.exception.DuplicateReviewException;
 import com.devrenno.bookland.reviews.domain.exception.PurchaseRequiredException;
@@ -20,26 +21,30 @@ public class CreateReviewService implements CreateReviewUseCase {
     private final PurchaseVerificationPort purchaseVerificationPort;
     private final BookRatingEventPort bookRatingEventPort;
     private final CustomerNamePort customerNamePort;
+    private final TransactionPort transactionPort;
 
     private CreateReviewService(ReviewPersistencePort reviewPersistencePort,
                                 BookExistsPort bookExistsPort,
                                 PurchaseVerificationPort purchaseVerificationPort,
                                 BookRatingEventPort bookRatingEventPort,
-                                CustomerNamePort customerNamePort) {
+                                CustomerNamePort customerNamePort,
+                                TransactionPort transactionPort) {
         this.reviewPersistencePort = reviewPersistencePort;
         this.bookExistsPort = bookExistsPort;
         this.purchaseVerificationPort = purchaseVerificationPort;
         this.bookRatingEventPort = bookRatingEventPort;
         this.customerNamePort = customerNamePort;
+        this.transactionPort = transactionPort;
     }
 
     public static CreateReviewService create(ReviewPersistencePort reviewPersistencePort,
                                              BookExistsPort bookExistsPort,
                                              PurchaseVerificationPort purchaseVerificationPort,
                                              BookRatingEventPort bookRatingEventPort,
-                                             CustomerNamePort customerNamePort) {
+                                             CustomerNamePort customerNamePort,
+                                             TransactionPort transactionPort) {
         return new CreateReviewService(reviewPersistencePort, bookExistsPort,
-                purchaseVerificationPort, bookRatingEventPort, customerNamePort);
+                purchaseVerificationPort, bookRatingEventPort, customerNamePort, transactionPort);
     }
 
     @Override
@@ -59,10 +64,16 @@ public class CreateReviewService implements CreateReviewUseCase {
         String customerName = customerNamePort.getCustomerName(command.customerId());
         Review review = Review.create(command.bookId(), command.customerId(), customerName,
                 command.rating(), command.comment());
-        Review saved = reviewPersistencePort.save(review);
 
-        bookRatingEventPort.publish(BookRatingCalculator.ratingChangedFor(
-                command.bookId(), reviewPersistencePort.findAllActiveByBookId(command.bookId())));
+        // The review and its rating event are stored together or not at all: the event goes to the
+        // outbox in this same transaction, and reaches Kafka afterwards. The lookups above stay
+        // outside it, so no transaction is held open across calls to other modules.
+        Review saved = transactionPort.inTransaction(() -> {
+            Review stored = reviewPersistencePort.save(review);
+            bookRatingEventPort.publish(BookRatingCalculator.ratingChangedFor(
+                    command.bookId(), reviewPersistencePort.findAllActiveByBookId(command.bookId())));
+            return stored;
+        });
 
         return ReviewView.from(saved);
     }
