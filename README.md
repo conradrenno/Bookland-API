@@ -557,11 +557,13 @@ Both bootstrap runners are **idempotent** — they check before inserting. This 
 git clone https://github.com/conradrenno/Bookland-API.git
 cd bookland
 
-# Run in dev profile (H2 in-memory database, seed data loaded automatically)
-./mvnw spring-boot:run -pl bookland-app
+# Start the Kafka broker, then the two processes (dev profile, H2 in memory, seeds loaded)
+docker compose up -d kafka redpanda-console
+./mvnw spring-boot:run -pl bookland-identity-app   # identity service: users, login, tokens
+./mvnw spring-boot:run -pl bookland-app            # the API
 ```
 
-The application starts on `http://localhost:8080`.
+The API starts on `http://localhost:8080`, the identity service on `http://127.0.0.1:9000`. Each has its own in-memory database.
 
 **Dev credentials (seeded automatically):**
 
@@ -574,13 +576,12 @@ The application starts on `http://localhost:8080`.
 
 | Tool | URL |
 |---|---|
-| Swagger UI | http://localhost:8080/swagger-ui.html |
-| H2 Console | http://localhost:8080/h2-console |
-| OpenAPI JSON | http://localhost:8080/api-docs |
+| Swagger UI (API) | http://127.0.0.1:8080/swagger-ui.html |
+| Swagger UI (identity: register, users) | http://127.0.0.1:9000/swagger-ui.html |
+| H2 Console | http://localhost:8080/h2-console (`jdbc:h2:mem:booklanddb`) and http://localhost:9000/h2-console (`jdbc:h2:mem:identitydb`) |
+| OpenAPI JSON | http://localhost:8080/api-docs and http://localhost:9000/api-docs |
 
-> H2 Console JDBC URL: `jdbc:h2:mem:booklanddb`
-
-> To use Swagger's **Authorize** button, open it at `http://127.0.0.1:8080/swagger-ui.html`, not `localhost`: the Authorization Server rejects `localhost` redirect URIs (RFC 8252), and the dev issuer is `http://127.0.0.1:8080` for the same reason — the UI exchanges the code with a `fetch` to the issuer's token endpoint, which from a page on the other host name is a cross-origin call the browser blocks (`Failed to fetch`). The dialog asks for the client id and secret (`bookland-web` / `bookland-web-secret` in dev), then sends you through the login page.
+> To use Swagger's **Authorize** button, open it at `127.0.0.1`, not `localhost`: the Authorization Server rejects `localhost` redirect URIs (RFC 8252). The login runs on the identity service (`127.0.0.1:9000`); the API's UI then exchanges the code with a `fetch` to `127.0.0.1:9000/oauth2/token`, a cross-origin call the identity service allows for `http://127.0.0.1:8080` only. The dialog asks for the client id and secret (`bookland-web` / `bookland-web-secret` in dev), then sends you through the login page.
 
 ---
 
@@ -592,11 +593,11 @@ The application starts on `http://localhost:8080`.
 # Copy and configure environment variables
 cp .env.example .env   # edit with your values
 
-# Build and start all services (app + PostgreSQL)
-docker-compose up --build
+# Build and start all services (API, identity service, PostgreSQL, Kafka, Redpanda Console)
+docker compose up --build
 ```
 
-The application starts on `http://localhost:8080` connected to a persistent PostgreSQL 16 instance. On a fresh volume, Flyway creates the whole schema on first boot — no manual setup.
+The API starts on `http://localhost:8080` and the identity service on `http://127.0.0.1:9000`, sharing one PostgreSQL 16 instance but not a database: `docker/postgres/initdb` creates the identity service's `identity` database and role next to `bookland`, **only when the data volume is empty**. Each service's Flyway creates its own schema on first boot.
 
 Two volumes persist across restarts: `bookland-pgdata` (database) and `bookland-covers` (uploaded cover images).
 
@@ -616,17 +617,20 @@ Copy `.env.example` to `.env` and fill in the values before running with Docker.
 |---|---|---|
 | `POSTGRES_USER` | Prod | PostgreSQL username |
 | `POSTGRES_PASSWORD` | Prod | PostgreSQL password |
-| `OAUTH2_ISSUER` | Prod | The URL clients actually reach the server on. Published in the discovery document and written into the `iss` claim; a mismatch is only noticed at validation time |
+| `IDENTITY_DB_USER` / `IDENTITY_DB_PASSWORD` | Prod | Role that owns the identity service's database, created on the volume's first start |
+| `OAUTH2_ISSUER` | Prod | The URL clients actually reach the identity service on (`http://127.0.0.1:9000`). Published in its discovery document and written into the `iss` claim; the API checks the same value, and a mismatch is only noticed at validation time |
+| `OAUTH2_CORS_ALLOWED_ORIGINS` | Optional | Browser origins allowed to call the token endpoint (compose default: the API's Swagger UI, `http://127.0.0.1:8080`) |
 | `OAUTH2_JWK_PRIVATE_KEY` | Prod | RSA private key, base64 of the PKCS#8 DER, single-line. **The secret of the whole system** — whoever holds it mints admin tokens |
 | `OAUTH2_JWK_PUBLIC_KEY` | Prod | RSA public key, base64 of the X.509 DER. Published at `/oauth2/jwks`; publishing it is the point |
 | `OAUTH2_CLIENT_ID` | Prod | Client id of the one registered client |
 | `OAUTH2_CLIENT_SECRET` | Prod | Its secret, in plain text — `ClientBootstrap` BCrypts it before it reaches the table |
-| `OAUTH2_CLIENT_REDIRECT_URIS` | Prod | Comma-separated. Must be loopback IPs rather than `localhost`, which the server rejects (RFC 8252) |
+| `OAUTH2_CLIENT_REDIRECT_URIS` | Prod | Comma-separated — one per Swagger UI (8080 and 9000). Must be loopback IPs rather than `localhost`, which the server rejects (RFC 8252) |
 | `OAUTH2_ACCESS_TOKEN_TTL_MINUTES` | Optional | Access token TTL (default: 15). Raising it widens the window after sign-out — see [Security Model](#security-model) |
 | `OAUTH2_REFRESH_TOKEN_TTL_DAYS` | Optional | Refresh token TTL (default: 7) |
 | `ADMIN_EMAIL` | Prod | Bootstrap admin email |
 | `ADMIN_PASSWORD` | Prod | Bootstrap admin password |
-| `DB_URL` | Injected | JDBC URL. `docker-compose.yml` sets it to `jdbc:postgresql://postgres:5432/bookland` — the service name on the compose network. Not set in `.env`; the `application.yml` default (`localhost:5432`) covers running the app from the host |
+| `OAUTH2_JWK_SET_URI` | Injected | Where the API fetches the identity service's public keys; compose sets `http://identity:9000/oauth2/jwks` (the service name, unlike the issuer) |
+| `DB_URL` | Injected | JDBC URL. `docker-compose.yml` sets it per service (`.../bookland`, `.../identity`) — the service name on the compose network. Not set in `.env`; the `application.yml` default (`localhost:5432`) covers running the app from the host |
 | `STORAGE_COVERS_LOCATION` | Optional | Where cover images are written (default `/var/bookland/covers`). Mount a volume so uploads survive restarts |
 
 Generate the RSA key pair (base64 of the DER, single-line):

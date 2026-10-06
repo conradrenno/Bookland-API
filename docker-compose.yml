@@ -10,26 +10,55 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/bookland
       DB_USER: ${POSTGRES_USER:-bookland}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
+      # Tokens come from the identity service. The issuer is what the browser saw when it logged in,
+      # so it is the address published on the host; the keys are fetched over the compose network.
+      # The two differ on purpose, and swapping them only fails at validation time.
+      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-http://127.0.0.1:9000}
+      OAUTH2_JWK_SET_URI: http://identity:9000/oauth2/jwks
+      # Pre-fills the Swagger UI's Authorize dialog; the login itself runs on the identity service.
+      OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-bookland-web}
+      STORAGE_COVERS_LOCATION: /var/bookland/covers
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    volumes:
+      - bookland-covers:/var/bookland/covers
+    # No depends_on the identity service: this process boots and serves public reads without it. It
+    # needs the identity service only to fetch the public keys, the first time a token arrives.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # The identity service: users, login and the Authorization Server that signs every token.
+  identity:
+    build:
+      context: .
+      dockerfile: bookland-identity-app/Dockerfile
+    ports:
+      - "9000:9000"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Its own database and role (created by docker/postgres/initdb on the volume's first start).
+      DB_URL: jdbc:postgresql://postgres:5432/identity
+      DB_USER: ${IDENTITY_DB_USER:-identity}
+      DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
       # Must be the URL clients actually reach the server on — it is published in the discovery
       # document and lands in the iss claim, and a mismatch only surfaces at validation time.
-      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-http://127.0.0.1:8080}
-      # Base64 of the DER, single-line. The private half is the secret that used to be JWT_SECRET:
-      # whoever holds it mints admin tokens.
+      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-http://127.0.0.1:9000}
+      # Base64 of the DER, single-line. The private half is the secret of the whole system:
+      # whoever holds it mints admin tokens. Only this service has it.
       OAUTH2_JWK_PUBLIC_KEY: ${OAUTH2_JWK_PUBLIC_KEY}
       OAUTH2_JWK_PRIVATE_KEY: ${OAUTH2_JWK_PRIVATE_KEY}
       OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-bookland-web}
       OAUTH2_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET}
       OAUTH2_CLIENT_REDIRECT_URIS: ${OAUTH2_CLIENT_REDIRECT_URIS}
+      # The API's Swagger UI exchanges the code from its own origin.
+      OAUTH2_CORS_ALLOWED_ORIGINS: ${OAUTH2_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:8080}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      STORAGE_COVERS_LOCATION: /var/bookland/covers
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    volumes:
-      - bookland-covers:/var/bookland/covers
     depends_on:
       postgres:
-        condition: service_healthy
-      kafka:
         condition: service_healthy
     restart: unless-stopped
 
@@ -81,8 +110,13 @@ services:
       POSTGRES_DB: bookland
       POSTGRES_USER: ${POSTGRES_USER:-bookland}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
+      # Read by docker/postgres/initdb, which creates the identity service's database and role.
+      IDENTITY_DB_USER: ${IDENTITY_DB_USER:-identity}
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
     volumes:
       - bookland-pgdata:/var/lib/postgresql/data
+      # Runs only when the data volume is empty — after `docker compose down -v`.
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookland} -d bookland"]
       interval: 10s

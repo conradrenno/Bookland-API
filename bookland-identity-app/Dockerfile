@@ -20,20 +20,16 @@ COPY bookland-payments/pom.xml bookland-payments/
 
 RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 
-# Sources only of what this image builds: user and auth run in the identity service's image.
+# Sources only of what this image builds: the identity service and the modules it assembles.
 COPY bookland-web-support/src bookland-web-support/src
-COPY bookland-catalog/src bookland-catalog/src
-COPY bookland-orders/src bookland-orders/src
-COPY bookland-reviews/src bookland-reviews/src
-COPY bookland-inventory/src bookland-inventory/src
-COPY bookland-wishlist/src bookland-wishlist/src
-COPY bookland-payments/src bookland-payments/src
-COPY bookland-app/src bookland-app/src
+COPY bookland-user/src bookland-user/src
+COPY bookland-auth/src bookland-auth/src
+COPY bookland-identity-app/src bookland-identity-app/src
 
-RUN ./mvnw clean package -pl bookland-app -am -DskipTests -B
+RUN ./mvnw clean package -pl bookland-identity-app -am -DskipTests -B
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=build /workspace/bookland-app/target/*.jar app.jar
-EXPOSE 8080
+COPY --from=build /workspace/bookland-identity-app/target/*.jar app.jar
+EXPOSE 9000
 ENTRYPOINT ["java", "-jar", "app.jar"]

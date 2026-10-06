@@ -26,14 +26,14 @@ docker compose up -d kafka redpanda-console
 # Run a single test class
 ./mvnw test -pl bookland-user -Dtest=UserDomainServiceTest
 
-# Run with Docker (prod profile, PostgreSQL + Flyway)
-docker-compose up --build
+# Run with Docker (prod profile, PostgreSQL + Flyway): API on 8080, identity service on 9000
+docker compose up --build
 
 # Start from an empty database (wipes the pgdata and covers volumes)
 docker compose down -v && docker compose up --build
 ```
 
-The Dockerfile enumerates every module twice (one `COPY` for the `pom.xml`, one for `src`) to keep the dependency-download layer cacheable. **That list duplicates `pom.xml` and nothing enforces it** — a new module must be added there too, or the image build fails. `.dockerignore` keeps `target/`, `.git`, `bookland-data/` and `.env` out of the build context.
+Each application has its own Dockerfile (`bookland-app/Dockerfile`, `bookland-identity-app/Dockerfile`). Each copies **every** module's `pom.xml` — the parent lists them all and the reactor refuses to start with one missing — but only the `src` of the modules that image builds, to keep the dependency-download layer cacheable. **Those lists duplicate `pom.xml` and nothing enforces them** — a new module must be added to both pom lists, or both image builds fail. The compose Postgres creates the identity service's database from `docker/postgres/initdb` (shell scripts there must stay LF — `.gitattributes` pins `*.sh`), which runs only on an empty volume. `.dockerignore` keeps `target/`, `.git`, `bookland-data/` and `.env` out of the build context.
 
 **Dev endpoints:**
 - API: `http://localhost:8080`
