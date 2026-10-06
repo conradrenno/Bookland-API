@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @BooklandIntegrationTest
 class BusinessErrorContractIntegrationTest {
 
-    /** Seeded by DevDataLoader. */
+    /** Seeded by DevCustomerSeeder (bookland-user). */
     private static final String SEEDED_EMAIL = "joao@bookland.com";
 
     @Autowired

@@ -3,12 +3,6 @@ package com.devrenno.bookland;
 import com.devrenno.bookland.catalog.application.dto.CreateBookCommand;
 import com.devrenno.bookland.catalog.application.port.in.CreateBookUseCase;
 import com.devrenno.bookland.catalog.domain.exception.IsbnAlreadyExistsException;
-import com.devrenno.bookland.user.application.dto.CreateUserCommand;
-import com.devrenno.bookland.user.application.port.in.GetUserByEmailUseCase;
-import com.devrenno.bookland.user.application.port.in.RegisterUserUseCase;
-import com.devrenno.bookland.user.domain.entity.UserRole;
-import com.devrenno.bookland.user.domain.exception.UserNotFoundException;
-import com.devrenno.bookland.user.domain.valueobject.Email;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -21,6 +15,11 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Sample books for local development. The sample customer is seeded by the user module
+ * ({@code DevCustomerSeeder}), the admin by {@code AdminBootstrap} — both there because they use
+ * nothing but that module.
+ */
 @Component
 @Profile("dev")
 @Order(2)
@@ -40,36 +39,17 @@ public class DevDataLoader implements ApplicationRunner {
     private static final UUID CAT_LIT_BRASIL  = UUID.fromString("a7b8c9d0-e1f2-3456-abcd-567890123456");
     private static final UUID CAT_INFANTIL    = UUID.fromString("b8c9d0e1-f2a3-4567-bcde-678901234567");
 
-    private static final String CUSTOMER_EMAIL = "joao@bookland.com";
     private static final int TOTAL_BOOKS = 10;
 
-    private final RegisterUserUseCase registerUserUseCase;
-    private final GetUserByEmailUseCase getUserByEmailUseCase;
     private final CreateBookUseCase createBookUseCase;
 
-    public DevDataLoader(RegisterUserUseCase registerUserUseCase,
-                         GetUserByEmailUseCase getUserByEmailUseCase,
-                         CreateBookUseCase createBookUseCase) {
-        this.registerUserUseCase = registerUserUseCase;
-        this.getUserByEmailUseCase = getUserByEmailUseCase;
+    public DevDataLoader(CreateBookUseCase createBookUseCase) {
         this.createBookUseCase = createBookUseCase;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        seedUsers();
         seedBooks();
-    }
-
-    private void seedUsers() {
-        try {
-            getUserByEmailUseCase.execute(Email.of(CUSTOMER_EMAIL));
-            log.info("[DEV] Customer already exists — skipping ({})", CUSTOMER_EMAIL);
-        } catch (UserNotFoundException e) {
-            registerUserUseCase.execute(new CreateUserCommand(
-                    "João Silva", CUSTOMER_EMAIL, "joao1234", UserRole.CUSTOMER));
-            log.info("[DEV] Users seeded — {} (joao1234)", CUSTOMER_EMAIL);
-        }
     }
 
     private void seedBooks() {

@@ -538,7 +538,7 @@ Versions are **timestamps**, not sequential numbers, so parallel branches cannot
 | Database | H2 (in-memory, PostgreSQL mode) | PostgreSQL 16 |
 | Schema owner | **Flyway** | **Flyway** |
 | `ddl-auto` | `validate` | `validate` |
-| Seed data | migration + `AdminBootstrap` + `DevDataLoader` | migration + `AdminBootstrap` |
+| Seed data | migration + `AdminBootstrap` + `DevCustomerSeeder` + `DevDataLoader` | migration + `AdminBootstrap` |
 
 Both bootstrap runners are **idempotent** — they check before inserting. This matters because the in-memory database survives a `spring-boot-devtools` restart (`DB_CLOSE_DELAY=-1` keeps it alive for the life of the JVM) and Flyway, unlike `create-drop`, does not wipe it.
 

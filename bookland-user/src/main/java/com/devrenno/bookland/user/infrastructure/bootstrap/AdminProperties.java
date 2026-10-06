@@ -1,4 +1,4 @@
-package com.devrenno.bookland;
+package com.devrenno.bookland.user.infrastructure.bootstrap;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
