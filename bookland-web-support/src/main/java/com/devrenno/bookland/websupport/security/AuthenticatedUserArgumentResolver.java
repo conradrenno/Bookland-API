@@ -68,7 +68,7 @@ public class AuthenticatedUserArgumentResolver implements HandlerMethodArgumentR
         if (!isAuthenticated(authentication)) {
             throw new AuthenticationCredentialsNotFoundException(
                     "Handler " + parameter.getExecutable() + " requires an authenticated caller "
-                            + "and the request has none — check the SecurityConfig rule for this route");
+                            + "and the request has none — check the ApiSecurityConfig rule for this route");
         }
 
         if (!(authentication.getPrincipal() instanceof Jwt token)) {

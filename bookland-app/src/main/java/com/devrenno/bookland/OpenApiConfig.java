@@ -51,7 +51,7 @@ public class OpenApiConfig {
                         .addSecuritySchemes(OAUTH2, authorizationCodeScheme())
                         .addSecuritySchemes(BEARER_AUTH, bearerScheme()))
                 // Two schemes, listed as separate requirements so either satisfies an operation.
-                // Endpoints that are public simply ignore the header — see SecurityConfig for the
+                // Endpoints that are public simply ignore the header — see ApiSecurityConfig for the
                 // actual rules, which are not derivable from the handlers and are deliberately not
                 // duplicated here.
                 .addSecurityItem(new SecurityRequirement().addList(OAUTH2))

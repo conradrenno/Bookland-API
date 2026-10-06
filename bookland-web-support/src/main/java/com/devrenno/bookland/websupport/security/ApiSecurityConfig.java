@@ -1,8 +1,5 @@
-package com.devrenno.bookland.auth.infrastructure.config;
+package com.devrenno.bookland.websupport.security;
 
-import com.devrenno.bookland.websupport.security.AuthorizationRules;
-import com.devrenno.bookland.websupport.security.ResourceServerConfig;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -10,17 +7,25 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
 import java.util.List;
 
+/**
+ * The two chains every Bookland process serves its API with, as a resource server: chain 3 for the
+ * routes that are not the API, chain 4 for the API itself.
+ *
+ * <p>They used to live in bookland-auth next to the Authorization Server's chains, which tied the
+ * security of the whole API to the module that issues tokens: a process without bookland-auth had no
+ * API chain at all. Here, any process that has this module validates tokens and applies its
+ * modules' {@link AuthorizationRules} with the same two chains. Orders 1 and 2 are left to the
+ * Authorization Server, in the one process that hosts it.
+ */
 @Configuration
 @EnableWebSecurity
-public class SecurityConfig {
+public class ApiSecurityConfig {
 
     /**
      * Routes that are not the API and must never be answered with a token error.
@@ -118,11 +123,5 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler)
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(ResourceServerConfig.jwtAuthenticationConverter())))
                 .build();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 }

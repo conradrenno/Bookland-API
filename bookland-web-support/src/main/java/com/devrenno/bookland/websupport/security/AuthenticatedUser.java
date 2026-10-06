@@ -11,7 +11,7 @@ import java.util.UUID;
  * mechanism does, and which used to be copy-pasted into six controllers as an {@code instanceof}
  * over {@code getDetails()}.
  *
- * <p>Deliberately carries no role. Authorization by role belongs to {@code SecurityConfig}, in one
+ * <p>Deliberately carries no role. Authorization by role belongs to {@code ApiSecurityConfig}, in one
  * place; handing controllers a role invites a second, divergent copy of those rules. What a handler
  * legitimately needs is <em>who</em> is calling, to pass down to use cases whose rules are about
  * ownership rather than authority ({@code ORDER_ACCESS_DENIED}, {@code PURCHASE_REQUIRED}).

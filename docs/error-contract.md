@@ -171,7 +171,7 @@ else's order) and `PURCHASE_REQUIRED` (reviewing a book you have not bought) are
 nothing about the caller's role — only `INSUFFICIENT_ROLE` does. This is exactly why status alone
 is not enough to branch on.
 
-These four are **resource-ownership** rules and none of them can live in `SecurityConfig`: whether
+These four are **resource-ownership** rules and none of them can live in `ApiSecurityConfig`: whether
 an order, an account or a payment is yours is not derivable from the URL and the token alone. They
 belong to the use case that owns the aggregate, which takes the caller's id as a parameter — see
 `GetOrderByIdService`, `GetUserProfileService`, `GetPaymentByOrderIdService`. A handler that
@@ -194,7 +194,7 @@ hand-writing it:
 - `components.securitySchemes.bearerAuth` — HTTP bearer, JWT.
 
 Which of 401/403/404/409/422 a given endpoint can produce is **not** enumerated per operation. That
-depends on `SecurityConfig` rules and on domain exceptions that nothing on the handler declares, so
+depends on `ApiSecurityConfig` rules and on domain exceptions that nothing on the handler declares, so
 a hand-maintained list would go stale without anyone noticing; `default` is accurate and gives a
 generator the one error type it needs.
 
@@ -213,7 +213,7 @@ ones.
 - `JwtAuthenticationFilter` (bookland-auth) records *why* a token was rejected; it never writes a
   response itself.
 - `RestAuthenticationEntryPoint` / `RestAccessDeniedHandler` (bookland-web-support) turn that into
-  the body above. They are wired in `SecurityConfig.securityFilterChain`.
+  the body above. They are wired in `ApiSecurityConfig.securityFilterChain`.
 - `AuthErrorContractIntegrationTest` (bookland-app) locks the table above against the real filter
   chain.
 - `ValidationExceptionHandler` (bookland-web-support) is the **single** advice handling bean

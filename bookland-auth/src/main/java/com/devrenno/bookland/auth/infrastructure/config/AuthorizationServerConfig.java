@@ -8,6 +8,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -15,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.lob.DefaultLobHandler;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
@@ -45,10 +48,10 @@ import java.util.Base64;
 /**
  * The Authorization Server: its filter chain, its signing key, its persistence.
  *
- * <p>Three chains now live in this application and the order is load-bearing. This one is first and
+ * <p>Four chains live in this application and the order is load-bearing. This one is first and
  * claims only the protocol endpoints, through the matcher the configurer itself publishes. The login
- * form is second. The API chain — {@code SecurityConfig} — is last and catches everything else,
- * validating the tokens issued here against the public half of the same key. The decoder that does
+ * form is second. The API chains — {@code ApiSecurityConfig} in bookland-web-support — come last and
+ * catch everything else, validating the tokens issued here against the public half of the same key. The decoder that does
  * the validating is not here: it is {@code ResourceServerConfig} in bookland-web-support, so that a
  * service outside this process can validate tokens without depending on the Authorization Server.
  *
@@ -121,6 +124,13 @@ public class AuthorizationServerConfig {
      * each restart logs everyone out and cannot work behind more than one instance, and Phase 2
      * needs the key to outlive a single process anyway.
      */
+    /** What {@code DaoAuthenticationProvider} checks the login form's password with. */
+    @Bean
+    @ConditionalOnMissingBean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
     @Bean
     public JWKSource<SecurityContext> jwkSource(AuthorizationServerProperties properties) {
         RSAPublicKey publicKey = readPublicKey(properties.getJwk().getPublicKey());
