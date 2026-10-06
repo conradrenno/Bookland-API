@@ -12,10 +12,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.lob.DefaultLobHandler;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -44,6 +50,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * The Authorization Server: its filter chain, its signing key, its persistence.
@@ -63,6 +70,9 @@ import java.util.Base64;
 @Configuration
 public class AuthorizationServerConfig {
 
+    /** The framework's default; the CORS rule and the preflight matcher below must name the same path. */
+    private static final String TOKEN_ENDPOINT = "/oauth2/token";
+
     /**
      * Only the OAuth2/OIDC endpoints. {@code getEndpointsMatcher()} covers /oauth2/authorize,
      * /oauth2/token, /oauth2/jwks, /userinfo and the two discovery documents — so the routes never
@@ -79,19 +89,34 @@ public class AuthorizationServerConfig {
      * <p>{@code oauth2ResourceServer} on this chain is not a copy-paste artefact: with OIDC enabled,
      * {@code /userinfo} is itself a resource protected by an access token, so the Authorization
      * Server has to validate the tokens it issues. Leave it out and /userinfo answers 401.
+     *
+     * <p>CORS on the token endpoint, for the one caller that exchanges a code from a browser page
+     * served by another origin: the API's Swagger UI, now that the API and this server listen on
+     * different ports. Origins are listed in {@code bookland.oauth2.cors-allowed-origins}; with the
+     * list empty no origin is allowed, which is what a server reached only through redirects and
+     * back-channel calls should answer.
+     *
+     * <p>The chain has to claim the preflight itself. The configurer matches its token endpoint as
+     * {@code POST /oauth2/token} only (read in the bytecode of {@code OAuth2TokenEndpointConfigurer}),
+     * so the browser's {@code OPTIONS} fell through to the API chain and was answered 401 before any
+     * CORS rule was consulted.
      */
     @Bean
     @Order(1)
-    public SecurityFilterChain authorizationServerFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain authorizationServerFilterChain(HttpSecurity http,
+                                                              AuthorizationServerProperties properties) throws Exception {
         // Plain constructor: the static authorizationServer() factory that 1.3-era samples use is
         // not part of this version's API.
         OAuth2AuthorizationServerConfigurer authorizationServer = new OAuth2AuthorizationServerConfigurer();
 
         return http
-                .securityMatcher(authorizationServer.getEndpointsMatcher())
+                .securityMatcher(new OrRequestMatcher(
+                        authorizationServer.getEndpointsMatcher(),
+                        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, TOKEN_ENDPOINT)))
                 .with(authorizationServer, server -> server.oidc(Customizer.withDefaults()))
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
                 .csrf(csrf -> csrf.ignoringRequestMatchers(authorizationServer.getEndpointsMatcher()))
+                .cors(cors -> cors.configurationSource(tokenEndpointCors(properties.getCorsAllowedOrigins())))
                 // A browser arriving at /oauth2/authorize without a session must be sent to the form,
                 // not handed the API's problem+json 401. The media type is what separates the two.
                 .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
@@ -99,6 +124,21 @@ public class AuthorizationServerConfig {
                         new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
                 .build();
+    }
+
+    /**
+     * Only {@code /oauth2/token}: {@code /oauth2/authorize} is a navigation, which CORS does not
+     * govern, and nothing else here is fetched from a browser page.
+     */
+    static CorsConfigurationSource tokenEndpointCors(List<String> allowedOrigins) {
+        CorsConfiguration token = new CorsConfiguration();
+        token.setAllowedOrigins(allowedOrigins);
+        token.setAllowedMethods(List.of("POST"));
+        token.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration(TOKEN_ENDPOINT, token);
+        return source;
     }
 
     /**
@@ -119,11 +159,6 @@ public class AuthorizationServerConfig {
                 .build();
     }
 
-    /**
-     * Signs every token. Read from configuration rather than generated per boot: a fresh pair on
-     * each restart logs everyone out and cannot work behind more than one instance, and Phase 2
-     * needs the key to outlive a single process anyway.
-     */
     /** What {@code DaoAuthenticationProvider} checks the login form's password with. */
     @Bean
     @ConditionalOnMissingBean
@@ -131,6 +166,11 @@ public class AuthorizationServerConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Signs every token. Read from configuration rather than generated per boot: a fresh pair on
+     * each restart logs everyone out and cannot work behind more than one instance, and Phase 2
+     * needs the key to outlive a single process anyway.
+     */
     @Bean
     public JWKSource<SecurityContext> jwkSource(AuthorizationServerProperties properties) {
         RSAPublicKey publicKey = readPublicKey(properties.getJwk().getPublicKey());

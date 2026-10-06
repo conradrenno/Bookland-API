@@ -36,6 +36,12 @@ public class AuthorizationServerProperties {
      */
     private String apiAudience = "bookland-api";
 
+    /**
+     * Browser origins allowed to call the token endpoint cross-origin — the API's Swagger UI, which
+     * is served by another process. Empty allows none.
+     */
+    private List<String> corsAllowedOrigins = new ArrayList<>();
+
     private final Jwk jwk = new Jwk();
     private final Client client = new Client();
 
