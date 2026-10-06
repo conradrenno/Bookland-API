@@ -4,7 +4,6 @@ import com.devrenno.bookland.orders.application.dto.CartView;
 import com.devrenno.bookland.orders.application.port.in.GetCartUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
-import com.devrenno.bookland.orders.domain.entity.Cart;
 
 import java.util.UUID;
 
@@ -24,8 +23,8 @@ public class GetCartService implements GetCartUseCase {
 
     @Override
     public CartView execute(UUID customerId) {
-        Cart cart = cartPersistencePort.findByCustomerId(customerId)
-                .orElseGet(() -> Cart.createFor(customerId));
-        return CartViewAssembler.toView(cart, bookInfoPort);
+        return cartPersistencePort.findByCustomerId(customerId)
+                .map(cart -> CartViewAssembler.toView(cart, bookInfoPort))
+                .orElseGet(() -> CartView.emptyFor(customerId));
     }
 }

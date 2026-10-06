@@ -16,6 +16,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,6 +41,20 @@ class GetCartServiceTest {
         Cart cart = Cart.createFor(customerId);
         cart.addOrUpdateItem(bookId, BigDecimal.valueOf(29.90), quantity, 100);
         return cart;
+    }
+
+    /** Looking at the cart must not invent one: no id, no timestamp, nothing saved. */
+    @Test
+    void execute_shouldAnswerAnEmptyCartWithoutCreatingOne_whenTheCustomerHasNone() {
+        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.empty());
+
+        CartView view = service.execute(customerId);
+
+        assertThat(view.id()).isNull();
+        assertThat(view.updatedAt()).isNull();
+        assertThat(view.customerId()).isEqualTo(customerId);
+        assertThat(view.items()).isEmpty();
+        verify(cartPersistencePort, never()).save(any());
     }
 
     @Test

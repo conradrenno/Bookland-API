@@ -390,7 +390,7 @@ There is no login, refresh or logout endpoint under `/api/v1/auth`. Those are pr
 
 | Method | Path | Access | Description |
 |---|---|---|---|
-| `GET` | `/cart` | Authenticated | View cart |
+| `GET` | `/cart` | Authenticated | View cart. A customer who never added anything gets an empty cart with `id` and `updatedAt` null — reading does not create one; the first item added does |
 | `POST` | `/cart/items` | Authenticated | Add item to cart |
 | `PATCH` | `/cart/items/{bookId}` | Authenticated | Update item quantity |
 | `DELETE` | `/cart/items/{bookId}` | Authenticated | Remove item |
