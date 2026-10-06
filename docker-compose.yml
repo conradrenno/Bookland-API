@@ -24,7 +24,9 @@ services:
     volumes:
       - bookland-covers:/var/bookland/covers
     # No depends_on the identity service: this process boots and serves public reads without it. It
-    # needs the identity service only to fetch the public keys, the first time a token arrives.
+    # does need it to validate tokens, and not just once: the decoder caches the public keys for
+    # 5 minutes (Nimbus's default) and then fetches them again. With the identity service down past
+    # that, every authenticated request answers 500 INTERNAL_ERROR after ~5 s — measured in step 3c.
     depends_on:
       postgres:
         condition: service_healthy
