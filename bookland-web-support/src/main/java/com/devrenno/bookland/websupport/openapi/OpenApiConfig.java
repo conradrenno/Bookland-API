@@ -1,6 +1,5 @@
-package com.devrenno.bookland;
+package com.devrenno.bookland.websupport.openapi;
 
-import com.devrenno.bookland.websupport.openapi.ErrorResponsesCustomizer;
 import com.devrenno.bookland.websupport.security.AuthenticatedUser;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -13,17 +12,33 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * The OpenAPI document every Bookland process publishes: the error contract, the two security
+ * schemes, and the Swagger UI's login against the Authorization Server.
+ *
+ * <p>In web-support rather than in each application because nothing in it is specific to one: the
+ * title comes from {@code bookland.openapi.title}, and the login URLs from the issuer the process
+ * already validates tokens against — which is the Authorization Server wherever it runs.
+ *
+ * <p>Conditional on springdoc, which this module only declares as optional: a process that publishes
+ * no document does not load the class at all.
+ */
 @Configuration
+@ConditionalOnClass(name = "org.springdoc.core.utils.SpringDocUtils")
 public class OpenApiConfig {
 
     private static final String OAUTH2 = "oauth2";
     private static final String BEARER_AUTH = "bearerAuth";
 
-    @Value("${bookland.oauth2.issuer}")
+    @Value("${bookland.resource-server.issuer}")
     private String issuer;
+
+    @Value("${bookland.openapi.title:Bookland API}")
+    private String title;
 
     static {
         // AuthenticatedUser comes from the SecurityContext, never from the request. springdoc has
@@ -37,7 +52,7 @@ public class OpenApiConfig {
     public OpenAPI booklandOpenApi() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Bookland API")
+                        .title(title)
                         .version("v1")
                         .description("""
                                 Online bookstore API.
@@ -62,9 +77,9 @@ public class OpenApiConfig {
      * Lets the Swagger UI run the real login: it redirects to the Authorization Server, comes back
      * with a code and exchanges it, all without anyone pasting a token.
      *
-     * <p>The URLs are built from the configured issuer rather than hardcoded, because the issuer is
-     * what the Authorization Server publishes and a document pointing somewhere else would send the
-     * UI to a host that never issued anything.
+     * <p>The URLs are built from the issuer this process validates tokens against rather than
+     * hardcoded: that issuer is the Authorization Server, and a document pointing anywhere else would
+     * send the UI to a host that never issued anything.
      *
      * <p>Note the UI must be configured with PKCE, since the registered client requires it — that is
      * {@code springdoc.swagger-ui.use-pkce-with-authorization-code-grant} in application.yml.
@@ -72,7 +87,7 @@ public class OpenApiConfig {
     private SecurityScheme authorizationCodeScheme() {
         return new SecurityScheme()
                 .type(SecurityScheme.Type.OAUTH2)
-                .description("Authorization code + PKCE against this application's own Authorization Server.")
+                .description("Authorization code + PKCE against the Bookland Authorization Server.")
                 .flows(new OAuthFlows().authorizationCode(new OAuthFlow()
                         .authorizationUrl(issuer + "/oauth2/authorize")
                         .tokenUrl(issuer + "/oauth2/token")

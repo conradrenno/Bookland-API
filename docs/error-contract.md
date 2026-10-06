@@ -227,7 +227,7 @@ ones.
   rule owns its symbol. `BusinessErrorContractIntegrationTest` covers the cases reachable without a
   fixture.
 - `ErrorResponsesCustomizer` (bookland-web-support) puts the schemas and responses into the OpenAPI
-  document; `OpenApiConfig` (bookland-app) registers it along with the API info and bearer scheme.
+  document; `OpenApiConfig` (bookland-web-support) registers it along with the API info and bearer scheme.
   `OpenApiErrorContractIntegrationTest` locks the published document.
 
 Should the modules ever be split into separate services, this contract — not the code — is what has
