@@ -108,6 +108,42 @@ class BooklandTokenCustomizerTest {
     }
 
     /**
+     * The services that keep the author's name (reviews) read it from here, so none of them has to
+     * ask the user module.
+     */
+    @Test
+    @DisplayName("the display name travels as the standard name claim")
+    void nameIsAnExplicitClaim() {
+        JwtEncodingContext context = contextFor(OAuth2TokenType.ACCESS_TOKEN);
+
+        customizer.customize(context);
+
+        assertThat(claim(context, "name")).isEqualTo("Ana Original");
+    }
+
+    /**
+     * A principal stored before the name was carried is read back without one. The claims builder
+     * refuses a null value, so writing it unconditionally would fail the token request outright.
+     */
+    @Test
+    @DisplayName("a principal without a name gets no name claim, and still gets its token")
+    void missingNameIsLeftOut() {
+        BooklandUserDetails principal = new BooklandUserDetails(
+                userId, "admin@bookland.com", null, null, UserRole.ADMIN, true);
+        JwtEncodingContext context = JwtEncodingContext
+                .with(JwsHeader.with(SignatureAlgorithm.RS256), baseClaims())
+                .principal(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()))
+                .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .build();
+
+        customizer.customize(context);
+
+        assertThat(subjectOf(context)).isEqualTo(userId.toString());
+        assertThat(context.getClaims().build().hasClaim("name")).isFalse();
+    }
+
+    /**
      * A principal the customizer does not recognise must leave the claims alone rather than write a
      * subject it invented. The loud failure then happens downstream, in the resolver, which refuses
      * a subject that is not a user id.
@@ -143,15 +179,16 @@ class BooklandTokenCustomizerTest {
     }
 
     @Test
-    @DisplayName("a refresh writes the role the account has now, not the one stored at login")
+    @DisplayName("a refresh writes the role and name the account has now, not the ones stored at login")
     void refreshWritesTheCurrentRole() {
         when(userLookupPort.findActiveById(userId)).thenReturn(Optional.of(
-                new AuthUserDto(userId, "admin@bookland.com", "hashed", UserRole.CUSTOMER, true)));
+                new AuthUserDto(userId, "admin@bookland.com", "Ana Renamed", "hashed", UserRole.CUSTOMER, true)));
         JwtEncodingContext context = contextFor(OAuth2TokenType.ACCESS_TOKEN, AuthorizationGrantType.REFRESH_TOKEN);
 
         customizer.customize(context);
 
         assertThat(claim(context, "role")).isEqualTo("CUSTOMER");
+        assertThat(claim(context, "name")).isEqualTo("Ana Renamed");
     }
 
     @Test
@@ -168,7 +205,7 @@ class BooklandTokenCustomizerTest {
 
     private JwtEncodingContext contextFor(OAuth2TokenType tokenType, AuthorizationGrantType grantType) {
         BooklandUserDetails principal = new BooklandUserDetails(
-                userId, "admin@bookland.com", "hashed", UserRole.ADMIN, true);
+                userId, "admin@bookland.com", "Ana Original", "hashed", UserRole.ADMIN, true);
 
         return JwtEncodingContext
                 .with(JwsHeader.with(SignatureAlgorithm.RS256), baseClaims())

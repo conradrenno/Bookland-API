@@ -167,6 +167,22 @@ class AuthorizationCodeFlowIntegrationTest {
         assertThat(attributes).doesNotContain("$2a$");
     }
 
+    /**
+     * The name rides on the principal stored at {@code /oauth2/authorize} and read back at the code
+     * exchange, so it only survives if the mixin knows the field. The customizer unit test cannot see
+     * that round trip; a forgotten mixin entry would silently issue tokens without a name, and
+     * reviews would store a null author.
+     */
+    @Test
+    @DisplayName("the access token carries the account's name through the stored authorization")
+    void accessTokenCarriesTheName() throws Exception {
+        Registration registration = register();
+        String verifier = "i".repeat(64);
+        JsonNode tokens = exchange(authorize(registration.session(), challengeFor(verifier)), verifier);
+
+        assertThat(payloadOf(tokens.get("access_token").asText()).path("name").asText()).isEqualTo("Flow Tester");
+    }
+
     // --- account lifecycle ---------------------------------------------------------------------
 
     @Test
@@ -222,6 +238,21 @@ class AuthorizationCodeFlowIntegrationTest {
     }
 
     @Test
+    @DisplayName("a refresh carries the name the account has now")
+    void refreshCarriesTheCurrentName() throws Exception {
+        Registration registration = register();
+        String verifier = "j".repeat(64);
+        JsonNode tokens = exchange(authorize(registration.session(), challengeFor(verifier)), verifier);
+
+        jdbcTemplate.update("update users set name = 'Flow Renamed' where id = ?", registration.userId());
+
+        JsonNode refreshed = json.readTree(refresh(tokens.get("refresh_token").asText())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        assertThat(payloadOf(refreshed.get("access_token").asText()).path("name").asText()).isEqualTo("Flow Renamed");
+    }
+
+    @Test
     @DisplayName("a deleted account can neither log in again nor have its e-mail registered by someone else")
     void deletedAccountIsLockedOutAndItsEmailStaysTaken() throws Exception {
         Registration registration = register();
@@ -261,6 +292,7 @@ class AuthorizationCodeFlowIntegrationTest {
 
         JsonNode body = json.readTree(result.getResponse().getContentAsString());
         assertThat(body.has("accessToken")).isFalse();
+        assertThat(body.get("name").asText()).isEqualTo("Flow Tester");
 
         MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
         assertThat(session).as("registering must establish a session").isNotNull();

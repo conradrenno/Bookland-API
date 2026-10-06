@@ -20,7 +20,7 @@ public class UserRegistrationAdapter implements UserRegistrationPort {
         User user = registerUserUseCase.execute(
                 new CreateUserCommand(name, email, rawPassword, UserRole.CUSTOMER)
         );
-        return new AuthUserDto(user.getId().value(), user.getEmail().value(), user.getPasswordHash(), user.getRole(),
+        return new AuthUserDto(user.getId().value(), user.getEmail().value(), user.getName(), user.getPasswordHash(), user.getRole(),
                 user.isActive());
     }
 }

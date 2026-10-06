@@ -17,6 +17,7 @@ import java.util.UUID;
 public record RegisteredUserViewModel(
         UUID id,
         String email,
+        String name,
         UserRole role
 ) {
 }

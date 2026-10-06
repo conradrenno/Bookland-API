@@ -30,7 +30,7 @@ import java.util.UUID;
  *
  * <p>Fields, not getters: {@code UserDetails} exposes {@code getUsername()}/{@code getPassword()}
  * and four account-status flags, which would serialise under names the constructor cannot take back.
- * Reading the four fields directly makes the written form and the creator the same shape.
+ * Reading the fields directly makes the written form and the creator the same shape.
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 @JsonAutoDetect(
@@ -43,6 +43,7 @@ abstract class BooklandUserDetailsMixin {
     @JsonCreator
     BooklandUserDetailsMixin(@JsonProperty("userId") UUID userId,
                              @JsonProperty("email") String email,
+                             @JsonProperty("name") String name,
                              @JsonProperty("passwordHash") String passwordHash,
                              @JsonProperty("role") UserRole role,
                              @JsonProperty("enabled") boolean enabled) {

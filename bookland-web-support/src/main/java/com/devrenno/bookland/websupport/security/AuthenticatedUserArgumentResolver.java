@@ -50,6 +50,9 @@ public class AuthenticatedUserArgumentResolver implements HandlerMethodArgumentR
      */
     private static final String EMAIL_CLAIM = "email";
 
+    /** The standard OIDC claim for the display name. */
+    private static final String NAME_CLAIM = "name";
+
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
         return AuthenticatedUser.class.equals(parameter.getParameterType());
@@ -75,7 +78,8 @@ public class AuthenticatedUserArgumentResolver implements HandlerMethodArgumentR
                             + "and " + getClass().getSimpleName() + " have drifted apart.");
         }
 
-        return new AuthenticatedUser(subjectOf(token), token.getClaimAsString(EMAIL_CLAIM));
+        return new AuthenticatedUser(subjectOf(token), token.getClaimAsString(EMAIL_CLAIM),
+                token.getClaimAsString(NAME_CLAIM));
     }
 
     /**

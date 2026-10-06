@@ -6,7 +6,6 @@ import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
 import com.devrenno.bookland.reviews.application.dto.ReviewView;
 import com.devrenno.bookland.reviews.application.port.out.BookExistsPort;
 import com.devrenno.bookland.reviews.application.port.out.BookRatingEventPort;
-import com.devrenno.bookland.reviews.application.port.out.CustomerNamePort;
 import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
@@ -36,7 +35,6 @@ class CreateReviewServiceTest {
     @Mock private BookExistsPort bookExistsPort;
     @Mock private PurchaseVerificationPort purchaseVerificationPort;
     @Mock private BookRatingEventPort bookRatingEventPort;
-    @Mock private CustomerNamePort customerNamePort;
 
     private final FakeTransactionPort transactionPort = new FakeTransactionPort();
 
@@ -48,12 +46,12 @@ class CreateReviewServiceTest {
     @BeforeEach
     void setUp() {
         service = CreateReviewService.create(reviewPersistencePort, bookExistsPort,
-                purchaseVerificationPort, bookRatingEventPort, customerNamePort, transactionPort);
+                purchaseVerificationPort, bookRatingEventPort, transactionPort);
     }
 
     @Test
     void execute_shouldCreateReviewAndReturnIt_whenAllConditionsMet() {
-        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 5, "Great book!");
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, "Ana Souza", 5, "Great book!");
         Review saved = buildReview(5);
 
         when(bookExistsPort.exists(bookId)).thenReturn(true);
@@ -61,7 +59,6 @@ class CreateReviewServiceTest {
         when(reviewPersistencePort.findByBookIdAndCustomerId(bookId, customerId)).thenReturn(Optional.empty());
         when(reviewPersistencePort.save(any())).thenReturn(saved);
         when(reviewPersistencePort.findAllActiveByBookId(bookId)).thenReturn(List.of(saved));
-        when(customerNamePort.getCustomerName(customerId)).thenReturn("Ana Souza");
 
         ReviewView result = service.execute(command);
 
@@ -72,13 +69,12 @@ class CreateReviewServiceTest {
     /** The event carries the resulting average and count over every active review, not just the new one. */
     @Test
     void execute_shouldPublishTheBooksNewRating() {
-        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 5, null);
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, "Ana Souza", 5, null);
         when(bookExistsPort.exists(bookId)).thenReturn(true);
         when(purchaseVerificationPort.hasPurchasedBook(customerId, bookId)).thenReturn(true);
         when(reviewPersistencePort.findByBookIdAndCustomerId(bookId, customerId)).thenReturn(Optional.empty());
         when(reviewPersistencePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(reviewPersistencePort.findAllActiveByBookId(bookId)).thenReturn(List.of(buildReview(5), buildReview(2)));
-        when(customerNamePort.getCustomerName(customerId)).thenReturn("Ana Souza");
 
         service.execute(command);
 
@@ -93,11 +89,10 @@ class CreateReviewServiceTest {
     /** The event goes to the outbox; only inside the review's transaction are the two stored together. */
     @Test
     void execute_shouldSaveTheReviewAndPublishItsEventInOneTransaction() {
-        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 4, null);
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, "Ana Souza", 4, null);
         when(bookExistsPort.exists(bookId)).thenReturn(true);
         when(purchaseVerificationPort.hasPurchasedBook(customerId, bookId)).thenReturn(true);
         when(reviewPersistencePort.findByBookIdAndCustomerId(bookId, customerId)).thenReturn(Optional.empty());
-        when(customerNamePort.getCustomerName(customerId)).thenReturn("Ana Souza");
         when(reviewPersistencePort.save(any())).thenAnswer(invocation -> {
             assertThat(transactionPort.isActive()).as("review saved inside the transaction").isTrue();
             return invocation.getArgument(0);
@@ -113,17 +108,16 @@ class CreateReviewServiceTest {
     }
 
     /**
-     * The name is looked up once, at creation, and written onto the review — that is what lets the
-     * listing stop asking the user module for every author.
+     * The name arrives in the command — from the caller's token — and is written onto the review, so
+     * neither creating nor listing a review asks the user module anything.
      */
     @Test
     void execute_shouldStoreTheAuthorsNameOnTheReview() {
-        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 4, null);
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, "Ana Souza", 4, null);
         when(bookExistsPort.exists(bookId)).thenReturn(true);
         when(purchaseVerificationPort.hasPurchasedBook(customerId, bookId)).thenReturn(true);
         when(reviewPersistencePort.findByBookIdAndCustomerId(bookId, customerId)).thenReturn(Optional.empty());
         when(reviewPersistencePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(customerNamePort.getCustomerName(customerId)).thenReturn("Ana Souza");
 
         service.execute(command);
 
@@ -134,7 +128,7 @@ class CreateReviewServiceTest {
 
     @Test
     void execute_shouldThrowBookNotFoundException_whenBookDoesNotExist() {
-        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 5, null);
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, "Ana Souza", 5, null);
         when(bookExistsPort.exists(bookId)).thenReturn(false);
 
         assertThatThrownBy(() -> service.execute(command))
@@ -145,7 +139,7 @@ class CreateReviewServiceTest {
 
     @Test
     void execute_shouldThrowPurchaseRequired_whenNoPurchase() {
-        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 4, null);
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, "Ana Souza", 4, null);
         when(bookExistsPort.exists(bookId)).thenReturn(true);
         when(purchaseVerificationPort.hasPurchasedBook(customerId, bookId)).thenReturn(false);
 
@@ -155,7 +149,7 @@ class CreateReviewServiceTest {
 
     @Test
     void execute_shouldThrowDuplicate_whenReviewAlreadyExists() {
-        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, 3, null);
+        CreateReviewCommand command = new CreateReviewCommand(bookId, customerId, "Ana Souza", 3, null);
         Review existing = buildReview(3);
 
         when(bookExistsPort.exists(bookId)).thenReturn(true);

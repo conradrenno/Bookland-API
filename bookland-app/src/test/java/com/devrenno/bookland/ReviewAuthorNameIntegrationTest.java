@@ -21,13 +21,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The author's name is written onto the review when it is created and read back from there, so
- * listing reviews no longer asks the user module for each author. That is a precondition for
- * extracting the user module into its own service: across a network, the old lookup would be one
- * call per author on every listing.
+ * The author's name comes from the caller's access token and is written onto the review, so neither
+ * creating nor listing a review asks the user module anything — the precondition for running the
+ * user module as a service of its own.
  *
- * <p>Runs end to end because the change spans a migration, the JPA mapping and two use cases — a
- * column the mapping forgot would pass every unit test.
+ * <p>The author deliberately has <em>no row in {@code users}</em>: the review must still carry the
+ * name. Any lookup sneaking back in would find nobody and store a null.
+ *
+ * <p>Runs end to end because the name crosses the resolver, the command, the JPA mapping and the
+ * listing — a link any unit test would mock away.
  */
 @BooklandIntegrationTest
 class ReviewAuthorNameIntegrationTest {
@@ -57,14 +59,14 @@ class ReviewAuthorNameIntegrationTest {
     }
 
     @Test
-    @DisplayName("a review keeps the name its author had when writing it")
-    void reviewKeepsTheNameItWasWrittenWith() throws Exception {
-        UUID customerId = register("Ana Original");
+    @DisplayName("a review stores the name its author's token carries, with no user lookup")
+    void reviewStoresTheNameFromTheToken() throws Exception {
+        UUID customerId = UUID.randomUUID();
         UUID bookId = jdbcTemplate.queryForObject("select id from books where active = true limit 1", UUID.class);
         deliverOrderOf(customerId, bookId);
 
         mockMvc.perform(post("/api/v1/books/" + bookId + "/reviews")
-                        .header("Authorization", "Bearer " + tokens.forCaller(customerId, "CUSTOMER"))
+                        .header("Authorization", "Bearer " + tokens.forCaller(customerId, "CUSTOMER", "Ana do Token"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"rating": 5, "comment": "Great"}
@@ -72,24 +74,13 @@ class ReviewAuthorNameIntegrationTest {
                 .andExpect(status().isCreated());
 
         assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from users where id = ?", Integer.class, customerId))
+                .as("the author exists only in the token").isZero();
+        assertThat(jdbcTemplate.queryForObject(
                 "select customer_name from reviews where customer_id = ? and book_id = ?",
                 String.class, customerId, bookId))
-                .isEqualTo("Ana Original");
-
-        jdbcTemplate.update("update users set name = 'Ana Renamed' where id = ?", customerId);
-
-        assertThat(listedNameOf(customerId, bookId)).isEqualTo("Ana Original");
-    }
-
-    private UUID register(String name) throws Exception {
-        String body = mockMvc.perform(post("/api/v1/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name": "%s", "email": "review-%s@bookland.com", "password": "senha1234"}
-                                """.formatted(name, UUID.randomUUID())))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        return UUID.fromString(json.readTree(body).get("id").asText());
+                .isEqualTo("Ana do Token");
+        assertThat(listedNameOf(customerId, bookId)).isEqualTo("Ana do Token");
     }
 
     /** The purchase check wants a DELIVERED order with the book; driving the order lifecycle to get one is not what this test is about. */

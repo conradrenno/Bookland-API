@@ -20,6 +20,6 @@ public class AuthPresenter {
     }
 
     public RegisteredUserViewModel present(AuthUserDto user) {
-        return new RegisteredUserViewModel(user.id(), user.email(), user.role());
+        return new RegisteredUserViewModel(user.id(), user.email(), user.name(), user.role());
     }
 }

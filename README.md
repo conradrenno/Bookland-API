@@ -189,8 +189,7 @@ bookland-reviews
     ├── BookRatingEventPort      → reviews_outbox (same transaction as the review)
     │                              → relay → Kafka topic bookland.reviews.book-rating-changed
     │                              → catalog's BookRatingChangedListener
-    └── CustomerNamePort         → GetUserByIdUseCase                (user)
-                                   called once, at creation; the name is stored on the review
+    (the author's name comes from the access token's name claim and is stored on the review)
 
 bookland-wishlist
     ├── CartAddPort             → AddCartItemUseCase                 (orders)
@@ -345,7 +344,7 @@ All endpoints are documented interactively at **`/swagger-ui.html`** when the ap
 
 | Method | Path | Access | Description |
 |---|---|---|---|
-| `POST` | `/register` | Public | Register — answers 201 with the account (`id`, `email`, `role`), no token, and signs the caller in to the Authorization Server |
+| `POST` | `/register` | Public | Register — answers 201 with the account (`id`, `email`, `name`, `role`), no token, and signs the caller in to the Authorization Server |
 
 There is no login, refresh or logout endpoint under `/api/v1/auth`. Those are protocol endpoints of the Authorization Server:
 

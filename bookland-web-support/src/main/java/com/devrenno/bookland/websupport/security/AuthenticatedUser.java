@@ -18,6 +18,8 @@ import java.util.UUID;
  *
  * @param id    the Bookland user id — the value domain modules store as {@code customer_id}
  * @param email the caller's email, as carried by the credential
+ * @param name  the caller's display name as of the token's issue, or null when the token carries
+ *              none — for a service that stores it (reviews), so it never asks the user module
  */
-public record AuthenticatedUser(UUID id, String email) {
+public record AuthenticatedUser(UUID id, String email, String name) {
 }

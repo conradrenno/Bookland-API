@@ -28,7 +28,7 @@ class AuthControllerTest {
     void registerReportsTheAccountWithoutIssuingAToken() {
         UUID userId = UUID.randomUUID();
         when(userRegistrationPort.register("Bob", "bob@test.com", "password1"))
-                .thenReturn(new AuthUserDto(userId, "bob@test.com", "hashed", UserRole.CUSTOMER, true));
+                .thenReturn(new AuthUserDto(userId, "bob@test.com", "Ana Souza", "hashed", UserRole.CUSTOMER, true));
 
         AuthController controller = AuthController.create(userRegistrationPort);
 
@@ -49,7 +49,7 @@ class AuthControllerTest {
     @DisplayName("the password hash does not survive into the view model")
     void passwordHashIsNotPresented() {
         when(userRegistrationPort.register("Bob", "bob@test.com", "password1"))
-                .thenReturn(new AuthUserDto(UUID.randomUUID(), "bob@test.com", "hashed", UserRole.CUSTOMER, true));
+                .thenReturn(new AuthUserDto(UUID.randomUUID(), "bob@test.com", "Ana Souza", "hashed", UserRole.CUSTOMER, true));
 
         AuthController controller = AuthController.create(userRegistrationPort);
 

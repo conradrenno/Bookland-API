@@ -43,6 +43,7 @@ public class UserLookupAdapter implements UserLookupPort {
         return new AuthUserDto(
                 user.getId().value(),
                 user.getEmail().value(),
+                user.getName(),
                 user.getPasswordHash(),
                 user.getRole(),
                 user.isActive()

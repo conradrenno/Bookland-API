@@ -30,7 +30,7 @@ public class BookReviewApiController {
             AuthenticatedUser caller
     ) {
         CreateReviewCommand command = new CreateReviewCommand(
-                bookId, caller.id(), request.rating(), request.comment()
+                bookId, caller.id(), caller.name(), request.rating(), request.comment()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(reviewController.create(command));
     }

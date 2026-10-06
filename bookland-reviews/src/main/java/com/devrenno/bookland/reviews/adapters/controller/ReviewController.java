@@ -10,7 +10,6 @@ import com.devrenno.bookland.reviews.application.port.in.ListReviewsUseCase;
 import com.devrenno.bookland.reviews.application.port.in.ModerateReviewUseCase;
 import com.devrenno.bookland.reviews.application.port.out.BookExistsPort;
 import com.devrenno.bookland.reviews.application.port.out.BookRatingEventPort;
-import com.devrenno.bookland.reviews.application.port.out.CustomerNamePort;
 import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.application.port.out.TransactionPort;
@@ -46,11 +45,10 @@ public class ReviewController {
                                           BookExistsPort bookExistsPort,
                                           PurchaseVerificationPort purchaseVerificationPort,
                                           BookRatingEventPort bookRatingEventPort,
-                                          CustomerNamePort customerNamePort,
                                           TransactionPort transactionPort) {
         return new ReviewController(
                 CreateReviewService.create(reviewPersistencePort, bookExistsPort,
-                        purchaseVerificationPort, bookRatingEventPort, customerNamePort, transactionPort),
+                        purchaseVerificationPort, bookRatingEventPort, transactionPort),
                 ListReviewsService.create(reviewPersistencePort),
                 ModerateReviewService.create(reviewPersistencePort, bookRatingEventPort, transactionPort),
                 ReviewPresenter.create()

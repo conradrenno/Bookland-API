@@ -7,6 +7,7 @@ import java.util.UUID;
 public record AuthUserDto(
         UUID id,
         String email,
+        String name,
         String passwordHash,
         UserRole role,
         boolean active

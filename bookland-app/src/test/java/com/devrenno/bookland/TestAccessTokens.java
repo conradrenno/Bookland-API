@@ -27,6 +27,8 @@ import java.util.UUID;
  */
 class TestAccessTokens {
 
+    private static final String DEFAULT_NAME = "Test Customer";
+
     private final JwtEncoder encoder;
     private final String issuer;
     private final String apiAudience;
@@ -38,16 +40,20 @@ class TestAccessTokens {
     }
 
     String forRole(String role) {
-        return token(UUID.randomUUID(), role, apiAudience, Instant.now(), Duration.ofMinutes(15));
+        return token(UUID.randomUUID(), role, DEFAULT_NAME, apiAudience, Instant.now(), Duration.ofMinutes(15));
     }
 
     String forCaller(UUID userId, String role) {
-        return token(userId, role, apiAudience, Instant.now(), Duration.ofMinutes(15));
+        return forCaller(userId, role, DEFAULT_NAME);
+    }
+
+    String forCaller(UUID userId, String role, String name) {
+        return token(userId, role, name, apiAudience, Instant.now(), Duration.ofMinutes(15));
     }
 
     /** Signed with the real key, so it is refused for being expired and not for being forged. */
     String expired() {
-        return token(UUID.randomUUID(), "CUSTOMER", apiAudience,
+        return token(UUID.randomUUID(), "CUSTOMER", DEFAULT_NAME, apiAudience,
                 Instant.now().minus(Duration.ofHours(2)), Duration.ofMinutes(1));
     }
 
@@ -56,10 +62,10 @@ class TestAccessTokens {
      * what an access token would carry without {@code BooklandTokenCustomizer}.
      */
     String addressedTo(String audience) {
-        return token(UUID.randomUUID(), "CUSTOMER", audience, Instant.now(), Duration.ofMinutes(15));
+        return token(UUID.randomUUID(), "CUSTOMER", DEFAULT_NAME, audience, Instant.now(), Duration.ofMinutes(15));
     }
 
-    private String token(UUID subject, String role, String audience, Instant issuedAt, Duration ttl) {
+    private String token(UUID subject, String role, String name, String audience, Instant issuedAt, Duration ttl) {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(issuer)
                 .subject(subject.toString())
@@ -68,6 +74,7 @@ class TestAccessTokens {
                 .expiresAt(issuedAt.plus(ttl))
                 .claim("email", "customer@bookland.com")
                 .claim("role", role)
+                .claim("name", name)
                 .build();
 
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).build();

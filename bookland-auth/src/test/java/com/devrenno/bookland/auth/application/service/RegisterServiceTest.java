@@ -25,7 +25,7 @@ class RegisterServiceTest {
     @DisplayName("registering delegates the account creation and returns what was created")
     void executeReturnsTheCreatedAccount() {
         UUID userId = UUID.randomUUID();
-        AuthUserDto created = new AuthUserDto(userId, "bob@test.com", "hashed", UserRole.CUSTOMER, true);
+        AuthUserDto created = new AuthUserDto(userId, "bob@test.com", "Ana Souza", "hashed", UserRole.CUSTOMER, true);
         when(userRegistrationPort.register("Bob", "bob@test.com", "password1")).thenReturn(created);
 
         RegisterService service = RegisterService.create(userRegistrationPort);

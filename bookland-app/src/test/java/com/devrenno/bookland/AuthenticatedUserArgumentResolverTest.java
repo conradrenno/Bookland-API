@@ -50,7 +50,7 @@ class AuthenticatedUserArgumentResolverTest {
     }
 
     @Test
-    @DisplayName("hands the handler the id from sub, plus the email from its own claim")
+    @DisplayName("hands the handler the id from sub, plus the email and name from their own claims")
     void resolvesTheAuthenticatedCaller() throws Exception {
         UUID userId = UUID.randomUUID();
         authenticate(userId, "customer@bookland.com");
@@ -59,6 +59,23 @@ class AuthenticatedUserArgumentResolverTest {
 
         assertThat(caller.id()).isEqualTo(userId);
         assertThat(caller.email()).isEqualTo("customer@bookland.com");
+        assertThat(caller.name()).isEqualTo("Ana Souza");
+    }
+
+    /** A token issued before the claim existed still identifies its caller; only the name is missing. */
+    @Test
+    @DisplayName("a token without a name claim still resolves, with a null name")
+    void resolvesWithoutANameClaim() throws Exception {
+        UUID userId = UUID.randomUUID();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
+                Jwt.withTokenValue("token").header("alg", "RS256")
+                        .subject(userId.toString()).claim("email", "customer@bookland.com").build(),
+                List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+
+        AuthenticatedUser caller = resolver.resolveArgument(parameterOf(0), null, null, null);
+
+        assertThat(caller.id()).isEqualTo(userId);
+        assertThat(caller.name()).isNull();
     }
 
     @Test
@@ -142,6 +159,7 @@ class AuthenticatedUserArgumentResolverTest {
                 .header("alg", "RS256")
                 .subject(subject)
                 .claim("email", email)
+                .claim("name", "Ana Souza")
                 .build();
         return new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
     }

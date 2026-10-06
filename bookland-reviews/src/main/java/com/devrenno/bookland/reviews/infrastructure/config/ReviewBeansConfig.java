@@ -3,7 +3,6 @@ package com.devrenno.bookland.reviews.infrastructure.config;
 import com.devrenno.bookland.reviews.adapters.controller.ReviewController;
 import com.devrenno.bookland.reviews.application.port.out.BookExistsPort;
 import com.devrenno.bookland.reviews.application.port.out.BookRatingEventPort;
-import com.devrenno.bookland.reviews.application.port.out.CustomerNamePort;
 import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.application.port.out.TransactionPort;
@@ -22,9 +21,8 @@ public class ReviewBeansConfig {
                                              BookExistsPort bookExistsPort,
                                              PurchaseVerificationPort purchaseVerificationPort,
                                              BookRatingEventPort bookRatingEventPort,
-                                             CustomerNamePort customerNamePort,
                                              TransactionPort transactionPort) {
         return ReviewController.create(reviewPersistencePort, bookExistsPort,
-                purchaseVerificationPort, bookRatingEventPort, customerNamePort, transactionPort);
+                purchaseVerificationPort, bookRatingEventPort, transactionPort);
     }
 }

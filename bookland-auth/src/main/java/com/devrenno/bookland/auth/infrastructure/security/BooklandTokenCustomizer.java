@@ -34,12 +34,16 @@ import java.util.Collections;
  * the standard OIDC claim for it, and it is where {@code AuthenticatedUserArgumentResolver} will
  * read the caller's e-mail once {@code getName()} starts returning a UUID.
  *
+ * <p>{@code name} is the standard OIDC claim for the display name, and it is how the name reaches
+ * the services that keep one — reviews stores it on the review — without any of them calling the
+ * user module. A refresh writes the current name, like the current role.
+ *
  * <p><strong>A refresh re-reads the account.</strong> The principal handed to a refresh is the one
  * stored at login, up to seven days old, and the framework never consults a user store on that
  * path. Trusting it would keep issuing tokens to a deleted account, and with the role it had at
  * login. So on a refresh the account is looked up again by id: gone or deactivated is
  * {@code invalid_grant} — the standard signal for "log in again" — and otherwise the current role
- * is written, not the stored one.
+ * and name are written, not the stored ones.
  */
 public class BooklandTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingContext> {
 
@@ -55,16 +59,23 @@ public class BooklandTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodin
     public void customize(JwtEncodingContext context) {
         if (context.getPrincipal().getPrincipal() instanceof BooklandUserDetails user) {
             UserRole role = user.getRole();
+            String name = user.getName();
             if (AuthorizationGrantType.REFRESH_TOKEN.equals(context.getAuthorizationGrantType())) {
-                role = userLookupPort.findActiveById(user.getUserId())
-                        .map(AuthUserDto::role)
+                AuthUserDto current = userLookupPort.findActiveById(user.getUserId())
                         .orElseThrow(() -> new OAuth2AuthenticationException(new OAuth2Error(
                                 OAuth2ErrorCodes.INVALID_GRANT, "The account no longer exists", null)));
+                role = current.role();
+                name = current.name();
             }
             context.getClaims()
                     .subject(user.getUserId().toString())
                     .claim("email", user.getUsername())
                     .claim("role", role.name());
+            // The builder refuses a null claim value. Null only for a principal stored before the
+            // name was carried, and only until that session's next refresh.
+            if (name != null) {
+                context.getClaims().claim("name", name);
+            }
         }
 
         if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
