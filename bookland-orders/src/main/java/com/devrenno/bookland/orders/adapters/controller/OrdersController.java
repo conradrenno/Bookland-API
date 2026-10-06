@@ -21,11 +21,11 @@ import com.devrenno.bookland.orders.application.port.in.RemoveCartItemUseCase;
 import com.devrenno.bookland.orders.application.port.in.UpdateCartItemUseCase;
 import com.devrenno.bookland.orders.application.port.in.UpdateOrderStatusUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
-import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.PaymentPort;
 import com.devrenno.bookland.orders.application.port.out.RefundPort;
+import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.application.service.AddCartItemService;
 import com.devrenno.bookland.orders.application.service.CancelOrderService;
@@ -38,7 +38,7 @@ import com.devrenno.bookland.orders.application.service.RemoveCartItemService;
 import com.devrenno.bookland.orders.application.service.UpdateCartItemService;
 import com.devrenno.bookland.orders.application.service.UpdateOrderStatusService;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
-import com.devrenno.bookland.payments.domain.entity.PaymentMethod;
+import com.devrenno.bookland.orders.domain.entity.PaymentMethod;
 
 import java.util.UUID;
 
@@ -82,7 +82,7 @@ public class OrdersController {
 
     public static OrdersController create(CartPersistencePort cartPersistencePort,
                                           OrderPersistencePort orderPersistencePort,
-                                          BookInfoPort bookInfoPort, BookStockPort bookStockPort,
+                                          BookInfoPort bookInfoPort, StockReservationPort stockReservationPort,
                                           PaymentPort paymentPort, RefundPort refundPort,
                                           TransactionPort transactionPort) {
         return new OrdersController(
@@ -91,11 +91,11 @@ public class OrdersController {
                 UpdateCartItemService.create(cartPersistencePort, bookInfoPort),
                 RemoveCartItemService.create(cartPersistencePort, bookInfoPort),
                 CheckoutService.create(cartPersistencePort, orderPersistencePort, bookInfoPort,
-                        bookStockPort, paymentPort, transactionPort),
+                        stockReservationPort, paymentPort, transactionPort),
                 GetOrderByIdService.create(orderPersistencePort),
                 GetOrderHistoryService.create(orderPersistencePort),
-                CancelOrderService.create(orderPersistencePort, bookStockPort, refundPort, transactionPort),
-                UpdateOrderStatusService.create(orderPersistencePort, bookStockPort, refundPort,
+                CancelOrderService.create(orderPersistencePort, stockReservationPort, refundPort, transactionPort),
+                UpdateOrderStatusService.create(orderPersistencePort, stockReservationPort, refundPort,
                         transactionPort),
                 ListAllOrdersService.create(orderPersistencePort),
                 OrderPresenter.create()

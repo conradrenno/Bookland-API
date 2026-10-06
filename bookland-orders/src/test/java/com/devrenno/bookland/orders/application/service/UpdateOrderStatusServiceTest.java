@@ -1,9 +1,9 @@
 package com.devrenno.bookland.orders.application.service;
 
 import com.devrenno.bookland.orders.application.dto.UpdateOrderStatusCommand;
-import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.RefundPort;
+import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
@@ -26,7 +26,6 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,7 +34,7 @@ import static org.mockito.Mockito.when;
 class UpdateOrderStatusServiceTest {
 
     @Mock private OrderPersistencePort orderPersistencePort;
-    @Mock private BookStockPort bookStockPort;
+    @Mock private StockReservationPort stockReservationPort;
     @Mock private RefundPort refundPort;
 
     /** Pass-through fake: runs the unit of work inline, no transaction machinery in unit tests. */
@@ -59,7 +58,7 @@ class UpdateOrderStatusServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = UpdateOrderStatusService.create(orderPersistencePort, bookStockPort, refundPort, transactionPort);
+        service = UpdateOrderStatusService.create(orderPersistencePort, stockReservationPort, refundPort, transactionPort);
     }
 
     /**
@@ -78,7 +77,7 @@ class UpdateOrderStatusServiceTest {
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId));
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        verify(bookStockPort).incrementStock(bookId, 2);
+        verify(stockReservationPort).release(order.getId());
         verify(refundPort).refund(order.getId());
     }
 
@@ -94,21 +93,21 @@ class UpdateOrderStatusServiceTest {
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.SHIPPED, adminId));
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.SHIPPED);
-        verify(bookStockPort, never()).incrementStock(any(), anyInt());
+        verify(stockReservationPort, never()).release(any());
         verify(refundPort, never()).refund(any());
     }
 
-    /** Nothing was ever taken from an unpaid order, so cancelling it owes nothing back. */
+    /** The back office cannot cancel mid-checkout either: the transition does not exist. */
     @Test
-    void execute_shouldNotCompensate_whenCancelledOrderWasAwaitingPayment() {
+    void execute_shouldRefuseToCancel_whileTheCheckoutIsStillRunning() {
         Order order = buildOrder(OrderStatus.AWAITING_PAYMENT);
 
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
-        when(orderPersistencePort.save(any())).thenReturn(order);
 
-        service.execute(new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId));
-
-        verify(bookStockPort, never()).incrementStock(any(), anyInt());
+        assertThatThrownBy(() -> service.execute(
+                new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId)))
+                .isInstanceOf(InvalidOrderStatusTransitionException.class);
+        verify(stockReservationPort, never()).release(any());
         verify(refundPort, never()).refund(any());
     }
 
@@ -122,7 +121,7 @@ class UpdateOrderStatusServiceTest {
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId)))
                 .isInstanceOf(InvalidOrderStatusTransitionException.class);
 
-        verify(bookStockPort, never()).incrementStock(any(), anyInt());
+        verify(stockReservationPort, never()).release(any());
         verify(refundPort, never()).refund(any());
         verify(orderPersistencePort, never()).save(any());
     }
@@ -140,7 +139,7 @@ class UpdateOrderStatusServiceTest {
     private Order buildOrder(OrderStatus status) {
         OrderItem item = OrderItem.of(bookId, "Clean Code", "/media/covers/clean-code.jpg", 2, BigDecimal.valueOf(29.90));
         return Order.reconstitute(
-                UUID.randomUUID(), customerId, List.of(item), status,
+                UUID.randomUUID(), customerId, List.of(item), status, null,
                 BigDecimal.valueOf(59.80), List.of(),
                 Instant.now(), Instant.now()
         );

@@ -28,6 +28,11 @@ spring:
 bookland:
   resource-server:
     audience: ${OAUTH2_API_AUDIENCE:bookland-api}
+  payments:
+    simulated:
+      # The simulated gateway approves up to this amount and declines above it, so the checkout's
+      # compensation (releasing the reserved stock) can be triggered on purpose.
+      decline-above: ${PAYMENTS_SIMULATED_DECLINE_ABOVE:1000.00}
 
 # Common to every profile: without it the prod document lands on springdoc's default /v3/api-docs,
 # which chain 3 does not cover, and the Authorize button runs without PKCE or Basic auth.

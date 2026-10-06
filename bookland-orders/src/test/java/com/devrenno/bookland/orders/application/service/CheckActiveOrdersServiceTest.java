@@ -32,7 +32,7 @@ class CheckActiveOrdersServiceTest {
     @Test
     void hasActiveOrdersForBook_shouldQueryOnlyInProgressStatuses() {
         Set<OrderStatus> expectedActive = Set.of(
-                OrderStatus.AWAITING_PAYMENT, OrderStatus.CONFIRMED, OrderStatus.SHIPPED);
+                OrderStatus.PENDING, OrderStatus.AWAITING_PAYMENT, OrderStatus.CONFIRMED, OrderStatus.SHIPPED);
 
         when(orderPersistencePort.existsOrderWithBookInStatuses(bookId, expectedActive)).thenReturn(true);
 

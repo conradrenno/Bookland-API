@@ -15,11 +15,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -62,5 +65,28 @@ class ProcessPaymentServiceTest {
         ArgumentCaptor<Payment> captor = ArgumentCaptor.forClass(Payment.class);
         verify(persistence).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(PaymentStatus.DECLINED);
+        assertThat(captor.getValue().getDeclineReason()).isEqualTo("Insufficient funds");
+    }
+
+    /**
+     * The charge is the one step of the checkout that cannot be undone by writing to our own
+     * database, so a repeated request for the same order — a redelivered message — must not reach
+     * the gateway a second time.
+     */
+    @Test
+    void processPayment_shouldAnswerFromTheStoredPayment_whenTheOrderWasAlreadyCharged() {
+        UUID orderId = UUID.randomUUID();
+        ProcessPaymentCommand command = new ProcessPaymentCommand(
+                orderId, UUID.randomUUID(), BigDecimal.valueOf(50), PaymentMethod.CREDIT_CARD);
+        when(persistence.findByOrderId(orderId)).thenReturn(Optional.of(Payment.create(
+                orderId, command.customerId(), command.amount(), command.method(),
+                PaymentStatus.DECLINED, null, "Insufficient funds")));
+
+        PaymentResult result = service.processPayment(command);
+
+        assertThat(result.approved()).isFalse();
+        assertThat(result.declineReason()).isEqualTo("Insufficient funds");
+        verifyNoInteractions(gateway);
+        verify(persistence, never()).save(any());
     }
 }

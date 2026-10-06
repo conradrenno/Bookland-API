@@ -58,6 +58,7 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
 
         OrderJpaEntity entity = existing.get();
         entity.setStatus(order.getStatus().name());
+        entity.setStatusReason(order.getStatusReason());
         entity.setUpdatedAt(order.getUpdatedAt());
 
         // Items are immutable after order creation — never touch them on update.
@@ -87,6 +88,7 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
                 .customerId(order.getCustomerId())
                 .totalAmount(order.getTotalAmount())
                 .status(order.getStatus().name())
+                .statusReason(order.getStatusReason())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();
@@ -179,7 +181,7 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
 
         return Order.reconstitute(
                 entity.getId(), entity.getCustomerId(), items,
-                OrderStatus.valueOf(entity.getStatus()), entity.getTotalAmount(),
+                OrderStatus.valueOf(entity.getStatus()), entity.getStatusReason(), entity.getTotalAmount(),
                 history, entity.getCreatedAt(), entity.getUpdatedAt()
         );
     }

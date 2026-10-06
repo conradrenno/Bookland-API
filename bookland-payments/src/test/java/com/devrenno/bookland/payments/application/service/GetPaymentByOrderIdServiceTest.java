@@ -44,7 +44,7 @@ class GetPaymentByOrderIdServiceTest {
 
     private Payment payment() {
         return Payment.reconstitute(UUID.randomUUID(), orderId, owner, new BigDecimal("59.90"),
-                PaymentMethod.CREDIT_CARD, PaymentStatus.APPROVED, "gw-tx-1",
+                PaymentMethod.CREDIT_CARD, PaymentStatus.APPROVED, "gw-tx-1", null,
                 Instant.now(), Instant.now());
     }
 

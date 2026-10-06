@@ -125,7 +125,7 @@ class OrderHistoryOrderingIntegrationTest {
         Order order = Order.reconstitute(
                 UUID.randomUUID(), customerId,
                 List.of(OrderItem.of(UUID.randomUUID(), "Test Book", null, 1, BigDecimal.TEN)),
-                OrderStatus.AWAITING_PAYMENT, BigDecimal.TEN,
+                OrderStatus.AWAITING_PAYMENT, null, BigDecimal.TEN,
                 List.of(), createdAt, createdAt);
         return transactionTemplate.execute(tx -> orders.save(order));
     }

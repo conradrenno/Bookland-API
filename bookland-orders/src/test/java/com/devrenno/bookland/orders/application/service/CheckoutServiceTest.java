@@ -1,23 +1,28 @@
 package com.devrenno.bookland.orders.application.service;
 
 import com.devrenno.bookland.orders.application.dto.BookInfo;
+import com.devrenno.bookland.orders.application.dto.PaymentOutcome;
+import com.devrenno.bookland.orders.application.dto.StockLine;
+import com.devrenno.bookland.orders.application.dto.StockReservationOutcome;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
-import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.PaymentPort;
+import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.domain.entity.Cart;
 import com.devrenno.bookland.orders.domain.entity.CartItem;
 import com.devrenno.bookland.orders.domain.entity.Order;
+import com.devrenno.bookland.orders.domain.entity.OrderStatus;
+import com.devrenno.bookland.orders.domain.entity.PaymentMethod;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
 import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
 import com.devrenno.bookland.orders.domain.exception.PaymentDeclinedException;
-import com.devrenno.bookland.payments.application.dto.PaymentResult;
-import com.devrenno.bookland.payments.domain.entity.PaymentMethod;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -31,7 +36,13 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CheckoutServiceTest {
@@ -39,7 +50,7 @@ class CheckoutServiceTest {
     @Mock private CartPersistencePort cartPersistencePort;
     @Mock private OrderPersistencePort orderPersistencePort;
     @Mock private BookInfoPort bookInfoPort;
-    @Mock private BookStockPort bookStockPort;
+    @Mock private StockReservationPort stockReservationPort;
     @Mock private PaymentPort paymentPort;
 
     /** Pass-through fake: runs the unit of work inline, no transaction machinery in unit tests. */
@@ -63,131 +74,98 @@ class CheckoutServiceTest {
     @BeforeEach
     void setUp() {
         service = CheckoutService.create(cartPersistencePort, orderPersistencePort,
-                bookInfoPort, bookStockPort, paymentPort, transactionPort);
+                bookInfoPort, stockReservationPort, paymentPort, transactionPort);
     }
 
+    /** The order the saga will keep: reserve first, then charge — never the other way round. */
     @Test
-    void execute_shouldCreateOrderClearCartAndDecrementStock_whenPaymentApproved() {
-        Cart cart = buildCart(bookId, 2, BigDecimal.valueOf(29.90));
-        BookInfo book = new BookInfo(bookId, "Clean Code", "/media/covers/clean-code.jpg", BigDecimal.valueOf(29.90), 10);
-
-        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
-        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
-        when(orderPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(paymentPort.processPayment(any(), any(), any(), any()))
-                .thenReturn(new PaymentResult(true, "SIM-001", null));
-        when(bookStockPort.tryDecrementStock(bookId, 2)).thenReturn(true);
+    void execute_shouldReserveThenChargeThenConfirm_whenEverythingSucceeds() {
+        givenACartOf(2, 10);
+        when(stockReservationPort.reserve(any(), anyList())).thenReturn(new StockReservationOutcome(true, List.of()));
+        when(paymentPort.charge(any(), eq(customerId), any(), eq(PaymentMethod.CREDIT_CARD)))
+                .thenReturn(new PaymentOutcome(true, null));
+        when(orderPersistencePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         Order order = service.execute(customerId, PaymentMethod.CREDIT_CARD);
 
-        assertThat(order).isNotNull();
-        assertThat(order.getCustomerId()).isEqualTo(customerId);
-        verify(bookStockPort).tryDecrementStock(bookId, 2);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(order.getStatusHistory()).extracting("toStatus")
+                .containsExactly(OrderStatus.AWAITING_PAYMENT, OrderStatus.CONFIRMED);
+        InOrder steps = inOrder(stockReservationPort, paymentPort);
+        steps.verify(stockReservationPort).reserve(eq(order.getId()), eq(List.of(new StockLine(bookId, 2))));
+        steps.verify(paymentPort).charge(any(), any(), any(), any());
         verify(cartPersistencePort).deleteByCustomerId(customerId);
+        verify(stockReservationPort, never()).release(any());
     }
 
     /**
-     * The race the conditional decrement exists for: the cart validated against a stock reading that
-     * a concurrent checkout consumed before this one reached the decrement. The order must not be
-     * confirmed, and the cart must survive so the customer can act on it.
+     * The failure the new order removes: losing the race for the last copies used to surface after
+     * the payment had been approved. Now it surfaces at the reservation, and nobody is charged.
      */
     @Test
-    void execute_shouldThrowCartItemUnavailable_whenStockIsTakenBetweenValidationAndDecrement() {
-        Cart cart = buildCart(bookId, 1, BigDecimal.valueOf(29.90));
-        BookInfo book = new BookInfo(bookId, "Clean Code", "/media/covers/clean-code.jpg", BigDecimal.valueOf(29.90), 1);
-
-        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
-        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
-        when(paymentPort.processPayment(any(), any(), any(), any()))
-                .thenReturn(new PaymentResult(true, "SIM-001", null));
-        when(bookStockPort.tryDecrementStock(bookId, 1)).thenReturn(false);
+    void execute_shouldChargeNothing_whenTheReservationFails() {
+        givenACartOf(2, 10);
+        when(stockReservationPort.reserve(any(), anyList()))
+                .thenReturn(new StockReservationOutcome(false, List.of(bookId)));
 
         assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
-                .isInstanceOf(CartItemUnavailableException.class);
+                .isInstanceOfSatisfying(CartItemUnavailableException.class,
+                        e -> assertThat(e.getMessage()).contains(bookId.toString()));
 
+        verifyNoInteractions(paymentPort);
         verify(orderPersistencePort, never()).save(any());
         verify(cartPersistencePort, never()).deleteByCustomerId(any());
     }
 
-    /**
-     * A multi-line cart where only the second line lost the race still fails as a whole: the
-     * transaction rollback is what undoes the first decrement, so the service must not try to
-     * compensate it by hand.
-     */
+    /** The compensation: a declined charge gives the reserved stock back, and the cart stays. */
     @Test
-    void execute_shouldReportOnlyTheLostLine_whenPartOfTheCartIsStillAvailable() {
-        UUID otherBookId = UUID.randomUUID();
-        Cart cart = Cart.reconstitute(
-                UUID.randomUUID(), customerId,
-                List.of(CartItem.of(bookId, 1, BigDecimal.valueOf(29.90)),
-                        CartItem.of(otherBookId, 1, BigDecimal.valueOf(49.90))),
-                Instant.now(), Instant.now());
-
-        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
-        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(
-                new BookInfo(bookId, "Clean Code", null, BigDecimal.valueOf(29.90), 5)));
-        when(bookInfoPort.findBookInfo(otherBookId)).thenReturn(Optional.of(
-                new BookInfo(otherBookId, "Refactoring", null, BigDecimal.valueOf(49.90), 1)));
-        when(paymentPort.processPayment(any(), any(), any(), any()))
-                .thenReturn(new PaymentResult(true, "SIM-001", null));
-        when(bookStockPort.tryDecrementStock(bookId, 1)).thenReturn(true);
-        when(bookStockPort.tryDecrementStock(otherBookId, 1)).thenReturn(false);
-
-        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
-                .isInstanceOf(CartItemUnavailableException.class)
-                .hasMessageContaining(otherBookId.toString())
-                .hasMessageNotContaining(bookId.toString());
-
-        verify(orderPersistencePort, never()).save(any());
-        verify(bookStockPort, never()).incrementStock(any(), anyInt());
-    }
-
-    @Test
-    void execute_shouldSaveOrderAsPaymentFailed_whenPaymentDeclined() {
-        Cart cart = buildCart(bookId, 2, BigDecimal.valueOf(29.90));
-        BookInfo book = new BookInfo(bookId, "Clean Code", "/media/covers/clean-code.jpg", BigDecimal.valueOf(29.90), 10);
-
-        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
-        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
-        when(orderPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(paymentPort.processPayment(any(), any(), any(), any()))
-                .thenReturn(new PaymentResult(false, null, "Insufficient funds"));
+    void execute_shouldReleaseTheReservationAndKeepTheCart_whenPaymentIsDeclined() {
+        givenACartOf(2, 10);
+        when(stockReservationPort.reserve(any(), anyList())).thenReturn(new StockReservationOutcome(true, List.of()));
+        when(paymentPort.charge(any(), any(), any(), any())).thenReturn(new PaymentOutcome(false, "Insufficient funds"));
 
         assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
                 .isInstanceOf(PaymentDeclinedException.class);
 
-        verify(orderPersistencePort).save(any());
-        verify(bookStockPort, never()).tryDecrementStock(any(), anyInt());
+        ArgumentCaptor<Order> saved = ArgumentCaptor.forClass(Order.class);
+        verify(orderPersistencePort).save(saved.capture());
+        assertThat(saved.getValue().getStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED);
+        assertThat(saved.getValue().getStatusReason()).isEqualTo("Insufficient funds");
+        verify(stockReservationPort).release(saved.getValue().getId());
         verify(cartPersistencePort, never()).deleteByCustomerId(any());
     }
 
+    /** A decline that came without a reason must not be mistaken for an approval. */
     @Test
-    void execute_shouldThrowCartItemUnavailable_whenStockInsufficient() {
-        Cart cart = buildCart(bookId, 5, BigDecimal.valueOf(29.90));
-        BookInfo book = new BookInfo(bookId, "Clean Code", "/media/covers/clean-code.jpg", BigDecimal.valueOf(29.90), 2);
+    void execute_shouldStillReportADecline_whenTheReasonIsMissing() {
+        givenACartOf(1, 10);
+        when(stockReservationPort.reserve(any(), anyList())).thenReturn(new StockReservationOutcome(true, List.of()));
+        when(paymentPort.charge(any(), any(), any(), any())).thenReturn(new PaymentOutcome(false, null));
 
-        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
-        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(book));
+        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
+                .isInstanceOf(PaymentDeclinedException.class);
+        verify(stockReservationPort).release(any());
+    }
+
+    @Test
+    void execute_shouldThrowCartItemUnavailable_beforeReserving_whenStockIsVisiblyShort() {
+        givenACartOf(5, 2);
 
         assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
                 .isInstanceOf(CartItemUnavailableException.class);
 
-        verify(orderPersistencePort, never()).save(any());
-        verify(bookStockPort, never()).tryDecrementStock(any(), anyInt());
+        verifyNoInteractions(stockReservationPort, paymentPort);
     }
 
     @Test
     void execute_shouldThrowCartItemUnavailable_whenBookWasRemovedFromCatalog() {
-        Cart cart = buildCart(bookId, 1, BigDecimal.valueOf(29.90));
-
-        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(cart));
+        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(buildCart(1)));
         when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.CREDIT_CARD))
                 .isInstanceOf(CartItemUnavailableException.class);
 
-        verify(orderPersistencePort, never()).save(any());
-        verify(bookStockPort, never()).tryDecrementStock(any(), anyInt());
+        verifyNoInteractions(stockReservationPort, paymentPort);
     }
 
     @Test
@@ -198,10 +176,16 @@ class CheckoutServiceTest {
                 .isInstanceOf(CartNotFoundException.class);
     }
 
-    private Cart buildCart(UUID bookId, int quantity, BigDecimal price) {
+    private void givenACartOf(int quantity, int stock) {
+        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(buildCart(quantity)));
+        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(
+                new BookInfo(bookId, "Clean Code", "/media/covers/clean-code.jpg", BigDecimal.valueOf(29.90), stock)));
+    }
+
+    private Cart buildCart(int quantity) {
         return Cart.reconstitute(
                 UUID.randomUUID(), customerId,
-                List.of(CartItem.of(bookId, quantity, price)),
+                List.of(CartItem.of(bookId, quantity, BigDecimal.valueOf(29.90))),
                 Instant.now(), Instant.now()
         );
     }

@@ -1,7 +1,7 @@
 package com.devrenno.bookland.orders.application.service;
 
-import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.RefundPort;
+import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 
@@ -15,23 +15,24 @@ import com.devrenno.bookland.orders.domain.entity.OrderStatus;
  * customer charged and the stock short.
  *
  * <p>Only a cancellation coming out of CONFIRMED compensates: that is the state in which the stock was
- * decremented and the payment approved (see CheckoutService). An order cancelled out of
- * AWAITING_PAYMENT never took either, and any other transition out of CONFIRMED (to SHIPPED) is not a
+ * reserved and the payment approved (see CheckoutService). Cancelling is not allowed earlier, while
+ * the checkout is still running, and any other transition out of CONFIRMED (to SHIPPED) is not a
  * cancellation at all — hence both statuses are part of the decision, and the decision lives here so
  * no caller can get it half right.
+ *
+ * <p>The stock goes back by releasing the order's reservation, so exactly what was taken is returned,
+ * and only once.
  */
 final class OrderCancellation {
 
     private OrderCancellation() {}
 
     static void compensate(Order order, OrderStatus previousStatus, OrderStatus newStatus,
-                           BookStockPort bookStockPort, RefundPort refundPort) {
+                           StockReservationPort stockReservationPort, RefundPort refundPort) {
         if (newStatus != OrderStatus.CANCELLED || previousStatus != OrderStatus.CONFIRMED) {
             return;
         }
-        for (var item : order.getItems()) {
-            bookStockPort.incrementStock(item.getBookId(), item.getQuantity());
-        }
+        stockReservationPort.release(order.getId());
         refundPort.refund(order.getId());
     }
 }

@@ -6,6 +6,7 @@ import com.devrenno.bookland.catalog.application.port.out.ActiveOrderCheckPort;
 import com.devrenno.bookland.catalog.application.port.out.BookPersistencePort;
 import com.devrenno.bookland.catalog.application.port.out.CategoryPersistencePort;
 import com.devrenno.bookland.catalog.application.port.out.ImageStoragePort;
+import com.devrenno.bookland.catalog.application.port.out.StockReservationPersistencePort;
 import com.devrenno.bookland.catalog.application.service.*;
 import com.devrenno.bookland.catalog.domain.service.CatalogDomainService;
 import org.springframework.context.annotation.Bean;
@@ -58,6 +59,18 @@ public class CatalogBeansConfig {
     @Bean
     public IncrementBookStockUseCase incrementBookStockUseCase(BookPersistencePort bookPersistencePort) {
         return IncrementBookStockService.create(bookPersistencePort);
+    }
+
+    @Bean
+    public ReserveStockForOrderUseCase reserveStockForOrderUseCase(BookPersistencePort bookPersistencePort,
+                                                                   StockReservationPersistencePort reservationPersistencePort) {
+        return ReserveStockForOrderService.create(bookPersistencePort, reservationPersistencePort);
+    }
+
+    @Bean
+    public ReleaseStockForOrderUseCase releaseStockForOrderUseCase(BookPersistencePort bookPersistencePort,
+                                                                   StockReservationPersistencePort reservationPersistencePort) {
+        return ReleaseStockForOrderService.create(bookPersistencePort, reservationPersistencePort);
     }
 
     @Bean

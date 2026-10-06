@@ -1,9 +1,9 @@
 package com.devrenno.bookland.orders.application.service;
 
 import com.devrenno.bookland.orders.application.port.in.CancelOrderUseCase;
-import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.RefundPort;
+import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
@@ -14,22 +14,22 @@ import java.util.UUID;
 public class CancelOrderService implements CancelOrderUseCase {
 
     private final OrderPersistencePort orderPersistencePort;
-    private final BookStockPort bookStockPort;
+    private final StockReservationPort stockReservationPort;
     private final RefundPort refundPort;
     private final TransactionPort transactionPort;
 
-    private CancelOrderService(OrderPersistencePort orderPersistencePort, BookStockPort bookStockPort,
+    private CancelOrderService(OrderPersistencePort orderPersistencePort, StockReservationPort stockReservationPort,
                                RefundPort refundPort, TransactionPort transactionPort) {
         this.orderPersistencePort = orderPersistencePort;
-        this.bookStockPort = bookStockPort;
+        this.stockReservationPort = stockReservationPort;
         this.refundPort = refundPort;
         this.transactionPort = transactionPort;
     }
 
     public static CancelOrderService create(OrderPersistencePort orderPersistencePort,
-                                            BookStockPort bookStockPort, RefundPort refundPort,
+                                            StockReservationPort stockReservationPort, RefundPort refundPort,
                                             TransactionPort transactionPort) {
-        return new CancelOrderService(orderPersistencePort, bookStockPort, refundPort, transactionPort);
+        return new CancelOrderService(orderPersistencePort, stockReservationPort, refundPort, transactionPort);
     }
 
     @Override
@@ -42,7 +42,7 @@ public class CancelOrderService implements CancelOrderUseCase {
             order.cancel(customerId);
 
             OrderCancellation.compensate(order, previousStatus, order.getStatus(),
-                    bookStockPort, refundPort);
+                    stockReservationPort, refundPort);
 
             return orderPersistencePort.save(order);
         });

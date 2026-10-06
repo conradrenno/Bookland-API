@@ -43,6 +43,18 @@ class ArchitectureRulesTest {
             noClasses().that().resideInAPackage("..orders.adapters..")
                     .should().dependOnClassesThat().resideInAnyPackage(FRAMEWORK_PACKAGES);
 
+    /**
+     * Other modules are reached only through infrastructure adapters, which translate their types at
+     * the edge. Use cases, ports and the controller once imported payments' {@code PaymentMethod} and
+     * {@code PaymentResult}: types of another service in the inner layers, which would not even be on
+     * the classpath once that service runs on its own.
+     */
+    @ArchTest
+    static final ArchRule other_modules_are_reached_only_through_infrastructure =
+            noClasses().that().resideInAnyPackage("..orders.domain..", "..orders.application..", "..orders.adapters..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "com.devrenno.bookland.payments..", "com.devrenno.bookland.catalog..");
+
     @ArchTest
     static final ArchRule dependencies_point_inward = layeredArchitecture()
             .consideringOnlyDependenciesInLayers()

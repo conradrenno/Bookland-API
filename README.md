@@ -279,9 +279,9 @@ An admin-facing audit ledger for manual stock adjustments. Records every delta w
 ### Orders
 Manages the full purchase lifecycle:
 - **Cart** — one per customer, with real-time stock validation and price snapshotting
-- **Checkout** — validates stock, processes payment, decrements stock, and transitions the order in a single transaction: either all four land or none do
-- **Order lifecycle** — `AWAITING_PAYMENT → CONFIRMED → SHIPPED → DELIVERED` (or `CANCELLED` / `PAYMENT_FAILED`)
-- **Cancellation** — from `AWAITING_PAYMENT` or `CONFIRMED`; the latter triggers stock restore and automatic refund
+- **Checkout** — the steps of a saga, still synchronous and in one transaction: **reserve the stock** (all lines or none, in the catalog), **then charge**; a declined charge **releases the reservation** (the compensation) and keeps the cart. Reserving before charging is what keeps a customer from being charged for copies that are gone
+- **Order lifecycle** — `PENDING → AWAITING_PAYMENT → CONFIRMED → SHIPPED → DELIVERED`, or `REJECTED` (no stock) / `PAYMENT_FAILED` (declined, with `statusReason`) / `CANCELLED`
+- **Cancellation** — only from `CONFIRMED` (refused while the checkout is still running); releases the order's stock reservation and refunds the payment
 
 #### Stock under concurrency
 
@@ -319,12 +319,12 @@ The one absolute write left is `Book.update`, the admin edit that *sets* a stock
 
 **Why three in-ports.** `DecrementBookStockUseCase` and `IncrementBookStockUseCase` are separate from `AdjustBookStockUseCase` because Orders never applies a signed adjustment — it consumes or returns a known number of units, and running out of stock mid-race is an expected outcome rather than an error, so it answers `boolean` instead of throwing. Inventory is the opposite: an admin submits a delta whose direction the caller does not know in advance, and a correction that would go negative is a genuine mistake worth a 422.
 
-**What this does not fix.** The stock reading that validates the cart is still a separate statement from the decrement, so a checkout can pass validation and then lose the race. It now *fails* instead of overselling — but it fails after the payment was approved, and the rollback that undoes the charge is only safe because the gateway is simulated. A real PSP would need a compensating refund. Closing that properly means reserving stock before charging rather than after; see **Future Improvements**.
+**Reserved before charged.** The checkout no longer decrements per book after the payment: it asks the catalog to **reserve the order's units** (`ReserveStockForOrderUseCase`), all lines or none, before charging. A checkout that loses the race for the last copies now fails at the reservation, with nobody charged. The reservation is a row per order (`stock_reservations`), which is what makes reserving and releasing **idempotent by order id** — a repeated request answers from the row, and a failed reservation is recorded too, so a late duplicate cannot reserve for an order that was already rejected. Partial reservations are undone by putting back the lines already taken rather than by a rollback, so it behaves the same inside the checkout's transaction today and inside a message listener's once the saga is asynchronous.
 
 All of it is pinned by `StockConcurrencyIntegrationTest` (bookland-app), which races twenty checkouts for five copies, twenty cancellations returning a unit each, and twenty admin corrections of +1, all against the real database — a mocked persistence port would have passed against the broken implementation.
 
 ### Payments
-Simulated payment gateway supporting `CREDIT_CARD`, `DEBIT_CARD`, `PAYPAL`, and `PIX`. Records payment status and provides refund capability. Consumed by Orders via outbound ports — Orders never accesses Payment internals directly.
+Simulated payment gateway supporting `CREDIT_CARD`, `DEBIT_CARD`, `PAYPAL`, and `PIX`. It approves up to `bookland.payments.simulated.decline-above` (default 1000.00) and declines above it, so the checkout's compensation can be triggered on purpose. One payment per order (`payments.order_id` is unique): charging the same order again answers from the stored payment instead of reaching the gateway. Records payment status and provides refund capability. Consumed by Orders via outbound ports — Orders never accesses Payment internals directly.
 
 ### Reviews
 Purchase-verified review system. Before creating a review, the service verifies (via `PurchaseVerificationPort → VerifyPurchaseUseCase` in Orders) that the customer has a `DELIVERED` order containing that book. On creation and on moderation, the book's new average rating is written to a transactional outbox together with the review and relayed to Kafka as a `BookRatingChanged` event that Catalog consumes — so the rating updates a moment after the response, not within it — and the author's display name is stored on the review — so listing reviews never asks the User module, and a review keeps the name its author had when writing it.
@@ -695,7 +695,7 @@ The roadmap includes:
 - **Admin promotion endpoint** — `PATCH /api/v1/admin/users/{id}/role` to promote users without direct database access
 - **CI/CD pipeline** — GitHub Actions workflow with test, build, Docker push, and deploy stages
 - **Rate limiting** — per-IP and per-user throttling on auth and checkout endpoints
-- **Stock reservation at checkout** — reserve units *before* charging and release them on failure or expiry, instead of decrementing after the payment is approved. Today a checkout that loses the race for the last copies fails cleanly (see [Stock under concurrency](#stock-under-concurrency)), but it fails with the payment already approved, which only rolls back safely because the gateway is simulated. A reservation with a TTL trades "sold what we did not have" for "held what we did not sell" — the cheaper of the two errors — and is the prerequisite for plugging in a real payment provider
+- **Reservation expiry** — stock is now reserved before charging (see [Stock under concurrency](#stock-under-concurrency)); what is missing is a TTL, so that a reservation whose checkout never finished is released instead of held forever
 
 ---
 

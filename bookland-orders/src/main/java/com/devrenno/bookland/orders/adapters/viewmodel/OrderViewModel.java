@@ -12,6 +12,8 @@ public record OrderViewModel(
         UUID customerId,
         List<OrderItemViewModel> items,
         OrderStatus status,
+        /** Why the checkout did not complete (REJECTED, PAYMENT_FAILED); null otherwise. */
+        String statusReason,
         BigDecimal totalAmount,
         List<StatusTransitionViewModel> statusHistory,
         Instant createdAt,

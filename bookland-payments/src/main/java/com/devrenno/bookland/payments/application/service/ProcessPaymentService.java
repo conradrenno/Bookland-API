@@ -8,6 +8,8 @@ import com.devrenno.bookland.payments.application.port.out.PaymentPersistencePor
 import com.devrenno.bookland.payments.domain.entity.Payment;
 import com.devrenno.bookland.payments.domain.entity.PaymentStatus;
 
+import java.util.Optional;
+
 public class ProcessPaymentService implements ProcessPaymentUseCase {
 
     private final PaymentGatewayPort gateway;
@@ -22,8 +24,20 @@ public class ProcessPaymentService implements ProcessPaymentUseCase {
         return new ProcessPaymentService(gateway, persistence);
     }
 
+    /**
+     * One payment per order. A request for an order that already has one — a redelivered message, a
+     * retried call — is answered from the stored payment, without charging again: the gateway is the
+     * one step of the checkout that cannot be taken back by writing to our own database.
+     */
     @Override
     public PaymentResult processPayment(ProcessPaymentCommand command) {
+        Optional<Payment> existing = persistence.findByOrderId(command.orderId());
+        if (existing.isPresent()) {
+            Payment payment = existing.get();
+            return new PaymentResult(payment.getStatus() != PaymentStatus.DECLINED,
+                    payment.getGatewayTransactionId(), payment.getDeclineReason());
+        }
+
         PaymentResult result = gateway.charge(command);
 
         PaymentStatus status = result.approved() ? PaymentStatus.APPROVED : PaymentStatus.DECLINED;
@@ -33,7 +47,8 @@ public class ProcessPaymentService implements ProcessPaymentUseCase {
                 command.amount(),
                 command.method(),
                 status,
-                result.transactionId()
+                result.transactionId(),
+                result.declineReason()
         );
         persistence.save(payment);
 

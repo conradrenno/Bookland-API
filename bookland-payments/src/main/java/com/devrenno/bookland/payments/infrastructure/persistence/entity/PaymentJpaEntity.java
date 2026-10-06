@@ -38,6 +38,9 @@ public class PaymentJpaEntity {
     @Column(name = "gateway_transaction_id")
     private String gatewayTransactionId;
 
+    @Column(name = "decline_reason")
+    private String declineReason;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

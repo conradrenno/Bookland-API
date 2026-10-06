@@ -1,8 +1,8 @@
 package com.devrenno.bookland.orders.application.service;
 
-import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.RefundPort;
+import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
@@ -13,6 +13,8 @@ import com.devrenno.bookland.orders.domain.exception.OrderNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,7 +34,7 @@ import static org.mockito.Mockito.*;
 class CancelOrderServiceTest {
 
     @Mock private OrderPersistencePort orderPersistencePort;
-    @Mock private BookStockPort bookStockPort;
+    @Mock private StockReservationPort stockReservationPort;
     @Mock private RefundPort refundPort;
 
     /** Pass-through fake: runs the unit of work inline, no transaction machinery in unit tests. */
@@ -55,21 +57,23 @@ class CancelOrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = CancelOrderService.create(orderPersistencePort, bookStockPort, refundPort, transactionPort);
+        service = CancelOrderService.create(orderPersistencePort, stockReservationPort, refundPort, transactionPort);
     }
 
-    @Test
-    void execute_shouldCancelWithoutRefund_whenOrderIsAwaitingPayment() {
-        Order order = buildOrder(customerId, OrderStatus.AWAITING_PAYMENT);
+    /**
+     * While the checkout saga is still running, cancelling would race its next step — a payment
+     * approved a moment after the order was cancelled leaves money or stock behind.
+     */
+    @ParameterizedTest
+    @EnumSource(value = OrderStatus.class, names = {"PENDING", "AWAITING_PAYMENT"})
+    void execute_shouldRefuse_whileTheCheckoutIsStillRunning(OrderStatus status) {
+        Order order = buildOrder(customerId, status);
 
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
-        when(orderPersistencePort.save(any())).thenReturn(order);
 
-        Order result = service.execute(order.getId(), customerId);
-
-        assertThat(result).isNotNull();
-        assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        verify(bookStockPort, never()).incrementStock(any(), anyInt());
+        assertThatThrownBy(() -> service.execute(order.getId(), customerId))
+                .isInstanceOf(OrderCancellationNotAllowedException.class);
+        verify(stockReservationPort, never()).release(any());
         verify(refundPort, never()).refund(any());
     }
 
@@ -83,7 +87,7 @@ class CancelOrderServiceTest {
         Order result = service.execute(order.getId(), customerId);
 
         assertThat(result).isNotNull();
-        verify(bookStockPort).incrementStock(bookId, 2);
+        verify(stockReservationPort).release(order.getId());
         verify(refundPort).refund(order.getId());
     }
 
@@ -99,14 +103,14 @@ class CancelOrderServiceTest {
     @Test
     void execute_shouldThrowAccessDenied_whenRequesterIsNotOwner() {
         UUID otherCustomer = UUID.randomUUID();
-        Order order = buildOrder(customerId, OrderStatus.AWAITING_PAYMENT);
+        Order order = buildOrder(customerId, OrderStatus.CONFIRMED);
 
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() -> service.execute(order.getId(), otherCustomer))
                 .isInstanceOf(OrderAccessDeniedException.class);
 
-        verify(bookStockPort, never()).incrementStock(any(), anyInt());
+        verify(stockReservationPort, never()).release(any());
     }
 
     @Test
@@ -118,13 +122,13 @@ class CancelOrderServiceTest {
         assertThatThrownBy(() -> service.execute(order.getId(), customerId))
                 .isInstanceOf(OrderCancellationNotAllowedException.class);
 
-        verify(bookStockPort, never()).incrementStock(any(), anyInt());
+        verify(stockReservationPort, never()).release(any());
     }
 
     private Order buildOrder(UUID customerId, OrderStatus status) {
         OrderItem item = OrderItem.of(bookId, "Clean Code", "/media/covers/clean-code.jpg", 2, BigDecimal.valueOf(29.90));
         return Order.reconstitute(
-                UUID.randomUUID(), customerId, List.of(item), status,
+                UUID.randomUUID(), customerId, List.of(item), status, null,
                 BigDecimal.valueOf(59.80), List.of(),
                 Instant.now(), Instant.now()
         );

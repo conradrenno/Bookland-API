@@ -151,7 +151,7 @@ routes.
 | orders | `BOOK_NOT_IN_CART` | 404 |
 | orders | `ORDER_ACCESS_DENIED` | 403 |
 | orders | `CART_ITEM_UNAVAILABLE` | 409 |
-| orders | `ORDER_CANCELLATION_NOT_ALLOWED` | 409 |
+| orders | `ORDER_CANCELLATION_NOT_ALLOWED` | 409 — also while the checkout is still running (`PENDING`, `AWAITING_PAYMENT`) |
 | orders | `INVALID_ORDER_STATUS_TRANSITION` | 409 |
 | orders | `PAYMENT_DECLINED` | 402 |
 | payments | `PAYMENT_NOT_FOUND` | 404 |

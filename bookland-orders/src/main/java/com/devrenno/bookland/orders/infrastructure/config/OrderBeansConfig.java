@@ -5,12 +5,12 @@ import com.devrenno.bookland.orders.application.port.in.AddCartItemUseCase;
 import com.devrenno.bookland.orders.application.port.in.CheckActiveOrdersUseCase;
 import com.devrenno.bookland.orders.application.port.in.VerifyPurchaseUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
-import com.devrenno.bookland.orders.application.port.out.BookStockPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.PaymentPort;
 import com.devrenno.bookland.orders.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.orders.application.port.out.RefundPort;
+import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.application.service.AddCartItemService;
 import com.devrenno.bookland.orders.application.service.CheckActiveOrdersService;
@@ -30,11 +30,11 @@ public class OrderBeansConfig {
     @Bean
     public OrdersController ordersController(CartPersistencePort cartPersistencePort,
                                              OrderPersistencePort orderPersistencePort,
-                                             BookInfoPort bookInfoPort, BookStockPort bookStockPort,
+                                             BookInfoPort bookInfoPort, StockReservationPort stockReservationPort,
                                              PaymentPort paymentPort, RefundPort refundPort,
                                              TransactionPort transactionPort) {
         return OrdersController.create(cartPersistencePort, orderPersistencePort, bookInfoPort,
-                bookStockPort, paymentPort, refundPort, transactionPort);
+                stockReservationPort, paymentPort, refundPort, transactionPort);
     }
 
     @Bean

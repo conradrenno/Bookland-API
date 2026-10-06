@@ -28,6 +28,9 @@ public class OrderJpaEntity {
     @Column(nullable = false)
     private String status;
 
+    @Column(name = "status_reason", length = 500)
+    private String statusReason;
+
     @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount;
 

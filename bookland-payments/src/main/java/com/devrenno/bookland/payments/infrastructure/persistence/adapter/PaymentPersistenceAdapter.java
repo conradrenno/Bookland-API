@@ -38,6 +38,7 @@ public class PaymentPersistenceAdapter implements PaymentPersistencePort {
                 .method(payment.getMethod().name())
                 .status(payment.getStatus().name())
                 .gatewayTransactionId(payment.getGatewayTransactionId())
+                .declineReason(payment.getDeclineReason())
                 .createdAt(payment.getCreatedAt())
                 .updatedAt(payment.getUpdatedAt())
                 .build();
@@ -52,6 +53,7 @@ public class PaymentPersistenceAdapter implements PaymentPersistencePort {
                 PaymentMethod.valueOf(entity.getMethod()),
                 PaymentStatus.valueOf(entity.getStatus()),
                 entity.getGatewayTransactionId(),
+                entity.getDeclineReason(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );

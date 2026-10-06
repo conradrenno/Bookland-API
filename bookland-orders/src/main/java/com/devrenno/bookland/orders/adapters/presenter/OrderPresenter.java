@@ -50,7 +50,7 @@ public class OrderPresenter {
                 ))
                 .toList();
         return new OrderViewModel(
-                order.getId(), order.getCustomerId(), items, order.getStatus(),
+                order.getId(), order.getCustomerId(), items, order.getStatus(), order.getStatusReason(),
                 order.getTotalAmount(), history, order.getCreatedAt(), order.getUpdatedAt()
         );
     }
