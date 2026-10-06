@@ -8,8 +8,10 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://postgres:5432/bookland
-      DB_USER: ${POSTGRES_USER:-bookland}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
+      # Its own role, owner of the bookland database only — never the superuser, which can read the
+      # identity service's database too. Created by docker/postgres/initdb.
+      DB_USER: ${APP_DB_USER:-bookland_app}
+      DB_PASSWORD: ${APP_DB_PASSWORD}
       # Tokens come from the identity service. The issuer is what the browser saw when it logged in,
       # so it is the address published on the host; the keys are fetched over the compose network.
       # The two differ on purpose, and swapping them only fails at validation time.
@@ -110,7 +112,9 @@ services:
       POSTGRES_DB: bookland
       POSTGRES_USER: ${POSTGRES_USER:-bookland}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
-      # Read by docker/postgres/initdb, which creates the identity service's database and role.
+      # Read by docker/postgres/initdb, which creates one role per service and the identity database.
+      APP_DB_USER: ${APP_DB_USER:-bookland_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
       IDENTITY_DB_USER: ${IDENTITY_DB_USER:-identity}
       IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
     volumes:

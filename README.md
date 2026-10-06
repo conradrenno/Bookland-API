@@ -597,7 +597,7 @@ cp .env.example .env   # edit with your values
 docker compose up --build
 ```
 
-The API starts on `http://localhost:8080` and the identity service on `http://127.0.0.1:9000`, sharing one PostgreSQL 16 instance but not a database: `docker/postgres/initdb` creates the identity service's `identity` database and role next to `bookland`, **only when the data volume is empty**. Each service's Flyway creates its own schema on first boot.
+The API starts on `http://localhost:8080` and the identity service on `http://127.0.0.1:9000`, sharing one PostgreSQL 16 instance but not a database: `docker/postgres/initdb` gives each service a role of its own that owns its database and cannot connect to the other's (`bookland` / `identity`), **only when the data volume is empty**. Each service's Flyway creates its own schema on first boot.
 
 Two volumes persist across restarts: `bookland-pgdata` (database) and `bookland-covers` (uploaded cover images).
 
@@ -615,9 +615,10 @@ Copy `.env.example` to `.env` and fill in the values before running with Docker.
 
 | Variable | Required | Description |
 |---|---|---|
-| `POSTGRES_USER` | Prod | PostgreSQL username |
-| `POSTGRES_PASSWORD` | Prod | PostgreSQL password |
-| `IDENTITY_DB_USER` / `IDENTITY_DB_PASSWORD` | Prod | Role that owns the identity service's database, created on the volume's first start |
+| `POSTGRES_USER` | Prod | PostgreSQL **superuser** — administration only; no service connects with it |
+| `POSTGRES_PASSWORD` | Prod | Its password |
+| `APP_DB_USER` / `APP_DB_PASSWORD` | Prod | The API's own role: owns the `bookland` database, cannot connect to `identity`. Created on the volume's first start |
+| `IDENTITY_DB_USER` / `IDENTITY_DB_PASSWORD` | Prod | The identity service's role: owns the `identity` database, cannot connect to `bookland` |
 | `OAUTH2_ISSUER` | Prod | The URL clients actually reach the identity service on (`http://127.0.0.1:9000`). Published in its discovery document and written into the `iss` claim; the API checks the same value, and a mismatch is only noticed at validation time |
 | `OAUTH2_CORS_ALLOWED_ORIGINS` | Optional | Browser origins allowed to call the token endpoint (compose default: the API's Swagger UI, `http://127.0.0.1:8080`) |
 | `OAUTH2_JWK_PRIVATE_KEY` | Prod | RSA private key, base64 of the PKCS#8 DER, single-line. **The secret of the whole system** — whoever holds it mints admin tokens |
