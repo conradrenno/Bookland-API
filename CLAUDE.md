@@ -75,11 +75,13 @@ All commits must follow **[Conventional Commits](https://www.conventionalcommits
 
 ```
 bookland/               ← Parent POM (dependency management)
-├── bookland-app/       ← The monolith (API, port 8080): Spring Boot bootstrap of every domain module except user and auth
-├── bookland-identity-app/ ← The identity service (port 9000): user + auth, its own database; issues the tokens
-├── bookland-web-support/ ← Platform library: HTTP error-contract glue + Bearer-token validation (see below)
-└── bookland-{domain}/  ← One module per domain (user, auth, catalog, orders, reviews, inventory, wishlist, payments)
+├── bookland-app/       ← ASSEMBLY: the monolith (API, port 8080) — every domain module except user and auth
+├── bookland-identity-app/ ← ASSEMBLY: the identity service (port 9000) — user + auth, its own database; issues the tokens
+├── bookland-web-support/ ← LIBRARY (platform): HTTP error-contract glue + Bearer-token validation (see below)
+└── bookland-{domain}/  ← LIBRARY (domain): one module per domain (user, auth, catalog, orders, reviews, inventory, wishlist, payments)
 ```
+
+**Assembly modules vs libraries.** A service is an *assembly module* (main class, `application.yml`, migrations, integration tests, Dockerfile — no business logic) plus the *domain libraries* it includes. user and auth are still two separate modules; the identity service runs both in one process and one database, auth reaching user in memory through its ports. The wiring is **by convention, never by name**: the assembly's `pom.xml` puts the jars on the classpath and its `@SpringBootApplication` class sits in the root package `com.devrenno.bookland`, so component/entity/repository scanning and `@ConfigurationPropertiesScan` cover every module's subpackage. Moving a main class into a subpackage silently drops every module from its process. Extracting another service means a new `bookland-<service>-app` and removing those modules from `bookland-app`.
 
 `bookland-web-support` is **not** a shared kernel — the "duplicate it per module" rule (PageQuery, PageResult) still holds for anything with domain meaning. It holds framework glue only: `ProblemDetails`, `ProblemDetailWriter`, `AuthErrorCode`, `RestAuthenticationEntryPoint`, `RestAccessDeniedHandler`, `ValidationExceptionHandler`, `ValidationConfig`, `ErrorResponsesCustomizer`, `AuthenticatedUser` + `AuthenticatedUserArgumentResolver` + `AuthenticatedUserConfig`, and the **resource-server half of security**: `ResourceServerConfig` (the `JwtDecoder` bean with its four validators, the entry point and access-denied beans, and the static `jwtAuthenticationConverter()`), `ResourceServerProperties` (`bookland.resource-server.*`), `ApiAudienceValidator`, `AccessTokenExpiryValidator`, `BearerTokenErrorClassifier`. It must never contain a domain type or depend on another `bookland-*` module, and only `*.infrastructure` packages may import it. It exists so the HTTP error contract — and the ability to validate a token — survive a future split into separate services: a service validates tokens with this module alone, without depending on `bookland-auth` (which holds the private key).
 

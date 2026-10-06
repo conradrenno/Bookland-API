@@ -56,9 +56,13 @@ The project is a **multi-module Maven** project. Each domain is an independent m
 ```
 bookland/                       ← Parent POM (dependency management)
 │
-├── bookland-app/               ← Spring Boot entry point — no business logic
-│                                 Assembles all domain modules; hosts application.yml
+│   ── assembly modules: one per deployable service, no business logic ──
+├── bookland-app/               ← The API (port 8080): assembles every domain module
+│                                 below except user and auth; hosts application.yml
+├── bookland-identity-app/      ← The identity service (port 9000): assembles user + auth
+│                                 into a process of its own, with its own database
 │
+│   ── libraries: the code, packaged as jars that an assembly module includes ──
 ├── bookland-web-support/       ← Platform library — the HTTP error contract and
 │                                 Bearer-token validation.
 │                                 Not a domain; not a shared kernel
@@ -73,7 +77,9 @@ bookland/                       ← Parent POM (dependency management)
 └── bookland-wishlist/          ← Customer wishlist with move-to-cart
 ```
 
-`bookland-app` has no business logic — it exists solely to assemble all domain modules into a single deployable artifact.
+**Two kinds of module.** A *domain module* (`bookland-user`, `bookland-catalog`, …) is a library: the logic, in four layers, packaged as a jar. An *assembly module* (`bookland-app`, `bookland-identity-app`) is a deployable service: a `main` class, an `application.yml`, the service's migrations and its integration tests — and no business logic. A **service** is therefore an assembly module plus the domain modules it includes: the identity service is `bookland-identity-app` + `bookland-user` + `bookland-auth`, which still run as separate modules in one process, one database.
+
+**How an assembly module picks its modules up — by convention, not by name.** Its `pom.xml` puts the domain modules' jars on the classpath, and its `@SpringBootApplication` class sits in the root package `com.devrenno.bookland`, so component, entity and repository scanning cover every module's subpackage; `@ConfigurationPropertiesScan` finds their `@ConfigurationProperties`. Nothing in the assembly module names a class of the modules it runs — moving the main class into a subpackage would silently leave them all out. The `application.yml` talks to them only through property prefixes (`bookland.oauth2.*` is read by auth, `bookland.admin.*` by user).
 
 **`bookland-web-support` is the one module every other module depends on**, and the "duplicate it per module" rule does not apply to it. It holds the glue that renders the HTTP error contract — `ProblemDetails`, `ProblemDetailWriter`, `ProblemDetailErrorController`, the Spring Security entry points, the single bean-validation advice, the OpenAPI error-response customizer — and the resource-server half of security (`ResourceServerConfig`: the `JwtDecoder` and its validators), so that a service can validate a token without depending on `bookland-auth` and its private key. It exists because that contract has to be **byte-identical across all 8 domains**: duplicated, the shape drifts — one module emitting a `code`, another not; one answering in English, another in whatever language the JVM defaults to.
 
