@@ -15,15 +15,16 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Mints access tokens for the contract tests, signed with the application's own key.
+ * Mints access tokens for the contract tests, signed with {@link TestSigningKey}.
  *
- * <p>Replaces the {@code TokenProviderPort} the tests used to inject. Going through the real
- * {@link JWKSource} rather than a fixture key is the point: a token these tests build is
- * indistinguishable from one the token endpoint issues, so a change to the key, the issuer or the
- * audience breaks the tests instead of quietly making them test a token nobody would ever present.
+ * <p>The tokens must look exactly like the identity service's — same issuer, audience and claims
+ * ({@code sub}, {@code email}, {@code role}, {@code name}) — or these tests would be checking a token
+ * nobody issues. The issuer and audience come from this process's own resource-server configuration;
+ * the claims are pinned on the identity side by {@code AuthorizationCodeFlowIntegrationTest}, and a
+ * change there must be mirrored here.
  *
  * <p>Driving the whole browser flow to obtain one would be more end-to-end and much worse as a
- * fixture — a redirect, a login form and a code exchange in front of every assertion about a 401.
+ * fixture — and here impossible: the Authorization Server is another process.
  */
 class TestAccessTokens {
 

@@ -20,15 +20,8 @@
             <artifactId>bookland-web-support</artifactId>
         </dependency>
 
-        <!-- Domain modules -->
-        <dependency>
-            <groupId>com.devrenno</groupId>
-            <artifactId>bookland-user</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.devrenno</groupId>
-            <artifactId>bookland-auth</artifactId>
-        </dependency>
+        <!-- Domain modules. user and auth are not here: they run as the identity service
+             (bookland-identity-app), and this process only validates the tokens it issues. -->
         <dependency>
             <groupId>com.devrenno</groupId>
             <artifactId>bookland-catalog</artifactId>
@@ -114,12 +107,6 @@
         </dependency>
         <!-- Rules that span every module's web layer at once. The per-module ArchUnit tests cannot
              express these: each only sees its own module. -->
-        <!-- For httpBasic() in the authorization-code flow test. -->
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-test</artifactId>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>

@@ -22,14 +22,12 @@ spring:
       # events published before the group first joined are still applied.
       auto-offset-reset: earliest
 
-# What the API needs to validate an access token. Read by ResourceServerConfig (bookland-web-support).
-# The values are the Authorization Server's own, because in the monolith they are the same server.
-# jwk-set-uri stays unset here: the keys are read in memory. A service in a process of its own sets
-# it to <issuer>/oauth2/jwks.
+# The tokens this API accepts are issued by the identity service (bookland-identity-app), a process
+# of its own: the public keys are fetched from its JWKS endpoint, per profile below. Read by
+# ResourceServerConfig (bookland-web-support).
 bookland:
   resource-server:
-    issuer: ${bookland.oauth2.issuer}
-    audience: ${bookland.oauth2.api-audience}
+    audience: ${OAUTH2_API_AUDIENCE:bookland-api}
 
 # Common to every profile: without it the prod document lands on springdoc's default /v3/api-docs,
 # which chain 3 does not cover, and the Authorize button runs without PKCE or Basic auth.
@@ -50,7 +48,7 @@ springdoc:
       # with 401 invalid_client; this makes it send an Authorization: Basic header instead.
       use-basic-authentication-with-access-code-grant: true
       # Pre-fills the Authorize dialog. Not a secret: a client id is published by design.
-      client-id: ${bookland.oauth2.client.client-id}
+      client-id: ${OAUTH2_CLIENT_ID:bookland-web}
       # The client secret is deliberately NOT pre-filled. Our client is confidential
       # (client_secret_basic), so the UI must send it at the token step or the exchange answers
       # invalid_client — type `bookland-web-secret` into the Authorize dialog in dev, and the value of
@@ -95,48 +93,12 @@ server:
       persistent: false
 
 bookland:
-  oauth2:
-    # 127.0.0.1, not localhost: the redirect URIs below must be the loopback IP (RFC 8252), so the
-    # browser half of the login lives on 127.0.0.1 — and the Swagger UI exchanges the code with a
-    # fetch to the token URL built from this issuer. Under localhost that fetch is cross-origin,
-    # the server sends no CORS headers, and the browser blocks it ("Failed to fetch").
-    issuer: http://127.0.0.1:8080
-    api-audience: bookland-api
-    jwk:
-      key-id: bookland-dev-key
-      # Development key pair, committed on purpose: a throwaway identity for a local H2 database. Base64 of the DER — public in X.509, private
-      # in PKCS#8 — single-line so the production values fit an environment variable.
-      # Regenerate with:
-      #   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform DER -out k.der
-      #   openssl pkcs8 -topk8 -nocrypt -inform DER -in k.der -outform DER -out private.der
-      #   openssl rsa -in k.der -inform DER -pubout -outform DER -out public.der
-      public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsJYdgZEYhp8uwrTdMjpiwOl+IvJVXZnQoaOfQDB0etOxFEOWghXP1C4iYx2acLeDb4PxkmZdSTW36rajg6wOXwsPmruWKrMM04KOduaNUQfufSVUT++c0HheMRrqZXywRDNkspAo7PlwZ1jXHak+ZIQ7S3irOqpmkwBItI8kaQZBRuHteZn/izHAc7t+8I13S5yoQIEcJrrxOhtGO/teETr98tv48mMWzmOpKnAXJMQjjDVm78knZk0XSPD8yMT8zLlik7MVDYeJpP0NQNJ6+xtZGts+6CDrFA8ghQg1DLnjPnmpNEGSVacIWemmB40GqK2CkOkDdUnxxWLC/nW0RwIDAQAB
-      private-key: MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCwlh2BkRiGny7CtN0yOmLA6X4i8lVdmdCho59AMHR607EUQ5aCFc/ULiJjHZpwt4Nvg/GSZl1JNbfqtqODrA5fCw+au5YqswzTgo525o1RB+59JVRP75zQeF4xGuplfLBEM2SykCjs+XBnWNcdqT5khDtLeKs6qmaTAEi0jyRpBkFG4e15mf+LMcBzu37wjXdLnKhAgRwmuvE6G0Y7+14ROv3y2/jyYxbOY6kqcBckxCOMNWbvySdmTRdI8PzIxPzMuWKTsxUNh4mk/Q1A0nr7G1ka2z7oIOsUDyCFCDUMueM+eak0QZJVpwhZ6aYHjQaorYKQ6QN1SfHFYsL+dbRHAgMBAAECggEAOg4AQVqcf5XR371qg1rioJ2jFIYrPoyVJK8QaiAEC2WRcCIQV1AodY99Sqyu26PZmE3+m6z/ulPo1UeaVm24g9K1HJ/TbNJUwyzG/ZwqlZtP8uDU6TrTiU4pWWeJ7DekE6f50SLH8bDIHZH9lwjPNGisvdE8KhtfgbC0Nnhg9g3FCPfkF5qvu+XKVBJQQOqWsx9o9jfwECvULGYXiOYUyGL3f5K9dhVL3KjGGdlPrff2Fhj7KSvkgLo5KiaGwpdp29xCqiVos+3pY0bn+Z0gvE0YYbqOqRh1Za+3CgdOX8mMexLqhHeuE38VmB+x+g5tWyW0RfWaNHituhZYfnJF4QKBgQD2xGuVHRu/kwTNTyxgYcV1NcdVwykiY0EoTz5+k1vHNgjlun3N52CJHpUFs3GevaC2ACoBO5JeewBNsDhMbgxnWzfweKYoEDhbwtYPa8bPzmVjPTJmLIpRlfwu1Ufqr0lvDnk7HE4TfOuxIj8v6p6pnifpOhjzL+CAHmGE1IiFKQKBgQC3MX2IZH34+2m7rmzNM7YGJvcWrqpJp2OWA57UjN9loyQ349bxmQh4nAFEyQHr7IZmj1vSCcW/Yfzx2MpbmhJIvqOoisik7IBggitrnJJCPlhTXSlIF0DI/kNFBtzTQFSTmE4d1D9phGH6erva0vOlVWMH0VxPvdU1EjMLHHer7wKBgQDyVeLxBS0C7faBSYdi/6FSggXIC2iSBLcwRuIwm7Y95KrIMGTrmJYNEqN2fcrPAZqaIX8exsnvTwv1P2GKbWhw9/vvhAxou8UdGDHv4v/Tg/W9h5O/E26iwJBvzbRanNmY3rXffuSN7tfnlKJJBDfcixzWxd9Ks3HdX/iU4cNQQQKBgF92C6tSao6fPHbPquS3iKfmECYiuJwO/QcENfUev57wB4SUVsKo81AeQ077y+OL6nFxTPDDpOdZAX1pcfGP9O0xYokGYQ4IK9Geo0+9VD3uzQoL5uIpM9pJHPbQX6w5vpj26eYDX1P15zSmVlPuT4adWzCMuaTYEE1KgYzNtdLDAoGBAK4lb3Fg4xdFr5LCHmdvdhxgVbNqZJLuwjKs04ZTZQQNc6QpnWjMMxA2Dwc4M+EUXKP9MxBb0rTXtyxEmmggmiSwU3KszBYUqak8Jw3EfLB2RjXmgeW1qLVpLwi3+jS9hnV28zZhJId8lsSYylcOvsTMhZAjUaMw1uClQyFtKbCe
-    client:
-      client-id: bookland-web
-      client-secret: bookland-web-secret
-      client-name: Bookland Web
-      # Loopback IP, not "localhost" — the server rejects the literal hostname (RFC 8252).
-      redirect-uris:
-        - http://127.0.0.1:8080/authorized
-        - http://127.0.0.1:8080/login/oauth2/code/bookland-web
-        # Where the Swagger UI sends the browser back to. It reports this URL from the host the
-        # page was loaded on, so the API document must be opened at 127.0.0.1 and not localhost —
-        # the server rejects the literal hostname, and the redirect page talks to its opener
-        # window, which would be cross-origin between the two names.
-        - http://127.0.0.1:8080/swagger-ui/oauth2-redirect.html
-      post-logout-redirect-uris:
-        - http://127.0.0.1:8080/
-      # Without "openid" the server issues no id_token at all.
-      scopes:
-        - openid
-        - profile
-        - email
-      access-token-ttl-minutes: 15
-      refresh-token-ttl-days: 7
-  admin:
-    email: admin@bookland.com
-    password: admin1234
+  resource-server:
+    # Must equal the iss claim, i.e. the identity service's issuer — the address the browser uses.
+    issuer: http://127.0.0.1:9000
+    # Where this process fetches the public keys. Same host here; in the compose stack the two differ
+    # (the issuer stays 127.0.0.1:9000, the keys come from identity:9000 inside the network).
+    jwk-set-uri: http://127.0.0.1:9000/oauth2/jwks
   storage:
     covers-location: ./bookland-data/covers
 
@@ -164,27 +126,10 @@ spring:
       enabled: false
 
 bookland:
-  oauth2:
-    # Must be the URL clients actually reach the server on: it is published in the discovery
-    # document and lands in the iss claim, and a mismatch is only noticed at validation time.
+  resource-server:
+    # The identity service's issuer, exactly as it puts it in the iss claim.
     issuer: ${OAUTH2_ISSUER}
-    api-audience: ${OAUTH2_API_AUDIENCE:bookland-api}
-    jwk:
-      key-id: ${OAUTH2_JWK_KEY_ID:bookland-key-1}
-      public-key: ${OAUTH2_JWK_PUBLIC_KEY}
-      # The secret of the whole system: whoever holds it mints admin tokens.
-      private-key: ${OAUTH2_JWK_PRIVATE_KEY}
-    client:
-      client-id: ${OAUTH2_CLIENT_ID}
-      client-secret: ${OAUTH2_CLIENT_SECRET}
-      client-name: ${OAUTH2_CLIENT_NAME:Bookland Web}
-      redirect-uris: ${OAUTH2_CLIENT_REDIRECT_URIS}
-      post-logout-redirect-uris: ${OAUTH2_CLIENT_POST_LOGOUT_REDIRECT_URIS:}
-      scopes: ${OAUTH2_CLIENT_SCOPES:openid,profile,email}
-      access-token-ttl-minutes: ${OAUTH2_ACCESS_TOKEN_TTL_MINUTES:15}
-      refresh-token-ttl-days: ${OAUTH2_REFRESH_TOKEN_TTL_DAYS:7}
-  admin:
-    email: ${ADMIN_EMAIL}
-    password: ${ADMIN_PASSWORD}
+    # The identity service's JWKS, at an address reachable from this process.
+    jwk-set-uri: ${OAUTH2_JWK_SET_URI}
   storage:
     covers-location: ${STORAGE_COVERS_LOCATION:/var/bookland/covers}

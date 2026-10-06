@@ -34,14 +34,14 @@ class AuthErrorContractIntegrationTest {
     @Autowired
     private JWKSource<SecurityContext> jwkSource;
 
-    @Value("${bookland.oauth2.issuer}")
+    @Value("${bookland.resource-server.issuer}")
     private String issuer;
 
-    @Value("${bookland.oauth2.api-audience}")
+    @Value("${bookland.resource-server.audience}")
     private String apiAudience;
 
-    @Value("${bookland.oauth2.client.client-id}")
-    private String clientId;
+    /** What an id_token carries as its audience: the registered client's id, not the API's. */
+    private static final String CLIENT_ID = "bookland-web";
 
     private TestAccessTokens tokens;
 
@@ -134,7 +134,7 @@ class AuthErrorContractIntegrationTest {
     @DisplayName("a token addressed to the client, not the API, is refused as invalid")
     void tokenForAnotherAudienceIsRefused() throws Exception {
         mockMvc.perform(get(CUSTOMER_ROUTE)
-                        .header("Authorization", "Bearer " + tokens.addressedTo(clientId)))
+                        .header("Authorization", "Bearer " + tokens.addressedTo(CLIENT_ID)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("TOKEN_INVALID"));
     }

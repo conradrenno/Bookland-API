@@ -25,8 +25,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * creating nor listing a review asks the user module anything — the precondition for running the
  * user module as a service of its own.
  *
- * <p>The author deliberately has <em>no row in {@code users}</em>: the review must still carry the
- * name. Any lookup sneaking back in would find nobody and store a null.
+ * <p>This process has <em>no {@code users} table</em> since the identity service was extracted — the
+ * test asserts it — so the name can only have come from the token.
  *
  * <p>Runs end to end because the name crosses the resolver, the command, the JPA mapping and the
  * listing — a link any unit test would mock away.
@@ -43,10 +43,10 @@ class ReviewAuthorNameIntegrationTest {
     @Autowired
     private JWKSource<SecurityContext> jwkSource;
 
-    @Value("${bookland.oauth2.issuer}")
+    @Value("${bookland.resource-server.issuer}")
     private String issuer;
 
-    @Value("${bookland.oauth2.api-audience}")
+    @Value("${bookland.resource-server.audience}")
     private String apiAudience;
 
     private final ObjectMapper json = new ObjectMapper();
@@ -74,8 +74,8 @@ class ReviewAuthorNameIntegrationTest {
                 .andExpect(status().isCreated());
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from users where id = ?", Integer.class, customerId))
-                .as("the author exists only in the token").isZero();
+                "select count(*) from information_schema.tables where table_schema = 'public' and table_name = 'users'", Integer.class))
+                .as("this process keeps no users at all: the author exists only in the token").isZero();
         assertThat(jdbcTemplate.queryForObject(
                 "select customer_name from reviews where customer_id = ? and book_id = ?",
                 String.class, customerId, bookId))

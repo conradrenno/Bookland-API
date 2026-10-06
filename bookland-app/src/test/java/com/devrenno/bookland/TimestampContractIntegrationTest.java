@@ -35,10 +35,10 @@ class TimestampContractIntegrationTest {
     @Autowired
     private JWKSource<SecurityContext> jwkSource;
 
-    @Value("${bookland.oauth2.issuer}")
+    @Value("${bookland.resource-server.issuer}")
     private String issuer;
 
-    @Value("${bookland.oauth2.api-audience}")
+    @Value("${bookland.resource-server.audience}")
     private String apiAudience;
 
     private TestAccessTokens tokens;

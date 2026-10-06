@@ -8,12 +8,13 @@ import com.tngtech.archunit.lang.ArchRule;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
- * The identity service (user + auth) is about to run in a process of its own, so nothing else may
- * reach into it: what crosses the boundary is the access token, read through bookland-web-support.
+ * The identity service (user + auth) runs in a process of its own, so nothing here may reach into
+ * it: what crosses the boundary is the access token, read through bookland-web-support.
  *
- * <p>The two modules may depend on each other — they leave together. Everything else, the assembly
- * module included, must not touch either. A violation here is a class that would stop compiling the
- * day the identity service is extracted, caught while it is still cheap to fix.
+ * <p>Since the extraction neither module is on this application's classpath, so the compiler already
+ * refuses a direct use. The rule stays for the day someone adds the dependency back to make a quick
+ * call compile: it fails the build with the reason, instead of letting the monolith quietly grow a
+ * second copy of the identity service.
  */
 @AnalyzeClasses(packages = "com.devrenno.bookland", importOptions = ImportOption.DoNotIncludeTests.class)
 class IdentityBoundaryRulesTest {

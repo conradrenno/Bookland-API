@@ -47,7 +47,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * by the module, which is a different decision with a different code.
  *
  * <p>Written before the rules were moved out of {@code SecurityConfig} into each module, so that the
- * move could be checked against an unchanged matrix.
+ * move could be checked against an unchanged matrix. The identity routes (register, users) are pinned
+ * by the identity service's own matrix.
  */
 @BooklandIntegrationTest
 class AccessMatrixIntegrationTest {
@@ -55,12 +56,6 @@ class AccessMatrixIntegrationTest {
     enum Access { PUBLIC, AUTHENTICATED, ADMIN }
 
     private static final Map<String, Access> MATRIX = Map.ofEntries(
-            // auth
-            entry("POST /api/v1/auth/register", Access.PUBLIC),
-            // user
-            entry("GET /api/v1/users/{id}", Access.AUTHENTICATED),
-            entry("PUT /api/v1/users/{id}", Access.AUTHENTICATED),
-            entry("DELETE /api/v1/users/{id}", Access.AUTHENTICATED),
             // catalog
             entry("GET /api/v1/books", Access.PUBLIC),
             entry("GET /api/v1/books/{bookId}", Access.PUBLIC),
@@ -112,10 +107,10 @@ class AccessMatrixIntegrationTest {
     @Autowired
     private JWKSource<SecurityContext> jwkSource;
 
-    @Value("${bookland.oauth2.issuer}")
+    @Value("${bookland.resource-server.issuer}")
     private String issuer;
 
-    @Value("${bookland.oauth2.api-audience}")
+    @Value("${bookland.resource-server.audience}")
     private String apiAudience;
 
     private TestAccessTokens tokens;

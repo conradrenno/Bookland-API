@@ -10,25 +10,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Locks the 400 half of the error contract (docs/error-contract.md): one {@code errors} map keyed
- * by field, and English messages regardless of the locale the JVM happens to run in.
- *
- * <p>{@code POST /api/v1/auth/register} is the vehicle because it is public — no token needed — and
- * its password carries three constraints at once, which is what proves a field keeps all of its
- * messages instead of only the first.
+ * Locks the 400 half of the error contract (docs/error-contract.md) on this process's routes. The
+ * shape of the {@code errors} map and the English messages are pinned in full by the identity
+ * service's twin, on the public register endpoint; the handler is the same
+ * {@code ValidationExceptionHandler} from web-support in both.
  */
 @BooklandIntegrationTest
 class ValidationErrorContractIntegrationTest {
-
-    private static final String REGISTER = "/api/v1/auth/register";
 
     @Autowired
     private MockMvc mockMvc;
@@ -36,10 +29,10 @@ class ValidationErrorContractIntegrationTest {
     @Autowired
     private JWKSource<SecurityContext> jwkSource;
 
-    @Value("${bookland.oauth2.issuer}")
+    @Value("${bookland.resource-server.issuer}")
     private String issuer;
 
-    @Value("${bookland.oauth2.api-audience}")
+    @Value("${bookland.resource-server.audience}")
     private String apiAudience;
 
     private TestAccessTokens tokens;
@@ -47,92 +40,6 @@ class ValidationErrorContractIntegrationTest {
     @BeforeEach
     void setUp() {
         tokens = new TestAccessTokens(jwkSource, issuer, apiAudience);
-    }
-
-    @Test
-    @DisplayName("every broken field lands in errors, keyed by its own name")
-    void errorsAreKeyedByField() throws Exception {
-        mockMvc.perform(post(REGISTER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name": "  ", "email": "not-an-email", "password": "short"}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.instance").value(REGISTER))
-                .andExpect(jsonPath("$.errors.name").isArray())
-                .andExpect(jsonPath("$.errors.email").isArray())
-                .andExpect(jsonPath("$.errors.password").isArray());
-    }
-
-    @Test
-    @DisplayName("a field breaking several constraints keeps every message")
-    void oneFieldCanCarrySeveralMessages() throws Exception {
-        mockMvc.perform(post(REGISTER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name": "Renno", "email": "renno@bookland.com", "password": "short"}
-                                """))
-                .andExpect(status().isBadRequest())
-                // too short AND missing a digit
-                .andExpect(jsonPath("$.errors.password", hasSize(2)));
-    }
-
-    @Test
-    @DisplayName("messages are English whatever the JVM default locale is")
-    void messagesAreEnglish() throws Exception {
-        mockMvc.perform(post(REGISTER)
-                        .header("Accept-Language", "pt-BR")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name": "  ", "email": "not-an-email", "password": "12345678"}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors.name[0]").value("must not be blank"))
-                .andExpect(jsonPath("$.errors.email[0]").value("must be a well-formed email address"));
-    }
-
-    @Test
-    @DisplayName("no message names its own field — the map key already does")
-    void messagesAreNotFieldPrefixed() throws Exception {
-        mockMvc.perform(post(REGISTER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name": "Renno", "email": "renno@bookland.com", "password": "nodigits"}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors.password", everyItem(matchesPattern("^(must|size|is) .*"))));
-    }
-
-    @Test
-    @DisplayName("detail stays populated, for use as a form-level banner")
-    void detailSummarisesTheFailure() throws Exception {
-        mockMvc.perform(post(REGISTER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name": "  ", "email": "not-an-email", "password": "short"}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").isNotEmpty());
-    }
-
-    /**
-     * The column is varchar(255) and the field had no upper bound, so an over-long name reached the
-     * database and came back as a 500 — which, while /error was authenticated, reached the client
-     * as 401 TOKEN_MISSING. It is a rejected field, and has to be answered as one.
-     */
-    @Test
-    @DisplayName("a value longer than its column is a 400 naming the field, not a 500")
-    void overlongValueIsRejectedBeforeTheDatabase() throws Exception {
-        mockMvc.perform(post(REGISTER)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name": "%s", "email": "long@bookland.com", "password": "senha1234"}
-                                """.formatted("N".repeat(300))))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.errors.name").isArray());
     }
 
     /**
@@ -163,9 +70,10 @@ class ValidationErrorContractIntegrationTest {
     @Test
     @DisplayName("unparseable body: 400 MALFORMED_REQUEST, no parser internals leaked")
     void malformedJson() throws Exception {
-        mockMvc.perform(post(REGISTER)
+        mockMvc.perform(post("/api/v1/books")
+                        .header("Authorization", "Bearer " + tokens.forRole("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\": "))
+                        .content("{\"title\": "))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
                 .andExpect(jsonPath("$.detail").value("The request body is missing or is not valid JSON"));

@@ -22,18 +22,18 @@ class ProblemDetailErrorControllerTest {
     @Test
     @DisplayName("a 500 says INTERNAL_ERROR and names the request that failed, not /error")
     void serverErrorNamesTheOriginalRequest() {
-        ProblemDetail problem = handle(500, "/api/v1/auth/register");
+        ProblemDetail problem = handle(500, "/api/v1/cart/checkout");
 
         assertThat(problem.getStatus()).isEqualTo(500);
         assertThat(problem.getProperties()).containsEntry("code", "INTERNAL_ERROR");
-        assertThat(problem.getInstance()).hasToString("/api/v1/auth/register");
+        assertThat(problem.getInstance()).hasToString("/api/v1/cart/checkout");
     }
 
     /** A stack trace, a SQL statement or a column name must never reach the client. */
     @Test
     @DisplayName("a 500 detail says nothing about the cause")
     void serverErrorLeaksNothing() {
-        ProblemDetail problem = handle(500, "/api/v1/auth/register");
+        ProblemDetail problem = handle(500, "/api/v1/cart/checkout");
 
         assertThat(problem.getDetail()).isEqualTo("The server failed to process the request");
     }

@@ -38,8 +38,8 @@ class OpenApiErrorContractIntegrationTest {
     void operationsDocumentTheirErrors() throws Exception {
         mockMvc.perform(get("/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/v1/auth/register'].post.responses.default").exists())
-                .andExpect(jsonPath("$.paths['/api/v1/auth/register'].post.responses.400"
+                .andExpect(jsonPath("$.paths['/api/v1/books'].post.responses.default").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/books'].post.responses.400"
                         + ".content['application/problem+json'].schema.$ref")
                         .value("#/components/schemas/ValidationProblemDetail"));
     }
@@ -52,12 +52,10 @@ class OpenApiErrorContractIntegrationTest {
      */
     @ParameterizedTest(name = "{1} {0} is documented as {2}")
     @CsvSource({
-            "/api/v1/auth/register,                        post,   201",
             "/api/v1/books,                                post,   201",
             "/api/v1/books/{bookId},                       delete, 204",
             "/api/v1/books/{bookId}/reviews,               post,   201",
-            "/api/v1/books/{bookId}/reviews/{reviewId},    delete, 204",
-            "/api/v1/users/{id},                           delete, 204"
+            "/api/v1/books/{bookId}/reviews/{reviewId},    delete, 204"
     })
     @DisplayName("handlers answering a non-200 status say so in the document")
     void successCodesMatchTheHandlers(String path, String method, String expected) throws Exception {
@@ -110,9 +108,10 @@ class OpenApiErrorContractIntegrationTest {
      * problem rather than a documentation one.
      */
     /**
-     * The flow URLs are on 127.0.0.1 because the UI is: its redirect URI must be the loopback IP, and
-     * it exchanges the code with a fetch to the token URL — on localhost that fetch is cross-origin
-     * and the browser blocks it.
+     * The flow URLs name the identity service, which is where the tokens this API accepts are
+     * issued — a different origin from this UI, so the identity service answers the token fetch with
+     * CORS (its TokenEndpointCorsIntegrationTest). 127.0.0.1 because the redirect URI must be the
+     * loopback IP.
      */
     @Test
     @DisplayName("both security schemes are declared, so the UI can authorize either way")
@@ -124,10 +123,10 @@ class OpenApiErrorContractIntegrationTest {
                 .andExpect(jsonPath("$.components.securitySchemes.oauth2.type").value("oauth2"))
                 .andExpect(jsonPath(
                         "$.components.securitySchemes.oauth2.flows.authorizationCode.authorizationUrl")
-                        .value("http://127.0.0.1:8080/oauth2/authorize"))
+                        .value("http://127.0.0.1:9000/oauth2/authorize"))
                 .andExpect(jsonPath(
                         "$.components.securitySchemes.oauth2.flows.authorizationCode.tokenUrl")
-                        .value("http://127.0.0.1:8080/oauth2/token"));
+                        .value("http://127.0.0.1:9000/oauth2/token"));
     }
 
     /**

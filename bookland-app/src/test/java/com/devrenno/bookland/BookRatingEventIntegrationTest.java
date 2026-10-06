@@ -44,10 +44,10 @@ class BookRatingEventIntegrationTest {
     @Autowired
     private JWKSource<SecurityContext> jwkSource;
 
-    @Value("${bookland.oauth2.issuer}")
+    @Value("${bookland.resource-server.issuer}")
     private String issuer;
 
-    @Value("${bookland.oauth2.api-audience}")
+    @Value("${bookland.resource-server.audience}")
     private String apiAudience;
 
     private final ObjectMapper json = new ObjectMapper();
@@ -68,7 +68,8 @@ class BookRatingEventIntegrationTest {
                   and not exists (select 1 from reviews r where r.book_id = b.id)
                 limit 1
                 """, UUID.class);
-        UUID customerId = register();
+        // The reviewer exists only in the token: this process keeps no users.
+        UUID customerId = UUID.randomUUID();
         deliverOrderOf(customerId, bookId);
 
         String created = mockMvc.perform(post("/api/v1/books/" + bookId + "/reviews")
@@ -98,17 +99,6 @@ class BookRatingEventIntegrationTest {
 
     private double ratingOf(UUID bookId) {
         return jdbcTemplate.queryForObject("select avg_rating from books where id = ?", Double.class, bookId);
-    }
-
-    private UUID register() throws Exception {
-        String body = mockMvc.perform(post("/api/v1/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name": "Rating Reader", "email": "rating-%s@bookland.com", "password": "senha1234"}
-                                """.formatted(UUID.randomUUID())))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        return UUID.fromString(json.readTree(body).get("id").asText());
     }
 
     /** The purchase check wants a DELIVERED order with the book; driving the order lifecycle to get one is not what this test is about. */
