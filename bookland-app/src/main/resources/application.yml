@@ -87,6 +87,13 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+server:
+  servlet:
+    session:
+      # Devtools turns this on: the login session survives a restart, but the in-memory database
+      # does not, so the restored session points at a user id that no longer exists.
+      persistent: false
+
 bookland:
   oauth2:
     # 127.0.0.1, not localhost: the redirect URIs below must be the loopback IP (RFC 8252), so the
