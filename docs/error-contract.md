@@ -153,7 +153,7 @@ routes.
 | orders | `CART_ITEM_UNAVAILABLE` | 409 |
 | orders | `ORDER_CANCELLATION_NOT_ALLOWED` | 409 — also while the checkout is still running (`PENDING`, `AWAITING_PAYMENT`) |
 | orders | `INVALID_ORDER_STATUS_TRANSITION` | 409 |
-| orders | `PAYMENT_DECLINED` | 402 |
+| orders | `CHECKOUT_IN_PROGRESS` | 409 — a checkout for this customer has not finished yet |
 | payments | `PAYMENT_NOT_FOUND` | 404 |
 | payments | `PAYMENT_ACCESS_DENIED` | 403 |
 | payments | `REFUND_NOT_ALLOWED` | 409 |
@@ -233,3 +233,21 @@ ones.
 Should the modules ever be split into separate services, this contract — not the code — is what has
 to be preserved. A gateway or an OAuth2 resource server terminating the token in front of the
 services must emit the same statuses, codes and bodies.
+
+## Checkout outcomes are order statuses, not errors
+
+Since the checkout became an asynchronous saga, `POST /api/v1/cart/checkout` answers **202** with the
+order `PENDING` as soon as it starts. Whether it succeeded is not known at that moment, so it cannot be
+an error response: the outcome is the order's `status`, read with `GET /api/v1/orders/{id}`.
+
+| Outcome | `status` | `statusReason` |
+|---|---|---|
+| Stock reserved and payment approved | `CONFIRMED` | — |
+| The stock ran out while the checkout ran | `REJECTED` | the books that were unavailable |
+| The payment was declined (the reserved stock is given back) | `PAYMENT_FAILED` | the decline reason |
+
+What still fails synchronously, before anything starts: an empty or missing cart (`CART_NOT_FOUND`),
+stock that is visibly short already (`CART_ITEM_UNAVAILABLE`, 409) and a checkout already in progress
+(`CHECKOUT_IN_PROGRESS`, 409). **`PAYMENT_DECLINED` (402) is retired**: a decline is now
+`PAYMENT_FAILED` on the order.
+

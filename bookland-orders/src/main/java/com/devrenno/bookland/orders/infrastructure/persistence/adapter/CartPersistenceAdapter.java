@@ -58,6 +58,18 @@ public class CartPersistenceAdapter implements CartPersistencePort {
         cartRepository.deleteByCustomerId(customerId);
     }
 
+    @Override
+    @Transactional
+    public boolean claimForCheckout(UUID customerId, UUID orderId) {
+        return cartRepository.claimForCheckout(customerId, orderId) == 1;
+    }
+
+    @Override
+    @Transactional
+    public void releaseCheckoutClaim(UUID customerId) {
+        cartRepository.releaseCheckoutClaim(customerId);
+    }
+
     private Cart toDomain(CartJpaEntity entity) {
         List<CartItem> items = entity.getItems().stream()
                 .map(i -> CartItem.of(i.getBookId(), i.getQuantity(), i.getUnitPriceAtAddition()))

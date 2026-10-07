@@ -31,6 +31,9 @@ public class OrderJpaEntity {
     @Column(name = "status_reason", length = 500)
     private String statusReason;
 
+    @Column(name = "payment_method", length = 20)
+    private String paymentMethod;
+
     @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount;
 

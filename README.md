@@ -285,7 +285,7 @@ An admin-facing audit ledger for manual stock adjustments. Records every delta w
 ### Orders
 Manages the full purchase lifecycle:
 - **Cart** — one per customer, with real-time stock validation and price snapshotting
-- **Checkout** — the steps of a saga, still synchronous and in one transaction: **reserve the stock** (all lines or none, in the catalog), **then charge**; a declined charge **releases the reservation** (the compensation) and keeps the cart. Reserving before charging is what keeps a customer from being charged for copies that are gone
+- **Checkout** — an **orchestrated saga** over Kafka. `POST /cart/checkout` answers **202 Accepted** with the order `PENDING`; orders then asks the catalog to **reserve the stock** (all lines or none), **then** asks payments to **charge**, and on a decline asks the catalog to **release the reservation** (the compensation). Each module talks only through its own outbox and inbox; the client follows `GET /orders/{id}` until the order is `CONFIRMED`, `REJECTED` or `PAYMENT_FAILED`. The cart stays until the order is confirmed, and a second checkout while one runs answers `409 CHECKOUT_IN_PROGRESS`
 - **Order lifecycle** — `PENDING → AWAITING_PAYMENT → CONFIRMED → SHIPPED → DELIVERED`, or `REJECTED` (no stock) / `PAYMENT_FAILED` (declined, with `statusReason`) / `CANCELLED`
 - **Cancellation** — only from `CONFIRMED` (refused while the checkout is still running); releases the order's stock reservation and refunds the payment
 
@@ -400,7 +400,7 @@ There is no login, refresh or logout endpoint under `/api/v1/auth`. Those are pr
 | `POST` | `/cart/items` | Authenticated | Add item to cart |
 | `PATCH` | `/cart/items/{bookId}` | Authenticated | Update item quantity |
 | `DELETE` | `/cart/items/{bookId}` | Authenticated | Remove item |
-| `POST` | `/cart/checkout` | Authenticated | Checkout (requires `paymentMethod`) |
+| `POST` | `/cart/checkout` | Authenticated | Start the checkout (requires `paymentMethod`). **202** with the order `PENDING` and a `Location`; poll the order for the outcome |
 
 ### Orders — `/api/v1/orders`, `/api/v1/admin/orders`
 
@@ -510,7 +510,7 @@ Every error response in the API is `application/problem+json` ([RFC 7807](https:
 
 Messages never name their own field (the key already does) and are always English, whatever the server's locale or the request's `Accept-Language`.
 
-**Business rules are not validation errors** — they carry `detail`, no `errors` map, and a code owned by the module that owns the rule (`ISBN_ALREADY_EXISTS`, `INSUFFICIENT_STOCK`, `PAYMENT_DECLINED`, …). **A 5xx never echoes the exception message**: `detail` is always `"The server failed to process the request"`, because the exception's own text carries stack traces, SQL and column names. The cause goes to the log, never to the client.
+**Business rules are not validation errors** — they carry `detail`, no `errors` map, and a code owned by the module that owns the rule (`ISBN_ALREADY_EXISTS`, `INSUFFICIENT_STOCK`, `CHECKOUT_IN_PROGRESS`, …). **A 5xx never echoes the exception message**: `detail` is always `"The server failed to process the request"`, because the exception's own text carries stack traces, SQL and column names. The cause goes to the log, never to the client.
 
 The contract is published in `GET /api-docs` — a `ProblemDetail` schema, a `ValidationProblemDetail` schema, a `default` error response on every operation and an explicit `400` wherever a request takes input — so a client generates its error type rather than hand-writing it.
 

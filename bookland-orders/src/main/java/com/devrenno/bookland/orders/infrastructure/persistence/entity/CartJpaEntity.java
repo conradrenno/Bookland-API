@@ -33,4 +33,12 @@ public class CartJpaEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /**
+     * The order whose checkout holds this cart, null when none does. Written only by the conditional
+     * updates in {@link com.devrenno.bookland.orders.infrastructure.persistence.repository.CartJpaRepository};
+     * {@code save} loads the existing row and leaves this field as it found it.
+     */
+    @Column(name = "checkout_order_id")
+    private UUID checkoutOrderId;
 }

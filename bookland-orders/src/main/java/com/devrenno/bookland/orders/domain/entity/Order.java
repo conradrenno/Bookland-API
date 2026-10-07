@@ -38,38 +38,44 @@ public class Order {
     private OrderStatus status;
     /** Why the checkout did not complete (REJECTED, PAYMENT_FAILED); null otherwise. */
     private String statusReason;
+    /**
+     * How the customer chose to pay. Kept on the order because the charge is requested only when the
+     * stock reservation answers, in a later transaction. Null on orders older than the saga.
+     */
+    private final PaymentMethod paymentMethod;
     private final BigDecimal totalAmount;
     private final List<StatusTransition> statusHistory;
     private final Instant createdAt;
     private Instant updatedAt;
 
     private Order(UUID id, UUID customerId, List<OrderItem> items, OrderStatus status, String statusReason,
-                  BigDecimal totalAmount, List<StatusTransition> statusHistory,
+                  PaymentMethod paymentMethod, BigDecimal totalAmount, List<StatusTransition> statusHistory,
                   Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.customerId = customerId;
         this.items = items;
         this.status = status;
         this.statusReason = statusReason;
+        this.paymentMethod = paymentMethod;
         this.totalAmount = totalAmount;
         this.statusHistory = statusHistory;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
 
-    public static Order fromCart(UUID customerId, List<OrderItem> items) {
+    public static Order fromCart(UUID customerId, List<OrderItem> items, PaymentMethod paymentMethod) {
         BigDecimal total = items.stream()
                 .map(OrderItem::subtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         Instant now = Instant.now();
         return new Order(UUID.randomUUID(), customerId, new ArrayList<>(items),
-                OrderStatus.PENDING, null, total, new ArrayList<>(), now, now);
+                OrderStatus.PENDING, null, paymentMethod, total, new ArrayList<>(), now, now);
     }
 
     public static Order reconstitute(UUID id, UUID customerId, List<OrderItem> items, OrderStatus status,
-                                     String statusReason, BigDecimal totalAmount,
+                                     String statusReason, PaymentMethod paymentMethod, BigDecimal totalAmount,
                                      List<StatusTransition> statusHistory, Instant createdAt, Instant updatedAt) {
-        return new Order(id, customerId, new ArrayList<>(items), status, statusReason, totalAmount,
+        return new Order(id, customerId, new ArrayList<>(items), status, statusReason, paymentMethod, totalAmount,
                 new ArrayList<>(statusHistory), createdAt, updatedAt);
     }
 

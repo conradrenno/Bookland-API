@@ -52,6 +52,7 @@ class OpenApiErrorContractIntegrationTest {
      */
     @ParameterizedTest(name = "{1} {0} is documented as {2}")
     @CsvSource({
+            "/api/v1/cart/checkout,                        post,   202",
             "/api/v1/books,                                post,   201",
             "/api/v1/books/{bookId},                       delete, 204",
             "/api/v1/books/{bookId}/reviews,               post,   201",

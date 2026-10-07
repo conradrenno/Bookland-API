@@ -128,7 +128,7 @@ class CancelOrderServiceTest {
     private Order buildOrder(UUID customerId, OrderStatus status) {
         OrderItem item = OrderItem.of(bookId, "Clean Code", "/media/covers/clean-code.jpg", 2, BigDecimal.valueOf(29.90));
         return Order.reconstitute(
-                UUID.randomUUID(), customerId, List.of(item), status, null,
+                UUID.randomUUID(), customerId, List.of(item), status, null, null,
                 BigDecimal.valueOf(59.80), List.of(),
                 Instant.now(), Instant.now()
         );

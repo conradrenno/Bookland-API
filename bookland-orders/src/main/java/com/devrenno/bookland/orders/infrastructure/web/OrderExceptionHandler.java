@@ -3,11 +3,11 @@ package com.devrenno.bookland.orders.infrastructure.web;
 import com.devrenno.bookland.orders.domain.exception.BookNotInCartException;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
 import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
+import com.devrenno.bookland.orders.domain.exception.CheckoutInProgressException;
 import com.devrenno.bookland.orders.domain.exception.InvalidOrderStatusTransitionException;
 import com.devrenno.bookland.orders.domain.exception.OrderAccessDeniedException;
 import com.devrenno.bookland.orders.domain.exception.OrderCancellationNotAllowedException;
 import com.devrenno.bookland.orders.domain.exception.OrderNotFoundException;
-import com.devrenno.bookland.orders.domain.exception.PaymentDeclinedException;
 import com.devrenno.bookland.websupport.ProblemDetails;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -52,8 +52,8 @@ public class OrderExceptionHandler {
         return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "INVALID_ORDER_STATUS_TRANSITION");
     }
 
-    @ExceptionHandler(PaymentDeclinedException.class)
-    public ProblemDetail handlePaymentDeclined(PaymentDeclinedException ex) {
-        return ProblemDetails.of(HttpStatus.PAYMENT_REQUIRED, ex.getMessage(), "PAYMENT_DECLINED");
+    @ExceptionHandler(CheckoutInProgressException.class)
+    public ProblemDetail handleCheckoutInProgress(CheckoutInProgressException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "CHECKOUT_IN_PROGRESS");
     }
 }

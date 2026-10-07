@@ -11,9 +11,12 @@ import com.devrenno.bookland.orders.infrastructure.web.dto.UpdateCartItemRequest
 import com.devrenno.bookland.websupport.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
+import java.net.URI;
 import java.util.UUID;
 
 @RestController
@@ -57,11 +60,18 @@ public class CartApiController {
         return ResponseEntity.ok(ordersController.removeCartItem(caller.id(), bookId));
     }
 
+    /**
+     * Starts the checkout and answers before it finishes: 202 with the order PENDING and its address.
+     * The client follows the order there until its status leaves PENDING/AWAITING_PAYMENT — CONFIRMED,
+     * REJECTED or PAYMENT_FAILED, the last two with a {@code statusReason}.
+     */
     @PostMapping("/checkout")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public ResponseEntity<OrderViewModel> checkout(
             @Valid @RequestBody CheckoutRequest request,
             AuthenticatedUser caller
     ) {
-        return ResponseEntity.ok(ordersController.checkout(caller.id(), request.paymentMethod()));
+        OrderViewModel order = ordersController.checkout(caller.id(), request.paymentMethod());
+        return ResponseEntity.accepted().location(URI.create("/api/v1/orders/" + order.id())).body(order);
     }
 }

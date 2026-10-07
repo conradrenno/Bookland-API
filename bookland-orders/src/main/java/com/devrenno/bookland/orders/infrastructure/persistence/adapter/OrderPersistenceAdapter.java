@@ -7,6 +7,7 @@ import com.devrenno.bookland.orders.application.port.out.PurchaseVerificationPor
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
+import com.devrenno.bookland.orders.domain.entity.PaymentMethod;
 import com.devrenno.bookland.orders.domain.entity.StatusTransition;
 import com.devrenno.bookland.orders.infrastructure.persistence.entity.OrderItemJpaEntity;
 import com.devrenno.bookland.orders.infrastructure.persistence.entity.OrderJpaEntity;
@@ -89,6 +90,7 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
                 .totalAmount(order.getTotalAmount())
                 .status(order.getStatus().name())
                 .statusReason(order.getStatusReason())
+                .paymentMethod(order.getPaymentMethod() == null ? null : order.getPaymentMethod().name())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();
@@ -181,7 +183,9 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
 
         return Order.reconstitute(
                 entity.getId(), entity.getCustomerId(), items,
-                OrderStatus.valueOf(entity.getStatus()), entity.getStatusReason(), entity.getTotalAmount(),
+                OrderStatus.valueOf(entity.getStatus()), entity.getStatusReason(),
+                entity.getPaymentMethod() == null ? null : PaymentMethod.valueOf(entity.getPaymentMethod()),
+                entity.getTotalAmount(),
                 history, entity.getCreatedAt(), entity.getUpdatedAt()
         );
     }

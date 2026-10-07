@@ -3,17 +3,19 @@ package com.devrenno.bookland.orders.infrastructure.config;
 import com.devrenno.bookland.orders.adapters.controller.OrdersController;
 import com.devrenno.bookland.orders.application.port.in.AddCartItemUseCase;
 import com.devrenno.bookland.orders.application.port.in.CheckActiveOrdersUseCase;
+import com.devrenno.bookland.orders.application.port.in.CheckoutSagaUseCase;
 import com.devrenno.bookland.orders.application.port.in.VerifyPurchaseUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
+import com.devrenno.bookland.orders.application.port.out.CheckoutCommandPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
-import com.devrenno.bookland.orders.application.port.out.PaymentPort;
 import com.devrenno.bookland.orders.application.port.out.PurchaseVerificationPort;
 import com.devrenno.bookland.orders.application.port.out.RefundPort;
 import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.application.service.AddCartItemService;
 import com.devrenno.bookland.orders.application.service.CheckActiveOrdersService;
+import com.devrenno.bookland.orders.application.service.CheckoutSagaService;
 import com.devrenno.bookland.orders.application.service.VerifyPurchaseService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,10 +33,20 @@ public class OrderBeansConfig {
     public OrdersController ordersController(CartPersistencePort cartPersistencePort,
                                              OrderPersistencePort orderPersistencePort,
                                              BookInfoPort bookInfoPort, StockReservationPort stockReservationPort,
-                                             PaymentPort paymentPort, RefundPort refundPort,
+                                             CheckoutCommandPort checkoutCommandPort, RefundPort refundPort,
                                              TransactionPort transactionPort) {
         return OrdersController.create(cartPersistencePort, orderPersistencePort, bookInfoPort,
-                stockReservationPort, paymentPort, refundPort, transactionPort);
+                stockReservationPort, checkoutCommandPort, refundPort, transactionPort);
+    }
+
+    /** The orchestrator's reactions to the saga's replies, consumed by this module's own reply listener. */
+    @Bean
+    public CheckoutSagaUseCase checkoutSagaUseCase(OrderPersistencePort orderPersistencePort,
+                                                   CartPersistencePort cartPersistencePort,
+                                                   CheckoutCommandPort checkoutCommandPort,
+                                                   TransactionPort transactionPort) {
+        return CheckoutSagaService.create(orderPersistencePort, cartPersistencePort, checkoutCommandPort,
+                transactionPort);
     }
 
     @Bean
