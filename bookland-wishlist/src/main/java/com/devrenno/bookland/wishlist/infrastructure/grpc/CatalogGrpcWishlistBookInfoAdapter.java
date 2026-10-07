@@ -10,6 +10,7 @@ import com.devrenno.bookland.wishlist.infrastructure.grpc.catalog.v1.GetBooksReq
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.grpc.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -81,7 +82,10 @@ public class CatalogGrpcWishlistBookInfoAdapter implements WishlistBookInfoPort 
         } catch (CallNotPermittedException e) {
             throw new CatalogUnavailableException("The catalog is unavailable (circuit breaker open)", e);
         } catch (RuntimeException e) {
-            throw new CatalogUnavailableException("The catalog could not be reached: " + e.getMessage(), e);
+            // Only the gRPC status code reaches the response; the transport's message (addresses,
+            // "io exception"...) stays in the cause, for the log.
+            throw new CatalogUnavailableException(
+                    "The catalog could not be reached (" + Status.fromThrowable(e).getCode() + ")", e);
         }
         Map<UUID, WishlistBookInfo> found = new HashMap<>();
         for (Book book : books) {

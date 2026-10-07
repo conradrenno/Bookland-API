@@ -19,14 +19,47 @@ services:
       OAUTH2_JWK_SET_URI: http://identity:9000/oauth2/jwks
       # Pre-fills the Swagger UI's Authorize dialog; the login itself runs on the identity service.
       OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-bookland-web}
-      STORAGE_COVERS_LOCATION: /var/bookland/covers
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    volumes:
-      - bookland-covers:/var/bookland/covers
+      # Books are read from the catalog service over gRPC, inside the compose network. This
+      # process serves gRPC on 9090 too (orders' OrderActivity, asked by the catalog); neither port
+      # is published to the host.
+      CATALOG_GRPC_ADDRESS: static://catalog:9090
     # No depends_on the identity service: this process boots and serves public reads without it. It
     # does need it to validate tokens, and not just once: the decoder caches the public keys for
     # 5 minutes (Nimbus's default) and then fetches them again. With the identity service down past
     # that, every authenticated request answers 500 INTERNAL_ERROR after ~5 s — measured in step 3c.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # The catalog service: books, categories, stock and its history, cover images. HTTP for clients,
+  # gRPC (9090, not published) for the API, Kafka for the checkout saga and the ratings.
+  catalog:
+    build:
+      context: .
+      dockerfile: bookland-catalog-app/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Its own database and role (created by docker/postgres/initdb on the volume's first start).
+      DB_URL: jdbc:postgresql://postgres:5432/catalog
+      DB_USER: ${CATALOG_DB_USER:-catalog}
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD}
+      # Same token setup as the API: the issuer as the browser saw it, the keys over the network.
+      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-http://127.0.0.1:9000}
+      OAUTH2_JWK_SET_URI: http://identity:9000/oauth2/jwks
+      OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-bookland-web}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      GRPC_PORT: 9090
+      # Asked before removing a book: does it have active orders?
+      ORDERS_GRPC_ADDRESS: static://app:9090
+      STORAGE_COVERS_LOCATION: /var/bookland/covers
+    volumes:
+      - bookland-covers:/var/bookland/covers
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,8 +90,8 @@ services:
       OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-bookland-web}
       OAUTH2_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET}
       OAUTH2_CLIENT_REDIRECT_URIS: ${OAUTH2_CLIENT_REDIRECT_URIS}
-      # The API's Swagger UI exchanges the code from its own origin.
-      OAUTH2_CORS_ALLOWED_ORIGINS: ${OAUTH2_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:8080}
+      # The Swagger UIs (API, catalog) exchange the code from their own origins.
+      OAUTH2_CORS_ALLOWED_ORIGINS: ${OAUTH2_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:8080,http://127.0.0.1:8082}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:
@@ -114,11 +147,14 @@ services:
       POSTGRES_DB: bookland
       POSTGRES_USER: ${POSTGRES_USER:-bookland}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
-      # Read by docker/postgres/initdb, which creates one role per service and the identity database.
+      # Read by docker/postgres/initdb, which creates one role per service and the identity and
+      # catalog databases.
       APP_DB_USER: ${APP_DB_USER:-bookland_app}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD}
       IDENTITY_DB_USER: ${IDENTITY_DB_USER:-identity}
       IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
+      CATALOG_DB_USER: ${CATALOG_DB_USER:-catalog}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD}
     volumes:
       - bookland-pgdata:/var/lib/postgresql/data
       # Runs only when the data volume is empty — after `docker compose down -v`.
