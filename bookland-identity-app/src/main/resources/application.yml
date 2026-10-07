@@ -93,6 +93,8 @@ bookland:
     # origin now that the API and this server are separate processes.
     cors-allowed-origins:
       - http://127.0.0.1:8080
+      # The catalog service's Swagger UI (step 5b), same reason.
+      - http://127.0.0.1:8082
     jwk:
       key-id: bookland-dev-key
       # Development key pair, committed on purpose: a throwaway identity for a local H2 database. Base64 of the DER — public in X.509, private
@@ -118,6 +120,8 @@ bookland:
         - http://127.0.0.1:8080/swagger-ui/oauth2-redirect.html
         # This service's own document, which runs the same login.
         - http://127.0.0.1:9000/swagger-ui/oauth2-redirect.html
+        # The catalog service's document (step 5b), on its own port until the gateway (5c).
+        - http://127.0.0.1:8082/swagger-ui/oauth2-redirect.html
       post-logout-redirect-uris:
         - http://127.0.0.1:8080/
       # Without "openid" the server issues no id_token at all.

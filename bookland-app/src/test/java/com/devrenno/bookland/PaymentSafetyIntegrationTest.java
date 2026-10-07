@@ -63,6 +63,8 @@ class PaymentSafetyIntegrationTest {
     @Value("${bookland.resource-server.audience}")
     private String apiAudience;
 
+    @Autowired private FakeCatalog catalog;
+
     private final ObjectMapper json = new ObjectMapper();
 
     private TestAccessTokens tokens;
@@ -71,9 +73,7 @@ class PaymentSafetyIntegrationTest {
     @BeforeEach
     void setUp() {
         tokens = new TestAccessTokens(jwkSource, issuer, apiAudience);
-        bookId = jdbcTemplate.queryForObject(
-                "select id from books where active = true and price >= 34.00 order by isbn limit 1", UUID.class);
-        jdbcTemplate.update("update books set stock_quantity = 100 where id = ?", bookId);
+        bookId = catalog.addBook("40.00", 100);
     }
 
     /**
@@ -160,18 +160,16 @@ class PaymentSafetyIntegrationTest {
 
     /**
      * A message that cannot be read goes to the consuming module's dead-letter topic, kept, instead of
-     * being skipped with a log line. One per module that consumes, and the shared order-events topic
-     * has one per consumer: catalog and payments each keep their own copy.
+     * being skipped with a log line. One per module that consumes; the catalog's own dead letters
+     * (stock commands, its copy of order-events) are tested in bookland-catalog-app, where it runs.
      */
     @Test
     @DisplayName("an unreadable message lands in the dead-letter topic of every module that consumes it")
     void unreadableMessagesAreKept() {
         Map<String, List<String>> deadLettersBySource = Map.of(
                 "bookland.payments.payment-commands", List.of("bookland.payments.payment-commands.payments.DLT"),
-                "bookland.catalog.stock-commands", List.of("bookland.catalog.stock-commands.catalog.DLT"),
                 "bookland.catalog.stock-replies", List.of("bookland.catalog.stock-replies.orders.DLT"),
-                "bookland.orders.order-events", List.of("bookland.orders.order-events.catalog.DLT",
-                        "bookland.orders.order-events.payments.DLT"));
+                "bookland.orders.order-events", List.of("bookland.orders.order-events.payments.DLT"));
 
         deadLettersBySource.forEach((source, deadLetterTopics) -> {
             String key = UUID.randomUUID().toString();
@@ -249,7 +247,7 @@ class PaymentSafetyIntegrationTest {
     }
 
     private int stock() {
-        return jdbcTemplate.queryForObject("select stock_quantity from books where id = ?", Integer.class, bookId);
+        return catalog.stock(bookId);
     }
 
     private ConsumerRecord<String, String> awaitRecord(String topic, String key) {

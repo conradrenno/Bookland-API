@@ -51,6 +51,9 @@ class ReviewAuthorNameIntegrationTest {
 
     private final ObjectMapper json = new ObjectMapper();
 
+    @Autowired
+    private FakeCatalog catalog;
+
     private TestAccessTokens tokens;
 
     @BeforeEach
@@ -62,7 +65,7 @@ class ReviewAuthorNameIntegrationTest {
     @DisplayName("a review stores the name its author's token carries, with no user lookup")
     void reviewStoresTheNameFromTheToken() throws Exception {
         UUID customerId = UUID.randomUUID();
-        UUID bookId = jdbcTemplate.queryForObject("select id from books where active = true limit 1", UUID.class);
+        UUID bookId = catalog.addBook("30.00", 5);
         deliverOrderOf(customerId, bookId);
 
         mockMvc.perform(post("/api/v1/books/" + bookId + "/reviews")

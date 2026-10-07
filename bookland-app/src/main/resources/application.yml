@@ -3,10 +3,6 @@ spring:
     name: bookland
   profiles:
     active: dev
-  servlet:
-    multipart:
-      max-file-size: 5MB
-      max-request-size: 5MB
   # docker-compose injects kafka:29092; the default reaches the compose broker from the host.
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -21,11 +17,10 @@ spring:
       # A consumer group seen for the first time starts at the oldest record, not the newest:
       # events published before the group first joined are still applied.
       auto-offset-reset: earliest
-  # gRPC between modules (step 5). The server carries every BindableService in this process — the
-  # catalog's BookCatalog and orders' OrderActivity — and is reachable on the internal network only.
-  # The channels name where each one lives: today this very process, over real localhost (not an
-  # in-memory channel), so taking the catalog out is a change of address, not of code. No
-  # authentication between services yet (decision of step 5).
+  # gRPC between services (step 5). This process serves orders' OrderActivity (asked by the catalog
+  # before it removes a book) and reads books from the catalog service's BookCatalog — in dev on the
+  # same host (9091: this process holds 9090), in the compose stack at catalog:9090. Internal network
+  # only; no authentication between services yet (decision of step 5).
   # Spring gRPC's security autoconfigurations are off: no authentication between services in step 5
   # (decision), and OAuth2ResourceServerAutoConfiguration activates on Spring Security's resource-server
   # classes — on the classpath through web-support — yet declares a properties class from Boot's
@@ -41,9 +36,7 @@ spring:
     client:
       channels:
         catalog:
-          address: ${CATALOG_GRPC_ADDRESS:static://localhost:9090}
-        orders:
-          address: ${ORDERS_GRPC_ADDRESS:static://localhost:9090}
+          address: ${CATALOG_GRPC_ADDRESS:static://localhost:9091}
 
 # The tokens this API accepts are issued by the identity service (bookland-identity-app), a process
 # of its own: the public keys are fetched from its JWKS endpoint, per profile below. Read by
@@ -127,8 +120,6 @@ bookland:
     # Where this process fetches the public keys. Same host here; in the compose stack the two differ
     # (the issuer stays 127.0.0.1:9000, the keys come from identity:9000 inside the network).
     jwk-set-uri: http://127.0.0.1:9000/oauth2/jwks
-  storage:
-    covers-location: ./bookland-data/covers
 
 ---
 spring:
@@ -159,5 +150,3 @@ bookland:
     issuer: ${OAUTH2_ISSUER}
     # The identity service's JWKS, at an address reachable from this process.
     jwk-set-uri: ${OAUTH2_JWK_SET_URI}
-  storage:
-    covers-location: ${STORAGE_COVERS_LOCATION:/var/bookland/covers}

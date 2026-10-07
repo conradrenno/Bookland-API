@@ -8,6 +8,7 @@ import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
 import com.devrenno.bookland.reviews.infrastructure.web.dto.CreateReviewRequest;
 import com.devrenno.bookland.websupport.security.AuthenticatedUser;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,8 +39,8 @@ public class BookReviewApiController {
     @GetMapping
     public ResponseEntity<ReviewListViewModel> list(
             @PathVariable UUID bookId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) int size
     ) {
         return ResponseEntity.ok(reviewController.list(bookId, PageQuery.of(page, size)));
     }

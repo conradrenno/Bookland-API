@@ -148,6 +148,19 @@ class CatalogMessagingIntegrationTest {
                 "select avg_rating from books where id = ?", Double.class, bookId)).isEqualTo(4.5));
     }
 
+    /** A message the catalog cannot read is kept in the catalog's own dead-letter topic, per source. */
+    @Test
+    @DisplayName("an unreadable message lands in the catalog's dead-letter topic for its source")
+    void unreadableMessagesAreKept() {
+        for (String source : List.of(STOCK_COMMANDS, "bookland.orders.order-events",
+                "bookland.reviews.book-rating-changed")) {
+            String key = UUID.randomUUID().toString();
+            kafkaTemplate.send(source, key, "this is not json");
+            ConsumerRecord<String, String> kept = awaitRecord(source + ".catalog.DLT", key);
+            assertThat(kept.value()).isEqualTo("this is not json");
+        }
+    }
+
     // --- helpers ---
 
     private UUID newBook(int stock) throws Exception {
@@ -183,6 +196,10 @@ class CatalogMessagingIntegrationTest {
 
     /** The catalog's reply for an order, read from the broker the way orders would read it. */
     private JsonNode awaitReply(UUID orderId) {
+        return json.readTree(awaitRecord(STOCK_REPLIES, orderId.toString()).value());
+    }
+
+    private ConsumerRecord<String, String> awaitRecord(String topic, String key) {
         Map<String, Object> props = Map.of(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, broker.getBrokersAsString(),
                 ConsumerConfig.GROUP_ID_CONFIG, "reply-reader-" + UUID.randomUUID(),
@@ -190,16 +207,16 @@ class CatalogMessagingIntegrationTest {
                 ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
                 ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         try (Consumer<String, String> consumer = new KafkaConsumer<>(props)) {
-            consumer.subscribe(List.of(STOCK_REPLIES));
+            consumer.subscribe(List.of(topic));
             Instant deadline = Instant.now().plus(WAIT);
             while (Instant.now().isBefore(deadline)) {
                 for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
-                    if (orderId.toString().equals(record.key())) {
-                        return json.readTree(record.value());
+                    if (key.equals(record.key())) {
+                        return record;
                     }
                 }
             }
         }
-        return fail("No stock reply for order " + orderId);
+        return fail("No record with key " + key + " in " + topic);
     }
 }

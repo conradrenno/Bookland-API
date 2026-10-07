@@ -48,7 +48,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *
  * <p>Written before the rules were moved out of {@code SecurityConfig} into each module, so that the
  * move could be checked against an unchanged matrix. The identity routes (register, users) are pinned
- * by the identity service's own matrix.
+ * by the identity service's own matrix, and the catalog's (books, categories, inventory) by the catalog
+ * service's.
  */
 @BooklandIntegrationTest
 class AccessMatrixIntegrationTest {
@@ -56,19 +57,6 @@ class AccessMatrixIntegrationTest {
     enum Access { PUBLIC, AUTHENTICATED, ADMIN }
 
     private static final Map<String, Access> MATRIX = Map.ofEntries(
-            // catalog
-            entry("GET /api/v1/books", Access.PUBLIC),
-            entry("GET /api/v1/books/{bookId}", Access.PUBLIC),
-            entry("POST /api/v1/books", Access.ADMIN),
-            entry("PATCH /api/v1/books/{bookId}", Access.ADMIN),
-            entry("DELETE /api/v1/books/{bookId}", Access.ADMIN),
-            entry("POST /api/v1/books/{bookId}/cover", Access.ADMIN),
-            entry("GET /api/v1/categories", Access.PUBLIC),
-            entry("GET /api/v1/categories/{categoryId}/books", Access.PUBLIC),
-            // inventory
-            entry("PATCH /api/v1/books/{bookId}/inventory", Access.ADMIN),
-            entry("GET /api/v1/books/{bookId}/inventory/history", Access.ADMIN),
-            entry("GET /api/v1/inventory/low-stock", Access.ADMIN),
             // orders: cart
             entry("GET /api/v1/cart", Access.AUTHENTICATED),
             entry("POST /api/v1/cart/items", Access.AUTHENTICATED),

@@ -2,12 +2,17 @@ package com.devrenno.bookland;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -22,10 +27,29 @@ class BusinessErrorContractIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private JWKSource<SecurityContext> jwkSource;
+
+    @Value("${bookland.resource-server.issuer}")
+    private String issuer;
+
+    @Value("${bookland.resource-server.audience}")
+    private String apiAudience;
+
+    /**
+     * The catalog is another service now: a book it does not have reaches the cart as an absent
+     * answer over gRPC, and orders' own handler — not the catalog's, as when it was global in the
+     * monolith — renders it with the same code.
+     */
     @Test
-    @DisplayName("404 from the catalog carries BOOK_NOT_FOUND")
+    @DisplayName("adding a book the catalog does not have: 404 BOOK_NOT_FOUND, from orders")
     void bookNotFound() throws Exception {
-        mockMvc.perform(get("/api/v1/books/" + UUID.randomUUID()))
+        mockMvc.perform(post("/api/v1/cart/items")
+                        .header("Authorization", "Bearer " + tokens().forRole("CUSTOMER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"bookId": "%s", "quantity": 1}
+                                """.formatted(UUID.randomUUID())))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("BOOK_NOT_FOUND"))
                 .andExpect(jsonPath("$.title").value("Not Found"));
@@ -78,9 +102,14 @@ class BusinessErrorContractIntegrationTest {
     @Test
     @DisplayName("a business error is not a validation error: no errors map")
     void businessErrorsCarryNoFieldMap() throws Exception {
-        mockMvc.perform(get("/api/v1/books/" + UUID.randomUUID()))
+        mockMvc.perform(get("/api/v1/orders/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + tokens().forRole("CUSTOMER")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errors").doesNotExist())
                 .andExpect(jsonPath("$.detail").isNotEmpty());
+    }
+
+    private TestAccessTokens tokens() {
+        return new TestAccessTokens(jwkSource, issuer, apiAudience);
     }
 }

@@ -47,6 +47,9 @@ class TimestampContractIntegrationTest {
     @Value("${bookland.resource-server.audience}")
     private String apiAudience;
 
+    @Autowired
+    private FakeCatalog catalog;
+
     private TestAccessTokens tokens;
 
     @BeforeEach
@@ -59,8 +62,7 @@ class TimestampContractIntegrationTest {
     @DisplayName("the cart reports updatedAt as a zoned instant")
     void cartDateCarriesZone() throws Exception {
         String token = tokens.forRole("CUSTOMER");
-        UUID bookId = jdbcTemplate.queryForObject(
-                "select id from books where active = true and stock_quantity > 0 limit 1", UUID.class);
+        UUID bookId = catalog.addBook("30.00", 5);
         mockMvc.perform(post("/api/v1/cart/items").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

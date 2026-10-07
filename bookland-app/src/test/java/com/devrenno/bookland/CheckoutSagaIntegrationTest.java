@@ -28,16 +28,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The checkout saga end to end — and the cancellation that undoes it — with orders, catalog and
- * payments talking only through Kafka, each through its own outbox and inbox, against the real
- * database and the embedded broker.
+ * The checkout saga end to end — and the cancellation that undoes it — with orders and payments
+ * talking only through Kafka, each through its own outbox and inbox, against the real database and
+ * the embedded broker. The catalog is a service of its own since step 5b: here {@link FakeCatalog}
+ * plays its part of the saga (and its own side is tested in bookland-catalog-app).
  *
  * <p>The checkout answers 202 with the order PENDING; everything after that is asynchronous, so the
  * assertions wait for the saga to settle (Awaitility, never a sleep). Each hop passes through an
  * outbox relay that polls every second, so a full saga takes a few seconds.
  *
- * <p>The decline is the simulated gateway's limit (1000.00 by default): 30 copies of a seeded book
- * priced above 34.00 cross it.
+ * <p>The decline is the simulated gateway's limit (1000.00 by default): 30 copies of the test's
+ * book, priced 40.00, cross it.
  */
 @BooklandIntegrationTest
 class CheckoutSagaIntegrationTest {
@@ -62,6 +63,9 @@ class CheckoutSagaIntegrationTest {
     @Value("${bookland.resource-server.audience}")
     private String apiAudience;
 
+    @Autowired
+    private FakeCatalog catalog;
+
     private final ObjectMapper json = new ObjectMapper();
 
     private TestAccessTokens tokens;
@@ -70,9 +74,7 @@ class CheckoutSagaIntegrationTest {
     @BeforeEach
     void setUp() {
         tokens = new TestAccessTokens(jwkSource, issuer, apiAudience);
-        bookId = jdbcTemplate.queryForObject(
-                "select id from books where active = true and price >= 34.00 order by isbn limit 1", UUID.class);
-        setStock(100);
+        bookId = catalog.addBook("40.00", 100);
     }
 
     @Test
@@ -154,33 +156,6 @@ class CheckoutSagaIntegrationTest {
                 .andExpect(jsonPath("$.code").value("CHECKOUT_IN_PROGRESS"));
 
         awaitStatus(orderId, "CONFIRMED");
-    }
-
-    /**
-     * At-least-once delivery, provoked on purpose: the same ReserveStock (same message id) twice,
-     * then a ReleaseStock on the same key. One partition keeps the three in order, so once the release
-     * is applied the duplicate has been consumed too — and the stock moved down once and back once.
-     */
-    @Test
-    @DisplayName("a duplicated stock command is applied once")
-    void duplicatedReserveIsAppliedOnce() {
-        UUID orderId = UUID.randomUUID();
-        UUID messageId = UUID.randomUUID();
-        String reserve = """
-                {"messageId":"%s","type":"ReserveStock","orderId":"%s","items":[{"bookId":"%s","quantity":3}]}
-                """.formatted(messageId, orderId, bookId);
-
-        kafkaTemplate.send("bookland.catalog.stock-commands", orderId.toString(), reserve);
-        kafkaTemplate.send("bookland.catalog.stock-commands", orderId.toString(), reserve);
-        kafkaTemplate.send("bookland.catalog.stock-commands", orderId.toString(), """
-                {"messageId":"%s","type":"ReleaseStock","orderId":"%s"}
-                """.formatted(UUID.randomUUID(), orderId));
-
-        await().atMost(SAGA).untilAsserted(() -> assertThat(reservationStatus(orderId)).isEqualTo("RELEASED"));
-        assertThat(stock()).as("down once, back once").isEqualTo(100);
-        assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from catalog_outbox where aggregate_id = ?", Integer.class, orderId))
-                .as("one reply, not two").isOne();
     }
 
     /**
@@ -267,7 +242,6 @@ class CheckoutSagaIntegrationTest {
         kafkaTemplate.send("bookland.orders.order-events", orderId.toString(), cancelled.formatted(last, orderId));
 
         await().atMost(SAGA).untilAsserted(() -> {
-            assertThat(inboxHas("catalog_inbox", last)).isTrue();
             assertThat(inboxHas("payments_inbox", last)).isTrue();
         });
         awaitCancellationSettled(orderId);
@@ -325,17 +299,15 @@ class CheckoutSagaIntegrationTest {
     }
 
     private String reservationStatus(UUID orderId) {
-        List<String> found = jdbcTemplate.queryForList(
-                "select status from stock_reservations where order_id = ?", String.class, orderId);
-        return found.isEmpty() ? null : found.get(0);
+        return catalog.reservationStatus(orderId);
     }
 
     private void setStock(int quantity) {
-        jdbcTemplate.update("update books set stock_quantity = ? where id = ?", quantity, bookId);
+        catalog.setStock(bookId, quantity);
     }
 
     private int stock() {
-        return jdbcTemplate.queryForObject("select stock_quantity from books where id = ?", Integer.class, bookId);
+        return catalog.stock(bookId);
     }
 
     private int cartCount(UUID customerId) {

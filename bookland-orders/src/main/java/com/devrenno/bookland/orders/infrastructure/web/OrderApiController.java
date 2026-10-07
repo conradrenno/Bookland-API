@@ -6,6 +6,7 @@ import com.devrenno.bookland.orders.adapters.viewmodel.OrderViewModel;
 import com.devrenno.bookland.orders.application.common.PageQuery;
 import com.devrenno.bookland.orders.application.common.PageResult;
 import com.devrenno.bookland.websupport.security.AuthenticatedUser;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,8 +22,8 @@ public class OrderApiController {
 
     @GetMapping
     public ResponseEntity<PageResult<OrderSummaryViewModel>> getHistory(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) int size,
             AuthenticatedUser caller
     ) {
         return ResponseEntity.ok(ordersController.getOrderHistory(caller.id(), PageQuery.of(page, size)));

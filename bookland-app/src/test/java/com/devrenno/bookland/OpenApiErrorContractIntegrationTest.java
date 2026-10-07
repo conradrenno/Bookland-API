@@ -38,8 +38,8 @@ class OpenApiErrorContractIntegrationTest {
     void operationsDocumentTheirErrors() throws Exception {
         mockMvc.perform(get("/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/v1/books'].post.responses.default").exists())
-                .andExpect(jsonPath("$.paths['/api/v1/books'].post.responses.400"
+                .andExpect(jsonPath("$.paths['/api/v1/cart/items'].post.responses.default").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/cart/items'].post.responses.400"
                         + ".content['application/problem+json'].schema.$ref")
                         .value("#/components/schemas/ValidationProblemDetail"));
     }
@@ -53,8 +53,6 @@ class OpenApiErrorContractIntegrationTest {
     @ParameterizedTest(name = "{1} {0} is documented as {2}")
     @CsvSource({
             "/api/v1/cart/checkout,                        post,   202",
-            "/api/v1/books,                                post,   201",
-            "/api/v1/books/{bookId},                       delete, 204",
             "/api/v1/books/{bookId}/reviews,               post,   201",
             "/api/v1/books/{bookId}/reviews/{reviewId},    delete, 204"
     })

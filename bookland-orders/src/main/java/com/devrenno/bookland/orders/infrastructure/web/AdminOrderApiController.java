@@ -11,6 +11,7 @@ import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 import com.devrenno.bookland.orders.infrastructure.web.dto.UpdateOrderStatusRequest;
 import com.devrenno.bookland.websupport.security.AuthenticatedUser;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,8 +28,8 @@ public class AdminOrderApiController {
     @GetMapping
     public ResponseEntity<PageResult<AdminOrderSummaryViewModel>> list(
             @RequestParam(required = false) OrderStatus status,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) int size
     ) {
         return ResponseEntity.ok(ordersController.listAllOrders(status, PageQuery.of(page, size)));
     }
@@ -41,8 +42,8 @@ public class AdminOrderApiController {
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<PageResult<OrderSummaryViewModel>> getCustomerHistory(
             @PathVariable UUID customerId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) int size
     ) {
         return ResponseEntity.ok(ordersController.getOrderHistory(customerId, PageQuery.of(page, size)));
     }

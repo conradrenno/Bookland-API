@@ -21,11 +21,9 @@
         </dependency>
 
         <!-- Domain modules. user and auth are not here: they run as the identity service
-             (bookland-identity-app), and this process only validates the tokens it issues. -->
-        <dependency>
-            <groupId>com.devrenno</groupId>
-            <artifactId>bookland-catalog</artifactId>
-        </dependency>
+             (bookland-identity-app), and this process only validates the tokens it issues. Nor are
+             catalog and inventory: they run as the catalog service (bookland-catalog-app), read
+             here over gRPC and spoken to over Kafka. -->
         <dependency>
             <groupId>com.devrenno</groupId>
             <artifactId>bookland-orders</artifactId>
@@ -33,10 +31,6 @@
         <dependency>
             <groupId>com.devrenno</groupId>
             <artifactId>bookland-reviews</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.devrenno</groupId>
-            <artifactId>bookland-inventory</artifactId>
         </dependency>
         <dependency>
             <groupId>com.devrenno</groupId>

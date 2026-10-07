@@ -28,6 +28,10 @@ import java.lang.annotation.Target;
  * still talk through their gRPC clients and servers, and a test run cannot collide with a running
  * application on 9090.
  *
+ * <p>The catalog runs as a service of its own (bookland-catalog-app); here {@link FakeCatalog} answers
+ * its two contracts — books over gRPC, stock over Kafka — so the monolith's flows run end to end
+ * against something that honours them. The real catalog's side is tested in its own application.
+ *
  * <p>One annotation instead of four on each class is also what keeps the test-context cache to a
  * single context — and a single broker — for the whole suite: classes whose configuration differs
  * (one with MockMvc, one without) each boot their own.
@@ -39,6 +43,6 @@ import java.lang.annotation.Target;
 @ActiveProfiles("dev")
 @EmbeddedKafka(bootstrapServersProperty = "spring.kafka.bootstrap-servers")
 @TestPropertySource(properties = {"bookland.resource-server.jwk-set-uri=", "spring.grpc.test.inprocess.enabled=true"})
-@Import(TestSigningKey.class)
+@Import({TestSigningKey.class, FakeCatalog.class})
 public @interface BooklandIntegrationTest {
 }

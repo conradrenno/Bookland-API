@@ -42,38 +42,13 @@ class ValidationErrorContractIntegrationTest {
         tokens = new TestAccessTokens(jwkSource, issuer, apiAudience);
     }
 
-    /**
-     * The catalog carries the most varchar(255) columns, and coverImageUrl was the worst of them:
-     * it declared @Size(max = 2048) against a varchar(255) column, so every URL between the two
-     * bounds was accepted by validation purely to fail at the database.
-     */
-    @Test
-    @DisplayName("catalog fields are bounded by their columns, so a long value is a 400 not a 500")
-    void bookFieldsAreBoundedByTheirColumns() throws Exception {
-        String adminToken = tokens.forRole("ADMIN");
-
-        mockMvc.perform(post("/api/v1/books")
-                        .header("Authorization", "Bearer " + adminToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"title": "%s", "isbn": "9781234567897", "authors": ["A"],
-                                 "price": 10.00, "stockQuantity": 1,
-                                 "categoryId": "00000000-0000-0000-0000-000000000000",
-                                 "coverImageUrl": "https://example.com/%s.jpg"}
-                                """.formatted("T".repeat(300), "u".repeat(300))))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.errors.title").isArray())
-                .andExpect(jsonPath("$.errors.coverImageUrl").isArray());
-    }
-
     @Test
     @DisplayName("unparseable body: 400 MALFORMED_REQUEST, no parser internals leaked")
     void malformedJson() throws Exception {
-        mockMvc.perform(post("/api/v1/books")
-                        .header("Authorization", "Bearer " + tokens.forRole("ADMIN"))
+        mockMvc.perform(post("/api/v1/cart/items")
+                        .header("Authorization", "Bearer " + tokens.forRole("CUSTOMER"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\": "))
+                        .content("{\"bookId\": "))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
                 .andExpect(jsonPath("$.detail").value("The request body is missing or is not valid JSON"));
@@ -83,9 +58,29 @@ class ValidationErrorContractIntegrationTest {
     @DisplayName("unconvertible path variable: 400 INVALID_PARAMETER, keyed by parameter name")
     void malformedPathVariable() throws Exception {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/api/v1/books/not-a-uuid"))
+                        .get("/api/v1/books/not-a-uuid/reviews"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.errors").isNotEmpty());
+    }
+
+    /**
+     * Paging parameters are validated at the door. Until step 5b a negative page reached PageQuery,
+     * threw IllegalArgumentException, and the catalog's handler — global in the monolith — answered
+     * 400; with the catalog gone the same request was a 500. Now the constraint on the parameter
+     * answers, with the field named.
+     */
+    @org.junit.jupiter.params.ParameterizedTest(name = "{0}")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "/api/v1/books/00000000-0000-0000-0000-000000000000/reviews?page=-1",
+            "/api/v1/books/00000000-0000-0000-0000-000000000000/reviews?size=0",
+            "/api/v1/orders?page=-1"})
+    @DisplayName("an out-of-range paging parameter: 400 VALIDATION_ERROR, not a 500")
+    void pagingParametersAreValidated(String uri) throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(uri)
+                        .header("Authorization", "Bearer " + tokens.forRole("CUSTOMER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors").isNotEmpty());
     }
 }
