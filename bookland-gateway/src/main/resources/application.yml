@@ -1,6 +1,15 @@
 spring:
   application:
     name: bookland-gateway
+  # How long the gateway waits on a service. Spring Boot's own HTTP client settings, which the gateway
+  # uses (it reads spring.http.clients.* — seen in its GatewayHttpClientEnvironmentPostProcessor). They
+  # have NO default: measured in step 5d, a stopped or frozen service held a request for as long as the
+  # caller would wait (90 s, 60 s) and the gateway logged nothing. The read limit sits above the API's
+  # own deadlines (2 s per gRPC call), so a slow but working service is not cut short.
+  http:
+    clients:
+      connect-timeout: ${GATEWAY_CONNECT_TIMEOUT:2s}
+      read-timeout: ${GATEWAY_READ_TIMEOUT:10s}
   cloud:
     gateway:
       server:

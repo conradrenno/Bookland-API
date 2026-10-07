@@ -165,6 +165,8 @@ routes.
 | reviews | `PURCHASE_REQUIRED` | 403 |
 | wishlist | `WISHLIST_ITEM_NOT_FOUND` | 404 |
 | wishlist | `WISHLIST_ITEM_ALREADY_EXISTS` | 409 |
+| gateway | `UPSTREAM_TIMEOUT` | 504 — the service behind the gateway did not answer in time (connect 2 s, response 10 s) |
+| gateway | `UPSTREAM_UNAVAILABLE` | 502 — the gateway could not talk to the service at all (connection refused or closed) |
 | any | `INVALID_ARGUMENT` | 400 |
 
 ⚠️ **Not every 403 is a role problem.** `ORDER_ACCESS_DENIED` (someone else's order),
