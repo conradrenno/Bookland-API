@@ -12,6 +12,7 @@ COPY bookland-app/pom.xml bookland-app/
 # reactor refuses to start with one missing.
 COPY bookland-identity-app/pom.xml bookland-identity-app/
 COPY bookland-catalog-app/pom.xml bookland-catalog-app/
+COPY bookland-gateway/pom.xml bookland-gateway/
 COPY bookland-web-support/pom.xml bookland-web-support/
 COPY bookland-user/pom.xml bookland-user/
 COPY bookland-auth/pom.xml bookland-auth/
@@ -38,5 +39,5 @@ RUN ./mvnw clean package -pl bookland-app -am -DskipTests -B
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build /workspace/bookland-app/target/*.jar app.jar
-EXPOSE 8080
+EXPOSE 8083
 ENTRYPOINT ["java", "-jar", "app.jar"]

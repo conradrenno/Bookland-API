@@ -38,6 +38,12 @@ spring:
         catalog:
           address: ${CATALOG_GRPC_ADDRESS:static://localhost:9091}
 
+server:
+  # 8080 is the gateway (bookland-gateway), the address clients use; it routes /api/v1/** here, except
+  # what the catalog service owns. This port serves the API directly — and its Swagger UI, which the
+  # gateway does not route.
+  port: ${SERVER_PORT:8083}
+
 # The tokens this API accepts are issued by the identity service (bookland-identity-app), a process
 # of its own: the public keys are fetched from its JWKS endpoint, per profile below. Read by
 # ResourceServerConfig (bookland-web-support).

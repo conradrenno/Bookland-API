@@ -89,10 +89,10 @@ bookland:
     # is sent to.
     issuer: http://127.0.0.1:9000
     api-audience: bookland-api
-    # The API's Swagger UI exchanges the code with a fetch from http://127.0.0.1:8080 — another
-    # origin now that the API and this server are separate processes.
+    # The API's Swagger UI exchanges the code with a fetch from http://127.0.0.1:8083 (the API's own
+    # port since the gateway took 8080 in step 5c) — another origin than this server's.
     cors-allowed-origins:
-      - http://127.0.0.1:8080
+      - http://127.0.0.1:8083
       # The catalog service's Swagger UI (step 5b), same reason.
       - http://127.0.0.1:8082
     jwk:
@@ -117,7 +117,7 @@ bookland:
         # page was loaded on, so the API document must be opened at 127.0.0.1 and not localhost —
         # the server rejects the literal hostname, and the redirect page talks to its opener
         # window, which would be cross-origin between the two names.
-        - http://127.0.0.1:8080/swagger-ui/oauth2-redirect.html
+        - http://127.0.0.1:8083/swagger-ui/oauth2-redirect.html
         # This service's own document, which runs the same login.
         - http://127.0.0.1:9000/swagger-ui/oauth2-redirect.html
         # The catalog service's document (step 5b), on its own port until the gateway (5c).

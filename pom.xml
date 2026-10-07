@@ -21,6 +21,7 @@
         <module>bookland-app</module>
         <module>bookland-identity-app</module>
         <module>bookland-catalog-app</module>
+        <module>bookland-gateway</module>
         <module>bookland-web-support</module>
         <module>bookland-user</module>
         <module>bookland-auth</module>

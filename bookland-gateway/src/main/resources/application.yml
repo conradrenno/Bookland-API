@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: bookland-gateway
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          # Which service owns which path. Listed most specific first: a book's reviews share the
+          # /api/v1/books prefix with the catalog but live in the monolith, so their route must win
+          # over the catalog's /api/v1/books/** — GatewayRoutingTest pins that it does.
+          routes:
+            - id: reviews
+              uri: ${APP_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/books/*/reviews,/api/v1/books/*/reviews/**
+            - id: catalog
+              uri: ${CATALOG_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/books,/api/v1/books/**,/api/v1/categories,/api/v1/categories/**,/api/v1/inventory/**,/media/**
+            - id: api
+              uri: ${APP_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/**
+
+server:
+  # The address clients have always used for the API. The monolith moved to 8083 to make room; the
+  # catalog is on 8082, the identity service on 9000 (not routed here: the token issuer must keep the
+  # address the browser logs in on).
+  port: ${SERVER_PORT:8080}

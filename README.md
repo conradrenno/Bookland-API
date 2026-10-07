@@ -57,7 +57,8 @@ The project is a **multi-module Maven** project. Each domain is an independent m
 bookland/                       ← Parent POM (dependency management)
 │
 │   ── assembly modules: one per deployable service, no business logic ──
-├── bookland-app/               ← The API (port 8080): assembles orders, payments, reviews
+├── bookland-gateway/           ← The entry point (port 8080): routes each path to its service
+├── bookland-app/               ← The API (port 8083): assembles orders, payments, reviews
 │                                 and wishlist; hosts application.yml
 ├── bookland-identity-app/      ← The identity service (port 9000): assembles user + auth
 │                                 into a process of its own, with its own database
@@ -576,7 +577,7 @@ docker compose up -d kafka redpanda-console
 ./mvnw spring-boot:run -pl bookland-app            # the API
 ```
 
-The API starts on `http://localhost:8080`, the identity service on `http://127.0.0.1:9000`, the catalog service on `http://127.0.0.1:8082`. Each has its own in-memory database. Until the gateway, books, categories, inventory and cover images are served by the catalog service — the API reads them over gRPC — while a book's reviews stay on the API.
+Clients call the gateway on `http://localhost:8080` (start it too: `./mvnw spring-boot:run -pl bookland-gateway`), which routes books, categories, inventory and cover images to the catalog service (`http://127.0.0.1:8082`) and everything else — a book's reviews included — to the API (`http://localhost:8083`). The identity service is on `http://127.0.0.1:9000`. Each service has its own in-memory database.
 
 **Dev credentials (seeded automatically):**
 
@@ -589,13 +590,13 @@ The API starts on `http://localhost:8080`, the identity service on `http://127.0
 
 | Tool | URL |
 |---|---|
-| Swagger UI (API) | http://127.0.0.1:8080/swagger-ui.html |
+| Swagger UI (API) | http://127.0.0.1:8083/swagger-ui.html |
 | Swagger UI (identity: register, users) | http://127.0.0.1:9000/swagger-ui.html |
 | Swagger UI (catalog: books, categories, inventory) | http://127.0.0.1:8082/swagger-ui.html |
-| H2 Console | http://localhost:8080/h2-console (`jdbc:h2:mem:booklanddb`), http://localhost:9000/h2-console (`jdbc:h2:mem:identitydb`) and http://localhost:8082/h2-console (`jdbc:h2:mem:catalogdb`) |
-| OpenAPI JSON | http://localhost:8080/api-docs, http://localhost:9000/api-docs and http://localhost:8082/api-docs |
+| H2 Console | http://localhost:8083/h2-console (`jdbc:h2:mem:booklanddb`), http://localhost:9000/h2-console (`jdbc:h2:mem:identitydb`) and http://localhost:8082/h2-console (`jdbc:h2:mem:catalogdb`) |
+| OpenAPI JSON | http://localhost:8083/api-docs, http://localhost:9000/api-docs and http://localhost:8082/api-docs |
 
-> To use Swagger's **Authorize** button, open it at `127.0.0.1`, not `localhost`: the Authorization Server rejects `localhost` redirect URIs (RFC 8252). The login runs on the identity service (`127.0.0.1:9000`); the API's UI then exchanges the code with a `fetch` to `127.0.0.1:9000/oauth2/token`, a cross-origin call the identity service allows for `http://127.0.0.1:8080` only. The dialog asks for the client id and secret (`bookland-web` / `bookland-web-secret` in dev), then sends you through the login page.
+> To use Swagger's **Authorize** button, open it at `127.0.0.1`, not `localhost`: the Authorization Server rejects `localhost` redirect URIs (RFC 8252). The login runs on the identity service (`127.0.0.1:9000`); the API's UI then exchanges the code with a `fetch` to `127.0.0.1:9000/oauth2/token`, a cross-origin call the identity service allows for the API's and the catalog's Swagger origins (`http://127.0.0.1:8083`, `http://127.0.0.1:8082`) only. Swagger is served by each service on its own port, not through the gateway. The dialog asks for the client id and secret (`bookland-web` / `bookland-web-secret` in dev), then sends you through the login page.
 
 ---
 
@@ -611,7 +612,7 @@ cp .env.example .env   # edit with your values
 docker compose up --build
 ```
 
-The API starts on `http://localhost:8080`, the identity service on `http://127.0.0.1:9000` and the catalog service on `http://127.0.0.1:8082`, sharing one PostgreSQL 16 instance but not a database: `docker/postgres/initdb` gives each service a role of its own that owns its database and cannot connect to the others' (`bookland` / `identity` / `catalog`), **only when the data volume is empty** — after adding a service, recreate it with `docker compose down -v`. The API and the catalog talk gRPC on 9090 inside the compose network; that port is not published. Each service's Flyway creates its own schema on first boot.
+Clients call the gateway on `http://localhost:8080`; behind it the API runs on `8083` and the catalog service on `8082`, the identity service on `http://127.0.0.1:9000`, sharing one PostgreSQL 16 instance but not a database: `docker/postgres/initdb` gives each service a role of its own that owns its database and cannot connect to the others' (`bookland` / `identity` / `catalog`), **only when the data volume is empty** — after adding a service, recreate it with `docker compose down -v`. The API and the catalog talk gRPC on 9090 inside the compose network; that port is not published. Each service's Flyway creates its own schema on first boot.
 
 Two volumes persist across restarts: `bookland-pgdata` (database) and `bookland-covers` (uploaded cover images).
 
@@ -635,12 +636,12 @@ Copy `.env.example` to `.env` and fill in the values before running with Docker.
 | `IDENTITY_DB_USER` / `IDENTITY_DB_PASSWORD` | Prod | The identity service's role: owns the `identity` database, cannot connect to `bookland` |
 | `CATALOG_DB_USER` / `CATALOG_DB_PASSWORD` | Prod | The catalog service's role: owns the `catalog` database, cannot connect to the others |
 | `OAUTH2_ISSUER` | Prod | The URL clients actually reach the identity service on (`http://127.0.0.1:9000`). Published in its discovery document and written into the `iss` claim; the API checks the same value, and a mismatch is only noticed at validation time |
-| `OAUTH2_CORS_ALLOWED_ORIGINS` | Optional | Browser origins allowed to call the token endpoint (compose default: the API's and the catalog's Swagger UIs, `http://127.0.0.1:8080,http://127.0.0.1:8082`) |
+| `OAUTH2_CORS_ALLOWED_ORIGINS` | Optional | Browser origins allowed to call the token endpoint (compose default: the API's and the catalog's Swagger UIs, `http://127.0.0.1:8083,http://127.0.0.1:8082`) |
 | `OAUTH2_JWK_PRIVATE_KEY` | Prod | RSA private key, base64 of the PKCS#8 DER, single-line. **The secret of the whole system** — whoever holds it mints admin tokens |
 | `OAUTH2_JWK_PUBLIC_KEY` | Prod | RSA public key, base64 of the X.509 DER. Published at `/oauth2/jwks`; publishing it is the point |
 | `OAUTH2_CLIENT_ID` | Prod | Client id of the one registered client |
 | `OAUTH2_CLIENT_SECRET` | Prod | Its secret, in plain text — `ClientBootstrap` BCrypts it before it reaches the table |
-| `OAUTH2_CLIENT_REDIRECT_URIS` | Prod | Comma-separated — one per Swagger UI (8080, 9000 and 8082). Must be loopback IPs rather than `localhost`, which the server rejects (RFC 8252) |
+| `OAUTH2_CLIENT_REDIRECT_URIS` | Prod | Comma-separated — one per Swagger UI (8083, 9000 and 8082). Must be loopback IPs rather than `localhost`, which the server rejects (RFC 8252) |
 | `OAUTH2_ACCESS_TOKEN_TTL_MINUTES` | Optional | Access token TTL (default: 15). Raising it widens the window after sign-out — see [Security Model](#security-model) |
 | `OAUTH2_REFRESH_TOKEN_TTL_DAYS` | Optional | Refresh token TTL (default: 7) |
 | `ADMIN_EMAIL` | Prod | Bootstrap admin email |

@@ -1,10 +1,25 @@
 services:
+  # The single entry point clients call (8080): routes /api/v1/** and /media/** to the service that
+  # owns each path. It validates nothing — every service is still a resource server.
+  gateway:
+    build:
+      context: .
+      dockerfile: bookland-gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      APP_URL: http://app:8083
+      CATALOG_URL: http://catalog:8082
+    restart: unless-stopped
+
+  # The API: orders, payments, reviews, wishlist. Published on 8083 for its Swagger UI; clients go
+  # through the gateway.
   app:
     build:
       context: .
       dockerfile: bookland-app/Dockerfile
     ports:
-      - "8080:8080"
+      - "8083:8083"
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://postgres:5432/bookland
@@ -90,8 +105,8 @@ services:
       OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID:-bookland-web}
       OAUTH2_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET}
       OAUTH2_CLIENT_REDIRECT_URIS: ${OAUTH2_CLIENT_REDIRECT_URIS}
-      # The Swagger UIs (API, catalog) exchange the code from their own origins.
-      OAUTH2_CORS_ALLOWED_ORIGINS: ${OAUTH2_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:8080,http://127.0.0.1:8082}
+      # The Swagger UIs (API on 8083, catalog on 8082) exchange the code from their own origins.
+      OAUTH2_CORS_ALLOWED_ORIGINS: ${OAUTH2_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:8083,http://127.0.0.1:8082}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:
@@ -128,7 +143,7 @@ services:
       timeout: 10s
       retries: 10
 
-  # Web UI for topics, messages and consumer-group offsets. Published on 8081: 8080 is the API.
+  # Web UI for topics, messages and consumer-group offsets. Published on 8081: 8080 is the gateway.
   redpanda-console:
     image: redpandadata/console:v3.12.0
     ports:

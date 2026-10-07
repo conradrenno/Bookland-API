@@ -11,13 +11,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build skipping tests
 ./mvnw clean install -DskipTests
 
-# Run the application (dev profile with H2) — start the broker first, then the three processes:
-# the identity service (port 9000) issues the tokens the API (port 8080) and the catalog service
-# (port 8082, gRPC 9091) validate; the API reads books from the catalog over gRPC
+# Run the application (dev profile with H2) — start the broker first, then the four processes:
+# the gateway (port 8080) is where clients call; it routes to the API (8083) and the catalog service
+# (8082, gRPC 9091); the identity service (9000) issues the tokens both validate
 docker compose up -d kafka redpanda-console
 ./mvnw spring-boot:run -pl bookland-identity-app
 ./mvnw spring-boot:run -pl bookland-catalog-app
 ./mvnw spring-boot:run -pl bookland-app
+./mvnw spring-boot:run -pl bookland-gateway
 
 # Run all tests
 ./mvnw test
@@ -28,7 +29,7 @@ docker compose up -d kafka redpanda-console
 # Run a single test class
 ./mvnw test -pl bookland-user -Dtest=UserDomainServiceTest
 
-# Run with Docker (prod profile, PostgreSQL + Flyway): API on 8080, identity service on 9000
+# Run with Docker (prod profile, PostgreSQL + Flyway): gateway on 8080 (API 8083, catalog 8082), identity on 9000
 docker compose up --build
 
 # Start from an empty database (wipes the pgdata and covers volumes)
@@ -38,11 +39,12 @@ docker compose down -v && docker compose up --build
 Each application has its own Dockerfile (`bookland-app/Dockerfile`, `bookland-identity-app/Dockerfile`, `bookland-catalog-app/Dockerfile`). Each copies **every** module's `pom.xml` — the parent lists them all and the reactor refuses to start with one missing — but only the `src` of the modules that image builds, to keep the dependency-download layer cacheable. **Those lists duplicate `pom.xml` and nothing enforces them** — a new module must be added to both pom lists, or both image builds fail. The compose Postgres runs `docker/postgres/initdb` (shell scripts there must stay LF — `.gitattributes` pins `*.sh`) only on an empty volume: it gives each service **a role of its own** (`APP_DB_USER`, `IDENTITY_DB_USER`) that owns its database and has no `CONNECT` on the other's. **No service connects as `POSTGRES_USER`** — the image makes it a superuser, which reads every database. `.dockerignore` keeps `target/`, `.git`, `bookland-data/` and `.env` out of the build context.
 
 **Dev endpoints:**
-- API: `http://localhost:8080`
+- **Gateway — the address clients use**: `http://localhost:8080`. Spring Cloud Gateway (Server WebMVC, `bookland-gateway`), routes only: `/api/v1/books/*/reviews[/**]` → API; `/api/v1/books[/**]`, `/api/v1/categories[/**]`, `/api/v1/inventory/**`, `/media/**` → catalog; the rest of `/api/v1/**` → API. **The routes are tried in list order** and the reviews route must stay above the catalog's (measured: swapped, the review requests went to the catalog) — `GatewayRoutingTest` pins every path against two stub servers. No token validation (every service is a resource server), no Swagger, no `/error`; the identity service is not routed (the issuer keeps its address)
+- API (the monolith, directly): `http://localhost:8083` — its Swagger UI lives here, not behind the gateway
 - Identity service (login, tokens, register, users): `http://127.0.0.1:9000` — the dev issuer
-- Catalog service (books, categories, inventory, covers): `http://127.0.0.1:8082`, Swagger at `http://127.0.0.1:8082/swagger-ui.html` (its redirect URI and origin are registered in the identity service's dev config); gRPC `BookCatalog` on 9091. Until the gateway (step 5c) a client calls it directly for `/api/v1/books`, `/api/v1/categories`, `/api/v1/inventory` and `/media` — but `/api/v1/books/{id}/reviews` is still the API's, on 8080
-- Swagger UI: `http://127.0.0.1:8080/swagger-ui.html` (API) and `http://127.0.0.1:9000/swagger-ui.html` (identity) — **127.0.0.1, not localhost**, for the Authorize button: the redirect URIs must be the loopback IP (RFC 8252). The API's UI exchanges the code with a `fetch` to `127.0.0.1:9000/oauth2/token`, another origin, which the identity service allows through CORS (`bookland.oauth2.cors-allowed-origins`, token endpoint only)
-- H2 Console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:booklanddb`), `http://localhost:9000/h2-console` (`jdbc:h2:mem:identitydb`) and `http://localhost:8082/h2-console` (`jdbc:h2:mem:catalogdb`)
+- Catalog service (books, categories, inventory, covers): `http://127.0.0.1:8082`, Swagger at `http://127.0.0.1:8082/swagger-ui.html` (its redirect URI and origin are registered in the identity service's dev config); gRPC `BookCatalog` on 9091. Clients reach it through the gateway; 8082 directly serves its Swagger UI
+- Swagger UI: `http://127.0.0.1:8083/swagger-ui.html` (API), `http://127.0.0.1:8082/swagger-ui.html` (catalog) and `http://127.0.0.1:9000/swagger-ui.html` (identity) — **127.0.0.1, not localhost**, for the Authorize button: the redirect URIs must be the loopback IP (RFC 8252). The API's UI exchanges the code with a `fetch` to `127.0.0.1:9000/oauth2/token`, another origin, which the identity service allows through CORS (`bookland.oauth2.cors-allowed-origins`, token endpoint only)
+- H2 Console: `http://localhost:8083/h2-console` (JDBC URL: `jdbc:h2:mem:booklanddb`), `http://localhost:9000/h2-console` (`jdbc:h2:mem:identitydb`) and `http://localhost:8082/h2-console` (`jdbc:h2:mem:catalogdb`)
 - Redpanda Console (topics, messages, consumer offsets): `http://localhost:8081` — a UI only; the broker is Apache Kafka (KRaft, single node), reachable at `localhost:9092` from the host and `kafka:29092` inside the compose network
 
 ## Git Conventions
@@ -78,7 +80,8 @@ All commits must follow **[Conventional Commits](https://www.conventionalcommits
 
 ```
 bookland/               ← Parent POM (dependency management)
-├── bookland-app/       ← ASSEMBLY: the monolith (API, port 8080) — orders, payments, reviews, wishlist
+├── bookland-gateway/   ← the single entry point (port 8080): routes only, no domain module
+├── bookland-app/       ← ASSEMBLY: the monolith (API, port 8083) — orders, payments, reviews, wishlist
 ├── bookland-identity-app/ ← ASSEMBLY: the identity service (port 9000) — user + auth, its own database; issues the tokens
 ├── bookland-catalog-app/  ← ASSEMBLY: the catalog service (port 8082, gRPC 9091) — catalog + inventory, its own database
 ├── bookland-web-support/ ← LIBRARY (platform): HTTP error-contract glue + Bearer-token validation (see below)

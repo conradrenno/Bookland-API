@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The API's Swagger UI, served from http://127.0.0.1:8080, exchanges the authorization code with a
+ * The API's Swagger UI, served from http://127.0.0.1:8083 (its own port; the gateway has 8080), exchanges the authorization code with a
  * {@code fetch} to this server's token endpoint. Across origins the browser first sends a preflight
  * {@code OPTIONS} and only proceeds if the answer names the page's origin; without it the login
  * fails after the password, as "Failed to fetch", with nothing in the server log.
@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @IdentityIntegrationTest
 class TokenEndpointCorsIntegrationTest {
 
-    private static final String API_ORIGIN = "http://127.0.0.1:8080";
+    private static final String API_ORIGIN = "http://127.0.0.1:8083";
 
     @Autowired
     private MockMvc mockMvc;
