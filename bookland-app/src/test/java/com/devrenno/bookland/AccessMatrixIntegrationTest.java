@@ -86,6 +86,9 @@ class AccessMatrixIntegrationTest {
             entry("PATCH /api/v1/admin/orders/{orderId}/status", Access.ADMIN),
             // payments
             entry("GET /api/v1/payments/order/{orderId}", Access.AUTHENTICATED),
+            // dev profile only (the suite runs in dev): the simulated gateway's switch
+            entry("GET /api/v1/admin/dev/payment-gateway", Access.ADMIN),
+            entry("PUT /api/v1/admin/dev/payment-gateway/outage", Access.ADMIN),
             // reviews
             entry("GET /api/v1/books/{bookId}/reviews", Access.PUBLIC),
             entry("POST /api/v1/books/{bookId}/reviews", Access.AUTHENTICATED),

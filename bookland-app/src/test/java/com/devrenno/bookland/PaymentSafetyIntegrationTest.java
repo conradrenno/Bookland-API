@@ -33,6 +33,8 @@ import static org.assertj.core.api.Assertions.fail;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -96,6 +98,32 @@ class PaymentSafetyIntegrationTest {
         await().atMost(WAIT).untilAsserted(() -> assertThat(orderStatus(orderId)).isEqualTo("CONFIRMED"));
         assertThat(paymentColumn(orderId, "status")).isEqualTo("APPROVED");
         assertThat(paymentColumn(orderId, "attempts")).isEqualTo("3");
+    }
+
+    /**
+     * The same outage through the dev-only switch a person uses with the application running. The
+     * whole gateway goes down, so the switch is always put back, even if the test fails.
+     */
+    @Test
+    @DisplayName("the dev switch takes the whole gateway down and back: PENDING while down, CONFIRMED after")
+    void devSwitchTakesTheGatewayDownAndBack() throws Exception {
+        String admin = tokens.forCaller(UUID.randomUUID(), "ADMIN");
+        String token = tokens.forCaller(UUID.randomUUID(), "CUSTOMER");
+        try {
+            switchGateway(admin, true);
+            UUID orderId = checkout(token);
+
+            await().atMost(WAIT).untilAsserted(() -> {
+                assertThat(paymentColumn(orderId, "status")).isEqualTo("PENDING");
+                assertThat(paymentColumn(orderId, "last_error")).contains("Simulated gateway down");
+            });
+            assertThat(orderStatus(orderId)).isEqualTo("AWAITING_PAYMENT");
+
+            switchGateway(admin, false);
+            await().atMost(WAIT).untilAsserted(() -> assertThat(orderStatus(orderId)).isEqualTo("CONFIRMED"));
+        } finally {
+            switchGateway(admin, false);
+        }
     }
 
     @Test
@@ -194,6 +222,15 @@ class PaymentSafetyIntegrationTest {
                 .andExpect(status().isAccepted())
                 .andReturn().getResponse().getContentAsString();
         return UUID.fromString(json.readTree(body).get("id").asText());
+    }
+
+    private void switchGateway(String adminToken, boolean down) throws Exception {
+        mockMvc.perform(put("/api/v1/admin/dev/payment-gateway/outage")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"down\": " + down + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.down").value(down));
     }
 
     private void cancel(String token, UUID orderId) throws Exception {

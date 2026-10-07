@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -29,7 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </ul>
  *
  * <p>The failures are keyed by customer (charges) and by order (refunds), so a test arranges them
- * before the money moves, for its own data only. Everything lives in memory: a restart forgets the
+ * before the money moves, for its own data only. {@link #setDown(boolean)} instead takes the whole
+ * gateway down, for a person watching the running application (the dev-only
+ * {@code SimulatedGatewayController}). Everything lives in memory: a restart forgets the
  * keys, which a real provider keeps for a day or so.
  */
 @Component
@@ -47,6 +50,7 @@ public class SimulatedPaymentGatewayAdapter implements PaymentGatewayPort {
     private final Map<UUID, AtomicInteger> chargeOutages = new ConcurrentHashMap<>();
     private final Map<UUID, AtomicInteger> refundOutages = new ConcurrentHashMap<>();
     private final Set<UUID> refusedRefunds = ConcurrentHashMap.newKeySet();
+    private final AtomicBoolean down = new AtomicBoolean();
 
     public SimulatedPaymentGatewayAdapter(
             @Value("${bookland.payments.simulated.decline-above:1000.00}") BigDecimal declineAbove) {
@@ -55,6 +59,7 @@ public class SimulatedPaymentGatewayAdapter implements PaymentGatewayPort {
 
     @Override
     public PaymentResult charge(String idempotencyKey, ProcessPaymentCommand command) {
+        failIfDown("charge");
         failIfOut(chargeOutages, command.customerId(), "charge");
         return chargesByKey.computeIfAbsent(idempotencyKey, key -> {
             chargesMade.incrementAndGet();
@@ -67,6 +72,7 @@ public class SimulatedPaymentGatewayAdapter implements PaymentGatewayPort {
 
     @Override
     public void refund(String idempotencyKey, UUID orderId, String transactionId) {
+        failIfDown("refund");
         if (refusedRefunds.contains(orderId)) {
             throw new RefundRejectedException("Simulated refusal: refund window closed for " + transactionId);
         }
@@ -91,6 +97,15 @@ public class SimulatedPaymentGatewayAdapter implements PaymentGatewayPort {
         refusedRefunds.add(orderId);
     }
 
+    /** While down, every call gets no answer, for every customer and order. */
+    public void setDown(boolean down) {
+        this.down.set(down);
+    }
+
+    public boolean isDown() {
+        return down.get();
+    }
+
     /** Charges actually made — a repeated key does not count. */
     public int chargesMade() {
         return chargesMade.get();
@@ -99,6 +114,12 @@ public class SimulatedPaymentGatewayAdapter implements PaymentGatewayPort {
     /** Refunds actually made — a repeated key does not count. */
     public int refundsMade() {
         return refundsMade.get();
+    }
+
+    private void failIfDown(String operation) {
+        if (down.get()) {
+            throw new PaymentGatewayUnavailableException("Simulated gateway down: no answer to the " + operation);
+        }
     }
 
     private static void failIfOut(Map<UUID, AtomicInteger> outages, UUID id, String operation) {
