@@ -185,23 +185,30 @@ class CheckoutSagaIntegrationTest {
 
     /**
      * A second charge command with a different message id gets past the inbox; the payment's own
-     * idempotency by order id is what keeps the gateway from charging twice.
+     * idempotency by order id is what keeps a second charge from being recorded. The saga hears once,
+     * when the gateway worker settles the one payment.
      */
     @Test
-    @DisplayName("two charge commands for one order: one payment")
+    @DisplayName("two charge commands for one order: one payment, one reply")
     void secondChargeForTheSameOrderChargesNothing() {
         UUID orderId = UUID.randomUUID();
-        for (int i = 0; i < 2; i++) {
+        UUID last = UUID.randomUUID();
+        for (UUID messageId : List.of(UUID.randomUUID(), last)) {
             kafkaTemplate.send("bookland.payments.payment-commands", orderId.toString(), """
                     {"messageId":"%s","type":"ChargePayment","orderId":"%s","customerId":"%s",
                      "amount":10.00,"method":"PIX"}
-                    """.formatted(UUID.randomUUID(), orderId, UUID.randomUUID()));
+                    """.formatted(messageId, orderId, UUID.randomUUID()));
         }
 
-        await().atMost(SAGA).untilAsserted(() -> assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from payments_outbox where aggregate_id = ?", Integer.class, orderId)).isEqualTo(2));
+        await().atMost(SAGA).untilAsserted(() -> {
+            assertThat(inboxHas("payments_inbox", last)).isTrue();
+            assertThat(jdbcTemplate.queryForObject(
+                    "select status from payments where order_id = ?", String.class, orderId)).isEqualTo("APPROVED");
+        });
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from payments where order_id = ?", Integer.class, orderId)).isOne();
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from payments_outbox where aggregate_id = ?", Integer.class, orderId)).isOne();
     }
 
     /**

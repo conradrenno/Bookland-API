@@ -41,6 +41,15 @@ public class PaymentJpaEntity {
     @Column(name = "decline_reason")
     private String declineReason;
 
+    @Column(nullable = false)
+    private int attempts;
+
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
+
+    @Column(name = "last_error", length = 500)
+    private String lastError;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

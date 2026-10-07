@@ -251,3 +251,8 @@ stock that is visibly short already (`CART_ITEM_UNAVAILABLE`, 409) and a checkou
 (`CHECKOUT_IN_PROGRESS`, 409). **`PAYMENT_DECLINED` (402) is retired**: a decline is now
 `PAYMENT_FAILED` on the order.
 
+A payment gateway that does not answer is **not** a decline: the order stays `AWAITING_PAYMENT` while
+payments retries, for as long as the outage lasts, and then moves on as usual. A client polling the
+order should keep polling, and read a long `AWAITING_PAYMENT` as "the payment is delayed", never as a
+failure.
+
