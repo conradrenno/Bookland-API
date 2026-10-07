@@ -20,14 +20,17 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The checkout saga end to end: orders, catalog and payments talking only through Kafka, each
- * through its own outbox and inbox, against the real database and the embedded broker.
+ * The checkout saga end to end — and the cancellation that undoes it — with orders, catalog and
+ * payments talking only through Kafka, each through its own outbox and inbox, against the real
+ * database and the embedded broker.
  *
  * <p>The checkout answers 202 with the order PENDING; everything after that is asynchronous, so the
  * assertions wait for the saga to settle (Awaitility, never a sleep). Each hop passes through an
@@ -199,6 +202,90 @@ class CheckoutSagaIntegrationTest {
                 "select count(*) from payments_outbox where aggregate_id = ?", Integer.class, orderId)).isEqualTo(2));
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from payments where order_id = ?", Integer.class, orderId)).isOne();
+    }
+
+    /**
+     * The choreographed cancellation: the order is CANCELLED in the response itself, while the stock
+     * and the money come back a moment later, each by its own consumer of OrderCancelled.
+     */
+    @Test
+    @DisplayName("customer cancels a confirmed order: CANCELLED at once, then stock back and payment refunded")
+    void customerCancellationGivesStockAndMoneyBack() throws Exception {
+        String token = tokens.forCaller(UUID.randomUUID(), "CUSTOMER");
+        UUID orderId = confirmedOrder(token, 2);
+
+        mockMvc.perform(delete("/api/v1/orders/{id}", orderId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        awaitCancellationSettled(orderId);
+    }
+
+    /** The admin path owes the same debt — the one that once left the customer charged. */
+    @Test
+    @DisplayName("admin cancels a confirmed order: stock back and payment refunded")
+    void adminCancellationGivesStockAndMoneyBack() throws Exception {
+        UUID orderId = confirmedOrder(tokens.forCaller(UUID.randomUUID(), "CUSTOMER"), 2);
+
+        mockMvc.perform(patch("/api/v1/admin/orders/{id}/status", orderId)
+                        .header("Authorization", "Bearer " + tokens.forCaller(UUID.randomUUID(), "ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"newStatus": "CANCELLED"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        awaitCancellationSettled(orderId);
+    }
+
+    /**
+     * At-least-once again, now on an event: the same OrderCancelled redelivered, then a third with a
+     * new message id that gets past both inboxes. The release only gives back a reservation still
+     * RESERVED and the refund leaves a REFUNDED payment alone, so nothing moves twice. One key, one
+     * partition: once the last one is in both inboxes, the duplicate has been consumed too.
+     */
+    @Test
+    @DisplayName("a duplicated OrderCancelled gives the stock and the money back once")
+    void duplicatedCancellationIsAppliedOnce() throws Exception {
+        UUID orderId = confirmedOrder(tokens.forCaller(UUID.randomUUID(), "CUSTOMER"), 2);
+        String cancelled = """
+                {"messageId":"%s","type":"OrderCancelled","orderId":"%s"}
+                """;
+        String event = cancelled.formatted(UUID.randomUUID(), orderId);
+        UUID last = UUID.randomUUID();
+
+        kafkaTemplate.send("bookland.orders.order-events", orderId.toString(), event);
+        kafkaTemplate.send("bookland.orders.order-events", orderId.toString(), event);
+        kafkaTemplate.send("bookland.orders.order-events", orderId.toString(), cancelled.formatted(last, orderId));
+
+        await().atMost(SAGA).untilAsserted(() -> {
+            assertThat(inboxHas("catalog_inbox", last)).isTrue();
+            assertThat(inboxHas("payments_inbox", last)).isTrue();
+        });
+        awaitCancellationSettled(orderId);
+    }
+
+    private UUID confirmedOrder(String token, int quantity) throws Exception {
+        addToCart(token, quantity);
+        UUID orderId = orderIdOf(checkout(token).andExpect(status().isAccepted()));
+        awaitStatus(orderId, "CONFIRMED");
+        assertThat(stock()).isEqualTo(100 - quantity);
+        return orderId;
+    }
+
+    private void awaitCancellationSettled(UUID orderId) {
+        await().atMost(SAGA).untilAsserted(() -> {
+            assertThat(reservationStatus(orderId)).isEqualTo("RELEASED");
+            assertThat(jdbcTemplate.queryForObject(
+                    "select status from payments where order_id = ?", String.class, orderId)).isEqualTo("REFUNDED");
+        });
+        assertThat(stock()).isEqualTo(100);
+    }
+
+    private boolean inboxHas(String inbox, UUID messageId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from " + inbox + " where message_id = ?", Integer.class, messageId) == 1;
     }
 
     private void addToCart(String token, int quantity) throws Exception {

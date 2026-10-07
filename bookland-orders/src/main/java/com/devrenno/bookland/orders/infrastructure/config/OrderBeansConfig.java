@@ -8,10 +8,9 @@ import com.devrenno.bookland.orders.application.port.in.VerifyPurchaseUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.CheckoutCommandPort;
+import com.devrenno.bookland.orders.application.port.out.OrderEventPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.PurchaseVerificationPort;
-import com.devrenno.bookland.orders.application.port.out.RefundPort;
-import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.application.service.AddCartItemService;
 import com.devrenno.bookland.orders.application.service.CheckActiveOrdersService;
@@ -32,11 +31,11 @@ public class OrderBeansConfig {
     @Bean
     public OrdersController ordersController(CartPersistencePort cartPersistencePort,
                                              OrderPersistencePort orderPersistencePort,
-                                             BookInfoPort bookInfoPort, StockReservationPort stockReservationPort,
-                                             CheckoutCommandPort checkoutCommandPort, RefundPort refundPort,
+                                             BookInfoPort bookInfoPort, CheckoutCommandPort checkoutCommandPort,
+                                             OrderEventPort orderEventPort,
                                              TransactionPort transactionPort) {
         return OrdersController.create(cartPersistencePort, orderPersistencePort, bookInfoPort,
-                stockReservationPort, checkoutCommandPort, refundPort, transactionPort);
+                checkoutCommandPort, orderEventPort, transactionPort);
     }
 
     /** The orchestrator's reactions to the saga's replies, consumed by this module's own reply listener. */

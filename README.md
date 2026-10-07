@@ -180,10 +180,13 @@ bookland-auth
 
 bookland-orders
     ├── BookInfoPort            → GetBookByIdUseCase                 (catalog)
-    ├── BookStockPort           → DecrementBookStockUseCase
-    │                             + IncrementBookStockUseCase        (catalog)
-    ├── PaymentPort             → ProcessPaymentUseCase              (payments)
-    └── RefundPort              → RefundPaymentUseCase               (payments)
+    ├── CheckoutCommandPort     → orders_outbox → relay → Kafka
+    │                             bookland.catalog.stock-commands    (catalog's StockCommandListener)
+    │                             bookland.payments.payment-commands (payments' PaymentCommandListener)
+    │                             replies come back on *-replies     (orders' SagaReplyListener)
+    └── OrderEventPort          → orders_outbox → relay → Kafka
+                                  bookland.orders.order-events       (OrderCancelled → catalog releases
+                                                                       the stock, payments refunds)
 
 bookland-inventory
     ├── BookStockAdjustmentPort → AdjustBookStockUseCase             (catalog)
@@ -287,7 +290,7 @@ Manages the full purchase lifecycle:
 - **Cart** — one per customer, with real-time stock validation and price snapshotting
 - **Checkout** — an **orchestrated saga** over Kafka. `POST /cart/checkout` answers **202 Accepted** with the order `PENDING`; orders then asks the catalog to **reserve the stock** (all lines or none), **then** asks payments to **charge**, and on a decline asks the catalog to **release the reservation** (the compensation). Each module talks only through its own outbox and inbox; the client follows `GET /orders/{id}` until the order is `CONFIRMED`, `REJECTED` or `PAYMENT_FAILED`. The cart stays until the order is confirmed, and a second checkout while one runs answers `409 CHECKOUT_IN_PROGRESS`
 - **Order lifecycle** — `PENDING → AWAITING_PAYMENT → CONFIRMED → SHIPPED → DELIVERED`, or `REJECTED` (no stock) / `PAYMENT_FAILED` (declined, with `statusReason`) / `CANCELLED`
-- **Cancellation** — only from `CONFIRMED` (refused while the checkout is still running); releases the order's stock reservation and refunds the payment
+- **Cancellation** — only from `CONFIRMED` (refused while the checkout is still running); the order is `CANCELLED` in the response, and the `OrderCancelled` event it publishes makes the catalog release the order's stock reservation and payments refund it, a moment later
 
 #### Stock under concurrency
 
@@ -429,7 +432,8 @@ order, not rejected, because unknown query parameters are ignored API-wide.
 There is no refund endpoint. A refund is one half of a cancellation — issuing it on its own left
 the order `CONFIRMED` and the stock never returned, which is the mirror of the admin-cancellation
 bug fixed earlier. Refunding is reached through `PATCH /admin/orders/{orderId}/status` → `CANCELLED`,
-which compensates stock and payment together via `OrderCancellation`.
+which announces `OrderCancelled` via `OrderCancellation`; the catalog and payments each give back
+their half.
 
 ### Reviews — `/api/v1/books/{bookId}/reviews`
 

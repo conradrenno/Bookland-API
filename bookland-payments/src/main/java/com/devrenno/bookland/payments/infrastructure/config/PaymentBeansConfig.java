@@ -23,15 +23,15 @@ public class PaymentBeansConfig {
         return PaymentController.create(persistence);
     }
 
-    /** Cross-module: consumed by orders (PaymentAdapter) during checkout. */
+    /** Consumed by this module's PaymentCommandListener, for the checkout saga's ChargePayment. */
     @Bean
     public ProcessPaymentUseCase processPaymentUseCase(PaymentGatewayPort gateway, PaymentPersistencePort persistence) {
         return ProcessPaymentService.create(gateway, persistence);
     }
 
     /**
-     * Cross-module: consumed by orders (RefundAdapter) as part of a cancellation, and by nothing
-     * else. Deliberately not routed: a refund on its own leaves the order CONFIRMED and the stock
+     * Consumed by this module's OrderCancelledListener, when orders announces a cancellation, and by
+     * nothing else. Deliberately not routed: a refund on its own leaves the order CONFIRMED and the stock
      * short, which is the half-operation an admin endpoint used to expose.
      */
     @Bean

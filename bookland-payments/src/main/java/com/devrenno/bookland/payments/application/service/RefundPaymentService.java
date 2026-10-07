@@ -24,11 +24,20 @@ public class RefundPaymentService implements RefundPaymentUseCase {
         return new RefundPaymentService(persistence, gateway);
     }
 
+    /**
+     * Idempotent by order: a payment already refunded is left alone, so a redelivered
+     * {@code OrderCancelled} does not reach the gateway a second time. Anything else that is not
+     * APPROVED (no payment, or a declined one) means the order was never paid, and refusing is
+     * the honest answer.
+     */
     @Override
     public void refund(UUID orderId) {
         Payment payment = persistence.findByOrderId(orderId)
                 .orElseThrow(() -> new PaymentNotFoundException(orderId));
 
+        if (payment.getStatus() == PaymentStatus.REFUNDED) {
+            return;
+        }
         if (payment.getStatus() != PaymentStatus.APPROVED) {
             throw new RefundNotAllowedException(orderId);
         }

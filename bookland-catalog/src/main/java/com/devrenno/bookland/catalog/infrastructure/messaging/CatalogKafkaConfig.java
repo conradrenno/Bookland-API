@@ -35,6 +35,13 @@ public class CatalogKafkaConfig {
     public static final String STOCK_RESERVED = "StockReserved";
     public static final String STOCK_RESERVATION_FAILED = "StockReservationFailed";
 
+    /**
+     * Owned by orders, consumed here: a cancelled order's reservation goes back to the shelf. Written
+     * out rather than imported, like any contract the catalog does not own.
+     */
+    public static final String ORDER_EVENTS_TOPIC = "bookland.orders.order-events";
+    public static final String ORDER_CANCELLED = "OrderCancelled";
+
     /** Three partitions; the key (the order id) keeps each order's messages in one, in order. */
     @Bean
     public NewTopic stockCommandsTopic() {

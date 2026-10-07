@@ -51,7 +51,8 @@ public class OrdersOutboxRelay {
     private static final Map<String, String> TOPICS = Map.of(
             OrdersKafkaConfig.RESERVE_STOCK, OrdersKafkaConfig.STOCK_COMMANDS_TOPIC,
             OrdersKafkaConfig.RELEASE_STOCK, OrdersKafkaConfig.STOCK_COMMANDS_TOPIC,
-            OrdersKafkaConfig.CHARGE_PAYMENT, OrdersKafkaConfig.PAYMENT_COMMANDS_TOPIC);
+            OrdersKafkaConfig.CHARGE_PAYMENT, OrdersKafkaConfig.PAYMENT_COMMANDS_TOPIC,
+            OrdersKafkaConfig.ORDER_CANCELLED, OrdersKafkaConfig.ORDER_EVENTS_TOPIC);
 
     private String topicOf(OrdersOutboxJpaEntity row) {
         String topic = TOPICS.get(row.getEventType());

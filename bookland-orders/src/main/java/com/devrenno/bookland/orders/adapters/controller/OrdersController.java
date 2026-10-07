@@ -23,9 +23,8 @@ import com.devrenno.bookland.orders.application.port.in.UpdateOrderStatusUseCase
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.CheckoutCommandPort;
+import com.devrenno.bookland.orders.application.port.out.OrderEventPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
-import com.devrenno.bookland.orders.application.port.out.RefundPort;
-import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.application.service.AddCartItemService;
 import com.devrenno.bookland.orders.application.service.CancelOrderService;
@@ -82,8 +81,8 @@ public class OrdersController {
 
     public static OrdersController create(CartPersistencePort cartPersistencePort,
                                           OrderPersistencePort orderPersistencePort,
-                                          BookInfoPort bookInfoPort, StockReservationPort stockReservationPort,
-                                          CheckoutCommandPort checkoutCommandPort, RefundPort refundPort,
+                                          BookInfoPort bookInfoPort, CheckoutCommandPort checkoutCommandPort,
+                                          OrderEventPort orderEventPort,
                                           TransactionPort transactionPort) {
         return new OrdersController(
                 GetCartService.create(cartPersistencePort, bookInfoPort),
@@ -94,9 +93,8 @@ public class OrdersController {
                         checkoutCommandPort, transactionPort),
                 GetOrderByIdService.create(orderPersistencePort),
                 GetOrderHistoryService.create(orderPersistencePort),
-                CancelOrderService.create(orderPersistencePort, stockReservationPort, refundPort, transactionPort),
-                UpdateOrderStatusService.create(orderPersistencePort, stockReservationPort, refundPort,
-                        transactionPort),
+                CancelOrderService.create(orderPersistencePort, orderEventPort, transactionPort),
+                UpdateOrderStatusService.create(orderPersistencePort, orderEventPort, transactionPort),
                 ListAllOrdersService.create(orderPersistencePort),
                 OrderPresenter.create()
         );

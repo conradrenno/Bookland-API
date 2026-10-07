@@ -7,7 +7,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The orders module's side of the saga messages: the commands it writes and the replies it reads.
+ * The orders module's side of its messages: the saga commands it writes, the replies it reads and
+ * the events it announces.
  * What it shares with the catalog and payments is the JSON, not these classes — each of them keeps
  * its own records with the same fields.
  */
@@ -26,6 +27,9 @@ final class SagaMessages {
 
     record ChargePayment(UUID messageId, String type, UUID orderId, UUID customerId,
                          BigDecimal amount, String method) {
+    }
+
+    record OrderCancelled(UUID messageId, String type, UUID orderId) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

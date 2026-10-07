@@ -1,21 +1,26 @@
 package com.devrenno.bookland.orders.infrastructure.messaging;
 
+import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
 /**
- * The orders module's messaging for the checkout saga.
+ * The orders module's messaging: the checkout saga and the order's own events.
  *
- * <p>Orders owns none of these four topics: each belongs to the service whose interface it is — the
- * stock topics to the catalog, the payment topics to payments. Their names are the contract and are
- * written out here on purpose rather than imported: importing them would make the orders module
+ * <p>Orders owns none of the four saga topics: each belongs to the service whose interface it is —
+ * the stock topics to the catalog, the payment topics to payments. Their names are the contract and
+ * are written out here on purpose rather than imported: importing them would make the orders module
  * depend on the other two, which is the coupling the messages exist to remove.
+ *
+ * <p>It does own {@link #ORDER_EVENTS_TOPIC}: an event belongs to whoever it happened to, and its
+ * consumers write the name out the same way.
  */
 @Configuration
 public class OrdersKafkaConfig {
@@ -27,14 +32,23 @@ public class OrdersKafkaConfig {
     public static final String PAYMENT_COMMANDS_TOPIC = "bookland.payments.payment-commands";
     public static final String PAYMENT_REPLIES_TOPIC = "bookland.payments.payment-replies";
 
+    /** What happened to orders, for whoever cares; keyed by the order id. */
+    public static final String ORDER_EVENTS_TOPIC = "bookland.orders.order-events";
+
     public static final String RESERVE_STOCK = "ReserveStock";
     public static final String RELEASE_STOCK = "ReleaseStock";
     public static final String CHARGE_PAYMENT = "ChargePayment";
+    public static final String ORDER_CANCELLED = "OrderCancelled";
 
     static final String STOCK_RESERVED = "StockReserved";
     static final String STOCK_RESERVATION_FAILED = "StockReservationFailed";
     static final String PAYMENT_APPROVED = "PaymentApproved";
     static final String PAYMENT_DECLINED = "PaymentDeclined";
+
+    @Bean
+    public NewTopic orderEventsTopic() {
+        return TopicBuilder.name(ORDER_EVENTS_TOPIC).partitions(3).replicas(1).build();
+    }
 
     /**
      * Three more attempts one second apart, then the record is logged and skipped. A payload that is

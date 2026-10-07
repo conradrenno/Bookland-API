@@ -1,9 +1,8 @@
 package com.devrenno.bookland.orders.application.service;
 
 import com.devrenno.bookland.orders.application.dto.UpdateOrderStatusCommand;
+import com.devrenno.bookland.orders.application.port.out.OrderEventPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
-import com.devrenno.bookland.orders.application.port.out.RefundPort;
-import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
@@ -34,8 +33,7 @@ import static org.mockito.Mockito.when;
 class UpdateOrderStatusServiceTest {
 
     @Mock private OrderPersistencePort orderPersistencePort;
-    @Mock private StockReservationPort stockReservationPort;
-    @Mock private RefundPort refundPort;
+    @Mock private OrderEventPort orderEventPort;
 
     /** Pass-through fake: runs the unit of work inline, no transaction machinery in unit tests. */
     private final TransactionPort transactionPort = new TransactionPort() {
@@ -58,7 +56,7 @@ class UpdateOrderStatusServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = UpdateOrderStatusService.create(orderPersistencePort, stockReservationPort, refundPort, transactionPort);
+        service = UpdateOrderStatusService.create(orderPersistencePort, orderEventPort, transactionPort);
     }
 
     /**
@@ -67,7 +65,7 @@ class UpdateOrderStatusServiceTest {
      * the catalog.
      */
     @Test
-    void execute_shouldRestoreStockAndRefund_whenAdminCancelsConfirmedOrder() {
+    void execute_shouldAnnounceTheCancellation_whenAdminCancelsConfirmedOrder() {
         Order order = buildOrder(OrderStatus.CONFIRMED);
 
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
@@ -77,8 +75,7 @@ class UpdateOrderStatusServiceTest {
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId));
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        verify(stockReservationPort).release(order.getId());
-        verify(refundPort).refund(order.getId());
+        verify(orderEventPort).orderCancelled(order.getId());
     }
 
     /** Shipping is not a cancellation: CONFIRMED as the previous status must not be enough to compensate. */
@@ -93,8 +90,7 @@ class UpdateOrderStatusServiceTest {
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.SHIPPED, adminId));
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.SHIPPED);
-        verify(stockReservationPort, never()).release(any());
-        verify(refundPort, never()).refund(any());
+        verify(orderEventPort, never()).orderCancelled(any());
     }
 
     /** The back office cannot cancel mid-checkout either: the transition does not exist. */
@@ -107,8 +103,7 @@ class UpdateOrderStatusServiceTest {
         assertThatThrownBy(() -> service.execute(
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId)))
                 .isInstanceOf(InvalidOrderStatusTransitionException.class);
-        verify(stockReservationPort, never()).release(any());
-        verify(refundPort, never()).refund(any());
+        verify(orderEventPort, never()).orderCancelled(any());
     }
 
     @Test
@@ -121,8 +116,7 @@ class UpdateOrderStatusServiceTest {
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId)))
                 .isInstanceOf(InvalidOrderStatusTransitionException.class);
 
-        verify(stockReservationPort, never()).release(any());
-        verify(refundPort, never()).refund(any());
+        verify(orderEventPort, never()).orderCancelled(any());
         verify(orderPersistencePort, never()).save(any());
     }
 

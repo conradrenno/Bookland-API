@@ -1,5 +1,7 @@
 package com.devrenno.bookland.payments.infrastructure.messaging;
 
+import com.devrenno.bookland.payments.domain.exception.PaymentNotFoundException;
+import com.devrenno.bookland.payments.domain.exception.RefundNotAllowedException;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
@@ -29,6 +31,13 @@ public class PaymentsKafkaConfig {
     public static final String PAYMENT_APPROVED = "PaymentApproved";
     public static final String PAYMENT_DECLINED = "PaymentDeclined";
 
+    /**
+     * Owned by orders, consumed here: a cancelled order's payment is refunded. Written out rather
+     * than imported, like any contract payments does not own.
+     */
+    public static final String ORDER_EVENTS_TOPIC = "bookland.orders.order-events";
+    public static final String ORDER_CANCELLED = "OrderCancelled";
+
     @Bean
     public NewTopic paymentCommandsTopic() {
         return TopicBuilder.name(PAYMENT_COMMANDS_TOPIC).partitions(3).replicas(1).build();
@@ -41,8 +50,8 @@ public class PaymentsKafkaConfig {
 
     /**
      * Three more attempts one second apart, then the record is logged and skipped. A payload that is
-     * not valid JSON fails the same way every time, so it skips straight to the log. No dead-letter
-     * topic yet.
+     * not valid JSON, or a refund for an order that was never paid, fails the same way every time, so
+     * it skips straight to the log. No dead-letter topic yet.
      */
     @Bean(LISTENER_CONTAINER_FACTORY)
     public ConcurrentKafkaListenerContainerFactory<Object, Object> paymentsKafkaListenerContainerFactory(
@@ -52,7 +61,8 @@ public class PaymentsKafkaConfig {
         configurer.configure(factory, kafkaConsumerFactory);
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(new FixedBackOff(1000L, 3L));
-        errorHandler.addNotRetryableExceptions(JacksonException.class);
+        errorHandler.addNotRetryableExceptions(JacksonException.class, PaymentNotFoundException.class,
+                RefundNotAllowedException.class);
         factory.setCommonErrorHandler(errorHandler);
         return factory;
     }

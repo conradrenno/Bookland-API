@@ -1,8 +1,7 @@
 package com.devrenno.bookland.orders.application.service;
 
+import com.devrenno.bookland.orders.application.port.out.OrderEventPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
-import com.devrenno.bookland.orders.application.port.out.RefundPort;
-import com.devrenno.bookland.orders.application.port.out.StockReservationPort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
@@ -34,8 +33,7 @@ import static org.mockito.Mockito.*;
 class CancelOrderServiceTest {
 
     @Mock private OrderPersistencePort orderPersistencePort;
-    @Mock private StockReservationPort stockReservationPort;
-    @Mock private RefundPort refundPort;
+    @Mock private OrderEventPort orderEventPort;
 
     /** Pass-through fake: runs the unit of work inline, no transaction machinery in unit tests. */
     private final TransactionPort transactionPort = new TransactionPort() {
@@ -57,7 +55,7 @@ class CancelOrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = CancelOrderService.create(orderPersistencePort, stockReservationPort, refundPort, transactionPort);
+        service = CancelOrderService.create(orderPersistencePort, orderEventPort, transactionPort);
     }
 
     /**
@@ -73,12 +71,11 @@ class CancelOrderServiceTest {
 
         assertThatThrownBy(() -> service.execute(order.getId(), customerId))
                 .isInstanceOf(OrderCancellationNotAllowedException.class);
-        verify(stockReservationPort, never()).release(any());
-        verify(refundPort, never()).refund(any());
+        verify(orderEventPort, never()).orderCancelled(any());
     }
 
     @Test
-    void execute_shouldRestoreStockAndRefund_whenOrderIsConfirmed() {
+    void execute_shouldAnnounceTheCancellation_whenOrderIsConfirmed() {
         Order order = buildOrder(customerId, OrderStatus.CONFIRMED);
 
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
@@ -87,8 +84,7 @@ class CancelOrderServiceTest {
         Order result = service.execute(order.getId(), customerId);
 
         assertThat(result).isNotNull();
-        verify(stockReservationPort).release(order.getId());
-        verify(refundPort).refund(order.getId());
+        verify(orderEventPort).orderCancelled(order.getId());
     }
 
     @Test
@@ -110,7 +106,7 @@ class CancelOrderServiceTest {
         assertThatThrownBy(() -> service.execute(order.getId(), otherCustomer))
                 .isInstanceOf(OrderAccessDeniedException.class);
 
-        verify(stockReservationPort, never()).release(any());
+        verify(orderEventPort, never()).orderCancelled(any());
     }
 
     @Test
@@ -122,7 +118,7 @@ class CancelOrderServiceTest {
         assertThatThrownBy(() -> service.execute(order.getId(), customerId))
                 .isInstanceOf(OrderCancellationNotAllowedException.class);
 
-        verify(stockReservationPort, never()).release(any());
+        verify(orderEventPort, never()).orderCancelled(any());
     }
 
     private Order buildOrder(UUID customerId, OrderStatus status) {
