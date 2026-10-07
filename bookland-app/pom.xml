@@ -119,6 +119,13 @@
             <artifactId>spring-boot-starter-kafka-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- In-process gRPC for the integration tests: the server and every channel stay in memory,
+             so the suite opens no gRPC port (see BooklandIntegrationTest). -->
+        <dependency>
+            <groupId>org.springframework.grpc</groupId>
+            <artifactId>spring-grpc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

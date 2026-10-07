@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+// The catalog's read interface for other services. The catalog owns this file; each consumer keeps a
+// copy that differs only in java_package (GrpcContractCopiesTest keeps them identical otherwise). The
+// wire contract is the package, the service and the field numbers: java_package never reaches the wire.
+package bookland.catalog.v1;
+
+option java_multiple_files = true;
+option java_outer_classname = "BookCatalogProto";
+option java_package = "com.devrenno.bookland.catalog.infrastructure.grpc.v1";
+
+service BookCatalog {
+  // The active books among the given ids, in one call however many ids. A book that does not exist,
+  // or was removed from the catalog, is absent from the answer: one bad id never fails the batch.
+  rpc GetBooks(GetBooksRequest) returns (GetBooksResponse);
+}
+
+message GetBooksRequest {
+  // Book ids as UUID text. A malformed one fails the call with INVALID_ARGUMENT.
+  repeated string book_ids = 1;
+}
+
+message GetBooksResponse {
+  repeated Book books = 1;
+}
+
+message Book {
+  string id = 1;
+  string title = 2;
+  // Empty when the book has no cover (proto3 strings cannot be null).
+  string cover_image_url = 3;
+  // Decimal as text, e.g. "49.90": exact, which a double would not be.
+  string price = 4;
+  int32 stock_quantity = 5;
+}

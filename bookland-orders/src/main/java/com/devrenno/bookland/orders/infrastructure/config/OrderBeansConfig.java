@@ -23,7 +23,7 @@ import org.springframework.context.annotation.Configuration;
  * Composition root of the orders module. Exposes the internal OrdersController (HTTP delivery)
  * plus the cross-module boundary use cases: VerifyPurchaseUseCase (consumed by reviews),
  * AddCartItemUseCase (consumed by wishlist's move-to-cart) and CheckActiveOrdersUseCase
- * (backs the catalog's ActiveOrderCheckPort).
+ * (served over gRPC to the catalog by OrderActivityGrpcService).
  */
 @Configuration
 public class OrderBeansConfig {

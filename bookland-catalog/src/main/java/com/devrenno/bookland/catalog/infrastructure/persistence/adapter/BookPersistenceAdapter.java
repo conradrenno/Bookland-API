@@ -19,6 +19,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -55,6 +57,11 @@ public class BookPersistenceAdapter implements BookPersistencePort {
     @Override
     public Optional<Book> findById(UUID id) {
         return bookRepository.findById(id).map(mapper::toDomain);
+    }
+
+    @Override
+    public List<Book> findAllById(Collection<UUID> ids) {
+        return bookRepository.findAllById(ids).stream().map(mapper::toDomain).toList();
     }
 
     @Override

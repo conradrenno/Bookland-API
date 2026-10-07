@@ -170,7 +170,7 @@ Infrastructure creates only the outbound-port adapters (`@Repository` / `@Compon
 
 ### Cross-domain Communication
 
-Modules communicate exclusively through **use-case interfaces** — never by importing another module's services, repositories or JPA entities. A consumer depends on the source module's `port/in` and receives its **domain entities**, mapping them into its own types.
+Modules communicate exclusively through **use-case interfaces** — never by importing another module's services, repositories or JPA entities. A consumer depends on the source module's `port/in` and receives its **domain entities**, mapping them into its own types. The catalog is the exception since step 5: other modules read it over **gRPC** (each keeping a copy of the catalog's `.proto`), with a deadline and a circuit breaker per client, so the catalog can leave the process without touching their inner layers.
 
 ```
 bookland-auth
@@ -179,7 +179,7 @@ bookland-auth
     └── UserRegistrationPort    → RegisterUserUseCase                (user)
 
 bookland-orders
-    ├── BookInfoPort            → GetBookByIdUseCase                 (catalog)
+    ├── BookInfoPort            → gRPC BookCatalog.GetBooks           (catalog, batch)
     ├── CheckoutCommandPort     → orders_outbox → relay → Kafka
     │                             bookland.catalog.stock-commands    (catalog's StockCommandListener)
     │                             bookland.payments.payment-commands (payments' PaymentCommandListener)
@@ -194,7 +194,7 @@ bookland-inventory
 
 bookland-reviews
     ├── PurchaseVerificationPort → VerifyPurchaseUseCase             (orders)
-    ├── BookExistsPort           → GetBookByIdUseCase                (catalog)
+    ├── BookExistsPort           → gRPC BookCatalog.GetBooks          (catalog)
     ├── BookRatingEventPort      → reviews_outbox (same transaction as the review)
     │                              → relay → Kafka topic bookland.reviews.book-rating-changed
     │                              → catalog's BookRatingChangedListener
@@ -202,11 +202,11 @@ bookland-reviews
 
 bookland-wishlist
     ├── CartAddPort             → AddCartItemUseCase                 (orders)
-    └── WishlistBookInfoPort    → GetBookByIdUseCase                 (catalog)
+    └── WishlistBookInfoPort    → gRPC BookCatalog.GetBooks           (catalog, batch)
 
 bookland-catalog
-    └── ActiveOrderCheckPort    → implemented by orders — a book cannot be
-                                  removed while it sits in an active order
+    └── ActiveOrderCheckPort    → gRPC OrderActivity.HasActiveOrders (orders) — a book
+                                  cannot be removed while it sits in an active order
 ```
 
 Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` is declared by catalog and implemented in `bookland-orders`, inverting the dependency so catalog stays a leaf module.

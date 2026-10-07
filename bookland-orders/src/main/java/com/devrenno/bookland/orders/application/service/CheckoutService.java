@@ -19,7 +19,7 @@ import com.devrenno.bookland.orders.domain.exception.CheckoutInProgressException
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -85,17 +85,19 @@ public class CheckoutService implements CheckoutUseCase {
      * A courtesy check, not the guarantee: it lets an obviously unfulfillable cart fail with a 409 at
      * once instead of as a REJECTED order a moment later. The binding check is the catalog's
      * reservation, evaluated atomically when the command arrives. A book removed from the catalog
-     * since it was added counts as unavailable.
+     * since it was added counts as unavailable. A catalog that cannot answer stops the checkout
+     * ({@code CatalogUnavailableException}, 503): the order snapshots titles and covers from here.
      */
     private List<OrderItem> orderItemsOf(Cart cart) {
         List<UUID> unavailable = new ArrayList<>();
         List<OrderItem> orderItems = new ArrayList<>();
+        Map<UUID, BookInfo> books = bookInfoPort.findBookInfos(
+                cart.getItems().stream().map(CartItem::getBookId).toList());
         for (CartItem item : cart.getItems()) {
-            Optional<BookInfo> found = bookInfoPort.findBookInfo(item.getBookId());
-            if (found.isEmpty() || found.get().stockQuantity() < item.getQuantity()) {
+            BookInfo book = books.get(item.getBookId());
+            if (book == null || book.stockQuantity() < item.getQuantity()) {
                 unavailable.add(item.getBookId());
             } else {
-                BookInfo book = found.get();
                 orderItems.add(OrderItem.of(book.id(), book.title(), book.coverImageUrl(),
                         item.getQuantity(), item.getUnitPriceAtAddition()));
             }

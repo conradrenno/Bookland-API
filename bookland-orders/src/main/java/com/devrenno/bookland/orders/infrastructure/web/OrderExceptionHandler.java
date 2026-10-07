@@ -1,5 +1,7 @@
 package com.devrenno.bookland.orders.infrastructure.web;
 
+import com.devrenno.bookland.orders.application.port.out.CatalogUnavailableException;
+import com.devrenno.bookland.orders.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.orders.domain.exception.BookNotInCartException;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
 import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
@@ -30,6 +32,17 @@ public class OrderExceptionHandler {
     @ExceptionHandler(OrderAccessDeniedException.class)
     public ProblemDetail handleAccessDenied(OrderAccessDeniedException ex) {
         return ProblemDetails.of(HttpStatus.FORBIDDEN, ex.getMessage(), "ORDER_ACCESS_DENIED");
+    }
+
+    /** The catalog's own handler used to answer this, being global in the monolith; no longer. */
+    @ExceptionHandler(BookNotFoundException.class)
+    public ProblemDetail handleBookNotFound(BookNotFoundException ex) {
+        return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage(), "BOOK_NOT_FOUND");
+    }
+
+    @ExceptionHandler(CatalogUnavailableException.class)
+    public ProblemDetail handleCatalogUnavailable(CatalogUnavailableException ex) {
+        return ProblemDetails.of(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), "CATALOG_UNAVAILABLE");
     }
 
     @ExceptionHandler(CartItemUnavailableException.class)

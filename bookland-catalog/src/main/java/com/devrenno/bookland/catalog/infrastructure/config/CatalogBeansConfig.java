@@ -35,6 +35,12 @@ public class CatalogBeansConfig {
         return GetBookByIdService.create(bookPersistencePort);
     }
 
+    /** Served over gRPC to the other services (BookCatalogGrpcService). */
+    @Bean
+    public GetBooksByIdsUseCase getBooksByIdsUseCase(BookPersistencePort bookPersistencePort) {
+        return GetBooksByIdsService.create(bookPersistencePort);
+    }
+
     @Bean
     public CreateBookUseCase createBookUseCase(BookPersistencePort bookPersistencePort,
                                                CategoryPersistencePort categoryPersistencePort) {

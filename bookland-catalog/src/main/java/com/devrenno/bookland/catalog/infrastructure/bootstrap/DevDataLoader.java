@@ -1,4 +1,4 @@
-package com.devrenno.bookland;
+package com.devrenno.bookland.catalog.infrastructure.bootstrap;
 
 import com.devrenno.bookland.catalog.application.dto.CreateBookCommand;
 import com.devrenno.bookland.catalog.application.port.in.CreateBookUseCase;
@@ -16,9 +16,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Sample books for local development. The sample customer is seeded by the user module
- * ({@code DevCustomerSeeder}), the admin by {@code AdminBootstrap} — both there because they use
- * nothing but that module.
+ * Sample books for local development. Lives in the catalog, the module it uses, so it travels with
+ * the catalog when it leaves the monolith — as the identity seeds ({@code DevCustomerSeeder},
+ * {@code AdminBootstrap}) travelled with the user module.
  */
 @Component
 @Profile("dev")

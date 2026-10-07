@@ -1,6 +1,7 @@
 package com.devrenno.bookland.reviews.infrastructure.web;
 
-import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
+import com.devrenno.bookland.reviews.application.port.out.CatalogUnavailableException;
+import com.devrenno.bookland.reviews.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.reviews.domain.exception.DuplicateReviewException;
 import com.devrenno.bookland.reviews.domain.exception.PurchaseRequiredException;
 import com.devrenno.bookland.reviews.domain.exception.ReviewAlreadyDeletedException;
@@ -17,6 +18,11 @@ public class ReviewExceptionHandler {
     @ExceptionHandler(ReviewNotFoundException.class)
     public ProblemDetail handleNotFound(ReviewNotFoundException ex) {
         return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage(), "REVIEW_NOT_FOUND");
+    }
+
+    @ExceptionHandler(CatalogUnavailableException.class)
+    public ProblemDetail handleCatalogUnavailable(CatalogUnavailableException ex) {
+        return ProblemDetails.of(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), "CATALOG_UNAVAILABLE");
     }
 
     @ExceptionHandler(BookNotFoundException.class)

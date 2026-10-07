@@ -1,5 +1,6 @@
 package com.devrenno.bookland.catalog.infrastructure.web;
 
+import com.devrenno.bookland.catalog.application.port.out.OrdersUnavailableException;
 import com.devrenno.bookland.catalog.domain.exception.BookHasActiveOrdersException;
 import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.catalog.domain.exception.CategoryNotFoundException;
@@ -39,6 +40,11 @@ public class CatalogExceptionHandler {
     @ExceptionHandler(BookHasActiveOrdersException.class)
     public ProblemDetail handleBookHasActiveOrders(BookHasActiveOrdersException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "BOOK_HAS_ACTIVE_ORDERS");
+    }
+
+    @ExceptionHandler(OrdersUnavailableException.class)
+    public ProblemDetail handleOrdersUnavailable(OrdersUnavailableException ex) {
+        return ProblemDetails.of(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), "ORDERS_UNAVAILABLE");
     }
 
     @ExceptionHandler(InsufficientStockException.class)

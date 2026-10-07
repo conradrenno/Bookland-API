@@ -3,6 +3,7 @@ package com.devrenno.bookland.orders.application.service;
 import com.devrenno.bookland.orders.application.dto.BookInfo;
 import com.devrenno.bookland.orders.application.dto.StockLine;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
+import com.devrenno.bookland.orders.application.port.out.CatalogUnavailableException;
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.CheckoutCommandPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
@@ -24,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -110,6 +112,19 @@ class CheckoutServiceTest {
         verifyNoInteractions(checkoutCommandPort);
     }
 
+    /** Unknown is not "available": the order would snapshot titles it never read. */
+    @Test
+    void execute_shouldRefuse_whenTheCatalogCannotBeReached() {
+        givenACartOf(1, 10);
+        when(bookInfoPort.findBookInfos(List.of(bookId))).thenThrow(new CatalogUnavailableException("down", null));
+
+        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.PIX))
+                .isInstanceOf(CatalogUnavailableException.class);
+
+        verify(cartPersistencePort, never()).claimForCheckout(any(), any());
+        verifyNoInteractions(checkoutCommandPort);
+    }
+
     @Test
     void execute_shouldThrowCartNotFound_whenCartDoesNotExist() {
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.empty());
@@ -122,7 +137,7 @@ class CheckoutServiceTest {
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(Cart.reconstitute(
                 UUID.randomUUID(), customerId, List.of(CartItem.of(bookId, quantity, BigDecimal.valueOf(29.90))),
                 Instant.now(), Instant.now())));
-        when(bookInfoPort.findBookInfo(bookId)).thenReturn(Optional.of(
+        when(bookInfoPort.findBookInfos(List.of(bookId))).thenReturn(Map.of(bookId,
                 new BookInfo(bookId, "Clean Code", null, BigDecimal.valueOf(29.90), stock)));
     }
 }

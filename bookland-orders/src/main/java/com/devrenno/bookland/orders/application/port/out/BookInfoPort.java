@@ -2,17 +2,23 @@ package com.devrenno.bookland.orders.application.port.out;
 
 import com.devrenno.bookland.orders.application.dto.BookInfo;
 
-import java.util.Optional;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
+/**
+ * What orders needs to know about books, from the catalog. Both methods throw
+ * {@link CatalogUnavailableException} when the catalog cannot answer.
+ */
 public interface BookInfoPort {
-    /** Throws when the book is unknown to the catalog — for flows that must reject an unknown book. */
+
+    /** For flows that must reject an unknown book: throws {@code BookNotFoundException} when there is none. */
     BookInfo getBookInfo(UUID bookId);
 
     /**
-     * Empty when the book is unknown to the catalog (never listed, or soft-deleted since). Used by
-     * the flows that must keep working around a book that vanished: rendering the cart and checking
-     * out (where it counts as an unavailable item, not a 404).
+     * Many books in one call — a cart is one round trip, not one per item. A book unknown to the
+     * catalog (never listed, or soft-deleted since) is simply absent from the map: the cart renders it
+     * as unavailable and the checkout counts it as an unavailable item, not a 404.
      */
-    Optional<BookInfo> findBookInfo(UUID bookId);
+    Map<UUID, BookInfo> findBookInfos(Collection<UUID> bookIds);
 }

@@ -1,6 +1,7 @@
 package com.devrenno.bookland.wishlist.infrastructure.web;
 
-import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
+import com.devrenno.bookland.wishlist.application.port.out.CatalogUnavailableException;
+import com.devrenno.bookland.wishlist.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.wishlist.domain.exception.WishlistItemAlreadyExistsException;
 import com.devrenno.bookland.wishlist.domain.exception.WishlistItemNotFoundException;
 import com.devrenno.bookland.websupport.ProblemDetails;
@@ -20,6 +21,11 @@ public class WishlistExceptionHandler {
     @ExceptionHandler(WishlistItemAlreadyExistsException.class)
     public ProblemDetail handleAlreadyExists(WishlistItemAlreadyExistsException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "WISHLIST_ITEM_ALREADY_EXISTS");
+    }
+
+    @ExceptionHandler(CatalogUnavailableException.class)
+    public ProblemDetail handleCatalogUnavailable(CatalogUnavailableException ex) {
+        return ProblemDetails.of(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), "CATALOG_UNAVAILABLE");
     }
 
     @ExceptionHandler(BookNotFoundException.class)

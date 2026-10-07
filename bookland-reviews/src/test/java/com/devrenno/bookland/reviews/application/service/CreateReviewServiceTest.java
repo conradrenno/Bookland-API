@@ -1,6 +1,6 @@
 package com.devrenno.bookland.reviews.application.service;
 
-import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
+import com.devrenno.bookland.reviews.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.reviews.application.dto.BookRatingChanged;
 import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
 import com.devrenno.bookland.reviews.application.dto.ReviewView;

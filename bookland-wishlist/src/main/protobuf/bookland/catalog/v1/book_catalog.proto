@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+// COPY of the contract catalog owns (bookland/catalog/v1/book_catalog.proto in bookland-catalog).
+// Change it there first, then here: only java_package may differ, and GrpcContractCopiesTest
+// fails the build on any other difference.
+package bookland.catalog.v1;
+
+option java_multiple_files = true;
+option java_outer_classname = "BookCatalogProto";
+option java_package = "com.devrenno.bookland.wishlist.infrastructure.grpc.catalog.v1";
+
+service BookCatalog {
+  // The active books among the given ids, in one call however many ids. A book that does not exist,
+  // or was removed from the catalog, is absent from the answer: one bad id never fails the batch.
+  rpc GetBooks(GetBooksRequest) returns (GetBooksResponse);
+}
+
+message GetBooksRequest {
+  // Book ids as UUID text. A malformed one fails the call with INVALID_ARGUMENT.
+  repeated string book_ids = 1;
+}
+
+message GetBooksResponse {
+  repeated Book books = 1;
+}
+
+message Book {
+  string id = 1;
+  string title = 2;
+  // Empty when the book has no cover (proto3 strings cannot be null).
+  string cover_image_url = 3;
+  // Decimal as text, e.g. "49.90": exact, which a double would not be.
+  string price = 4;
+  int32 stock_quantity = 5;
+}

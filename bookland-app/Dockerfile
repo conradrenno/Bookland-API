@@ -1,4 +1,7 @@
-FROM eclipse-temurin:21-jdk-alpine AS build
+# Not alpine for the build stage: the gRPC code generator (protoc-gen-grpc-java, downloaded by the
+# protobuf plugin) is linked against glibc and does not run on musl ("program not found or is not
+# executable"). The runtime stage below stays on alpine — nothing native runs there.
+FROM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
 
 COPY mvnw .

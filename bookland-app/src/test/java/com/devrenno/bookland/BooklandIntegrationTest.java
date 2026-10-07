@@ -23,6 +23,11 @@ import java.lang.annotation.Target;
  * JWKS over HTTP: {@code jwk-set-uri} is blanked and {@link TestSigningKey} supplies the keys in
  * memory instead.
  *
+ * <p>gRPC runs in process ({@code spring.grpc.test.inprocess.enabled}): the server listens on no port
+ * and every channel, whatever address it is configured with, reaches it in memory — so the modules
+ * still talk through their gRPC clients and servers, and a test run cannot collide with a running
+ * application on 9090.
+ *
  * <p>One annotation instead of four on each class is also what keeps the test-context cache to a
  * single context — and a single broker — for the whole suite: classes whose configuration differs
  * (one with MockMvc, one without) each boot their own.
@@ -33,7 +38,7 @@ import java.lang.annotation.Target;
 @AutoConfigureMockMvc
 @ActiveProfiles("dev")
 @EmbeddedKafka(bootstrapServersProperty = "spring.kafka.bootstrap-servers")
-@TestPropertySource(properties = "bookland.resource-server.jwk-set-uri=")
+@TestPropertySource(properties = {"bookland.resource-server.jwk-set-uri=", "spring.grpc.test.inprocess.enabled=true"})
 @Import(TestSigningKey.class)
 public @interface BooklandIntegrationTest {
 }

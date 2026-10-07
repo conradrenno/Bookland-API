@@ -1,6 +1,5 @@
 package com.devrenno.bookland.reviews.application.service;
 
-import com.devrenno.bookland.catalog.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.reviews.application.dto.CreateReviewCommand;
 import com.devrenno.bookland.reviews.application.dto.ReviewView;
 import com.devrenno.bookland.reviews.application.port.in.CreateReviewUseCase;
@@ -10,6 +9,7 @@ import com.devrenno.bookland.reviews.application.port.out.PurchaseVerificationPo
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.application.port.out.TransactionPort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
+import com.devrenno.bookland.reviews.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.reviews.domain.exception.DuplicateReviewException;
 import com.devrenno.bookland.reviews.domain.exception.PurchaseRequiredException;
 

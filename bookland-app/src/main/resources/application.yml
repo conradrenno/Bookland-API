@@ -21,6 +21,29 @@ spring:
       # A consumer group seen for the first time starts at the oldest record, not the newest:
       # events published before the group first joined are still applied.
       auto-offset-reset: earliest
+  # gRPC between modules (step 5). The server carries every BindableService in this process — the
+  # catalog's BookCatalog and orders' OrderActivity — and is reachable on the internal network only.
+  # The channels name where each one lives: today this very process, over real localhost (not an
+  # in-memory channel), so taking the catalog out is a change of address, not of code. No
+  # authentication between services yet (decision of step 5).
+  # Spring gRPC's security autoconfigurations are off: no authentication between services in step 5
+  # (decision), and OAuth2ResourceServerAutoConfiguration activates on Spring Security's resource-server
+  # classes — on the classpath through web-support — yet declares a properties class from Boot's
+  # spring-boot-security-oauth2-resource-server, which is not, so the context failed to start.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.grpc.server.autoconfigure.security.GrpcSecurityAutoConfiguration
+      - org.springframework.boot.grpc.server.autoconfigure.security.OAuth2ClientAutoConfiguration
+      - org.springframework.boot.grpc.server.autoconfigure.security.OAuth2ResourceServerAutoConfiguration
+  grpc:
+    server:
+      port: ${GRPC_PORT:9090}
+    client:
+      channels:
+        catalog:
+          address: ${CATALOG_GRPC_ADDRESS:static://localhost:9090}
+        orders:
+          address: ${ORDERS_GRPC_ADDRESS:static://localhost:9090}
 
 # The tokens this API accepts are issued by the identity service (bookland-identity-app), a process
 # of its own: the public keys are fetched from its JWKS endpoint, per profile below. Read by

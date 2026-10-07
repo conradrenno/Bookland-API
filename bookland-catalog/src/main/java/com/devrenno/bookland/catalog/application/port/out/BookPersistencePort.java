@@ -5,6 +5,8 @@ import com.devrenno.bookland.catalog.application.common.PageResult;
 import com.devrenno.bookland.catalog.application.dto.BookSearchQuery;
 import com.devrenno.bookland.catalog.domain.entity.Book;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -43,6 +45,7 @@ public interface BookPersistencePort {
     boolean incrementStock(UUID bookId, int quantity);
 
     Optional<Book> findById(UUID id);
+    List<Book> findAllById(Collection<UUID> ids);
     Optional<Book> findByIsbn(String isbn);
     boolean existsByIsbn(String isbn);
     PageResult<Book> search(BookSearchQuery query);

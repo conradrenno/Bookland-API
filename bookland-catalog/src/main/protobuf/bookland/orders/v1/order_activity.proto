@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+// COPY of the contract orders owns (bookland/orders/v1/order_activity.proto in bookland-orders).
+// Change it there first, then here: only java_package may differ, and GrpcContractCopiesTest
+// fails the build on any other difference.
+package bookland.orders.v1;
+
+option java_multiple_files = true;
+option java_outer_classname = "OrderActivityProto";
+option java_package = "com.devrenno.bookland.catalog.infrastructure.grpc.orders.v1";
+
+service OrderActivity {
+  // Whether any order not yet settled (pending, awaiting payment, confirmed, shipped) holds the book.
+  // The catalog asks before removing a book.
+  rpc HasActiveOrders(HasActiveOrdersRequest) returns (HasActiveOrdersResponse);
+}
+
+message HasActiveOrdersRequest {
+  // UUID text. A malformed one fails the call with INVALID_ARGUMENT.
+  string book_id = 1;
+}
+
+message HasActiveOrdersResponse {
+  bool active = 1;
+}

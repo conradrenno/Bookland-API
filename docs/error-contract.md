@@ -146,6 +146,7 @@ routes.
 | catalog | `INSUFFICIENT_STOCK` | 422 |
 | catalog | `INVALID_IMAGE` | 422 |
 | catalog | `FILE_TOO_LARGE` | 413 |
+| catalog | `ORDERS_UNAVAILABLE` | 503 — orders could not say whether the book has active orders; the removal is refused, not done unchecked |
 | orders | `CART_NOT_FOUND` | 404 |
 | orders | `ORDER_NOT_FOUND` | 404 |
 | orders | `BOOK_NOT_IN_CART` | 404 |
@@ -154,6 +155,7 @@ routes.
 | orders | `ORDER_CANCELLATION_NOT_ALLOWED` | 409 — also while the checkout is still running (`PENDING`, `AWAITING_PAYMENT`) |
 | orders | `INVALID_ORDER_STATUS_TRANSITION` | 409 |
 | orders | `CHECKOUT_IN_PROGRESS` | 409 — a checkout for this customer has not finished yet |
+| orders, wishlist, reviews | `CATALOG_UNAVAILABLE` | 503 — the catalog could not be asked about the book (down, past the deadline, or its circuit breaker open). Retry later; reading the cart or the wishlist does not fail, it shows the items as unavailable |
 | payments | `PAYMENT_NOT_FOUND` | 404 |
 | payments | `PAYMENT_ACCESS_DENIED` | 403 |
 | payments | `REFUND_NOT_ALLOWED` | 409 |
@@ -178,8 +180,10 @@ belong to the use case that owns the aggregate, which takes the caller's id as a
 addresses a resource by id and does not declare an `AuthenticatedUser` parameter is the shape this
 class of bug takes, and is worth treating as a review smell.
 
-`BOOK_NOT_FOUND` is raised by the catalog, reviews and wishlist advices alike; the code is the same
-everywhere, so a client never has to care which module answered.
+`BOOK_NOT_FOUND` is raised by the catalog, orders, reviews and wishlist advices alike; the code is the
+same everywhere, so a client never has to care which module answered. Since step 5 the other modules
+read books over gRPC, so each has its own exception for it — until then orders relied on the catalog's
+advice, which was global in the monolith.
 
 ## In the OpenAPI document
 
