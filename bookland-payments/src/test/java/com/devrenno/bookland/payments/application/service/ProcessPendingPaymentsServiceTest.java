@@ -1,5 +1,6 @@
 package com.devrenno.bookland.payments.application.service;
 
+import com.devrenno.bookland.payments.application.dto.GatewayAttempt;
 import com.devrenno.bookland.payments.application.dto.PaymentResult;
 import com.devrenno.bookland.payments.application.dto.ProcessPaymentCommand;
 import com.devrenno.bookland.payments.application.dto.RetryPolicy;
@@ -61,8 +62,9 @@ class ProcessPendingPaymentsServiceTest {
     void approvedCharge() {
         Payment payment = pendingCharge("50.00");
 
-        service.process(payment.getId());
+        GatewayAttempt attempt = service.process(payment.getId());
 
+        assertThat(attempt.outcome()).isEqualTo(GatewayAttempt.Outcome.SETTLED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.APPROVED);
         assertThat(payment.getGatewayTransactionId()).isNotBlank();
         assertThat(payment.getNextAttemptAt()).isNull();
@@ -87,8 +89,10 @@ class ProcessPendingPaymentsServiceTest {
         Payment payment = pendingCharge("50.00");
         gateway.outages = 1;
 
-        service.process(payment.getId());
+        GatewayAttempt attempt = service.process(payment.getId());
 
+        assertThat(attempt).as("what the worker reports").isEqualTo(GatewayAttempt.noAnswer(
+                1, clock.instant().plusSeconds(1), "PaymentGatewayUnavailableException: timeout"));
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
         assertThat(payment.getAttempts()).isEqualTo(1);
         assertThat(payment.getLastError()).contains("PaymentGatewayUnavailableException");
@@ -175,7 +179,7 @@ class ProcessPendingPaymentsServiceTest {
         Payment payment = pendingRefund();
         gateway.refuseRefunds = true;
 
-        service.process(payment.getId());
+        assertThat(service.process(payment.getId())).isEqualTo(GatewayAttempt.refundRefused("window closed"));
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUND_FAILED);
         assertThat(payment.getLastError()).isEqualTo("window closed");
@@ -190,7 +194,7 @@ class ProcessPendingPaymentsServiceTest {
         service.process(payment.getId());
         gateway.calls.clear();
 
-        service.process(payment.getId());
+        assertThat(service.process(payment.getId()).outcome()).isEqualTo(GatewayAttempt.Outcome.NOTHING_PENDING);
 
         assertThat(gateway.calls).isEmpty();
     }

@@ -1,5 +1,6 @@
 package com.devrenno.bookland.payments.application.service;
 
+import com.devrenno.bookland.payments.application.dto.GatewayAttempt;
 import com.devrenno.bookland.payments.application.dto.PaymentResult;
 import com.devrenno.bookland.payments.application.dto.ProcessPaymentCommand;
 import com.devrenno.bookland.payments.application.dto.RetryPolicy;
@@ -71,26 +72,21 @@ public class ProcessPendingPaymentsService implements ProcessPendingPaymentsUseC
     }
 
     @Override
-    public void process(UUID paymentId) {
+    public GatewayAttempt process(UUID paymentId) {
         Payment payment = persistence.findById(paymentId).orElse(null);
         if (payment == null || !payment.awaitsGateway()) {
-            return;
+            return GatewayAttempt.nothingPending();
         }
-        if (payment.getStatus() == PaymentStatus.PENDING) {
-            charge(payment);
-        } else {
-            refund(payment);
-        }
+        return payment.getStatus() == PaymentStatus.PENDING ? charge(payment) : refund(payment);
     }
 
-    private void charge(Payment payment) {
+    private GatewayAttempt charge(Payment payment) {
         PaymentResult result;
         try {
             result = gateway.charge(chargeKey(payment.getOrderId()), new ProcessPaymentCommand(
                     payment.getOrderId(), payment.getCustomerId(), payment.getAmount(), payment.getMethod()));
         } catch (RuntimeException noAnswer) {
-            retryLater(payment, noAnswer);
-            return;
+            return retryLater(payment, noAnswer);
         }
         transactionPort.inTransaction(() -> {
             Instant now = clock.instant();
@@ -104,9 +100,10 @@ public class ProcessPendingPaymentsService implements ProcessPendingPaymentsUseC
                 replyPort.paymentDeclined(payment.getOrderId(), result.declineReason());
             }
         });
+        return GatewayAttempt.settled();
     }
 
-    private void refund(Payment payment) {
+    private GatewayAttempt refund(Payment payment) {
         try {
             gateway.refund(refundKey(payment.getOrderId()), payment.getOrderId(), payment.getGatewayTransactionId());
         } catch (RefundRejectedException refused) {
@@ -114,15 +111,15 @@ public class ProcessPendingPaymentsService implements ProcessPendingPaymentsUseC
                 payment.refundRejected(refused.getMessage(), clock.instant());
                 persistence.save(payment);
             });
-            return;
+            return GatewayAttempt.refundRefused(refused.getMessage());
         } catch (RuntimeException noAnswer) {
-            retryLater(payment, noAnswer);
-            return;
+            return retryLater(payment, noAnswer);
         }
         transactionPort.inTransaction(() -> {
             payment.markRefunded(clock.instant());
             persistence.save(payment);
         });
+        return GatewayAttempt.settled();
     }
 
     /**
@@ -130,7 +127,7 @@ public class ProcessPendingPaymentsService implements ProcessPendingPaymentsUseC
      * {@code PaymentGatewayUnavailableException}: an outcome nobody read is unknown, and the safe
      * reading of unknown is "try again with the same key".
      */
-    private void retryLater(Payment payment, RuntimeException noAnswer) {
+    private GatewayAttempt retryLater(Payment payment, RuntimeException noAnswer) {
         transactionPort.inTransaction(() -> {
             Instant now = clock.instant();
             Instant retryAt = now.plus(retryPolicy.delayAfter(payment.getAttempts() + 1));
@@ -138,5 +135,6 @@ public class ProcessPendingPaymentsService implements ProcessPendingPaymentsUseC
                     retryAt, now);
             persistence.save(payment);
         });
+        return GatewayAttempt.noAnswer(payment.getAttempts(), payment.getNextAttemptAt(), payment.getLastError());
     }
 }

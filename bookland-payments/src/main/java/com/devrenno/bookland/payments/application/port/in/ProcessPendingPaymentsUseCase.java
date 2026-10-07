@@ -1,5 +1,7 @@
 package com.devrenno.bookland.payments.application.port.in;
 
+import com.devrenno.bookland.payments.application.dto.GatewayAttempt;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -15,6 +17,7 @@ public interface ProcessPendingPaymentsUseCase {
     /**
      * Calls the gateway for one payment and records the answer: approved, declined, refunded, refund
      * refused — or, if no answer came, when to try again. Does nothing for a payment no longer pending.
+     * Returns what happened, for the caller to report.
      */
-    void process(UUID paymentId);
+    GatewayAttempt process(UUID paymentId);
 }
