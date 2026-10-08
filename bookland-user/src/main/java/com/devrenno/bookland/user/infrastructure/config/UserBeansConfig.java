@@ -16,13 +16,16 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Composition root of the user module. Builds the framework-free inner graph from the outbound
  * ports (implemented by Spring adapters) and exposes only the entry points as beans:
- * the internal UserController (HTTP delivery) and the use cases consumed cross-module.
+ * the internal UserController (HTTP delivery) and the use cases consumed outside it — by the auth
+ * module, which runs in the same process (the identity service), and by this module's own
+ * bootstrap runners.
  */
 @Configuration
 public class UserBeansConfig {
 
-    // Bean-exposure rule: a use case becomes a @Bean only when it is a public boundary of the
-    // module — i.e. consumed cross-module by other Spring components via its port/in interface.
+    // Bean-exposure rule: a use case becomes a @Bean only when another Spring component consumes it
+    // through its port/in interface — the auth module's adapters, or this module's AdminBootstrap
+    // and DevCustomerSeeder.
     // Use cases that are internal to this module's own HTTP delivery (getById/update/delete) are
     // NOT beans; they are built inside UserController.create(...) and stay encapsulated there.
 
@@ -32,20 +35,24 @@ public class UserBeansConfig {
         return UserController.create(persistencePort);
     }
 
-    /** Cross-module: consumed by auth (UserRegistrationAdapter) and bookland-app (AdminBootstrap). */
+    /** Consumed by auth (UserRegistrationAdapter, registration) and by AdminBootstrap / DevCustomerSeeder. */
     @Bean
     public RegisterUserUseCase registerUserUseCase(UserPersistencePort persistencePort,
                                                    PasswordEncoderPort passwordEncoderPort) {
         return RegisterUserService.create(new UserDomainService(), persistencePort, passwordEncoderPort);
     }
 
-    /** Cross-module: consumed by auth (UserLookupAdapter) and bookland-app (AdminBootstrap). */
+    /** Consumed by auth (UserLookupAdapter, login) and by AdminBootstrap / DevCustomerSeeder. */
     @Bean
     public GetUserByEmailUseCase getUserByEmailUseCase(UserPersistencePort persistencePort) {
         return GetUserByEmailService.create(persistencePort);
     }
 
-    /** Cross-module: consumed by reviews (CustomerNameAdapter) to label a review with its author. */
+    /**
+     * Consumed by auth (UserLookupAdapter): a token refresh looks the account up again by id, so a
+     * deactivated account stops getting tokens. No other module asks the user module who a user is —
+     * the caller's identity travels in the access token.
+     */
     @Bean
     public GetUserByIdUseCase getUserByIdUseCase(UserPersistencePort persistencePort) {
         return GetUserByIdService.create(persistencePort);
