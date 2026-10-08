@@ -17,6 +17,14 @@ spring:
       # A consumer group seen for the first time starts at the oldest record, not the newest:
       # events published before the group first joined are still applied.
       auto-offset-reset: earliest
+      properties:
+        # Only a topic's owner creates it (its NewTopic, with its partition count). Left on — the
+        # client's default — a consumer that starts first creates someone else's topic with the
+        # broker's default of 1 partition; the owner then raises it to 3, and the consumer keeps
+        # reading partition 0 alone until its next metadata refresh (metadata.max.age.ms, 5 minutes
+        # by default). Seen in step 6b: the notification service started first. Off, a consumer
+        # waits for the topic to exist.
+        allow.auto.create.topics: false
   # gRPC between services (step 5). This process serves orders' OrderActivity (asked by the catalog
   # before it removes a book) and reads books from the catalog service's BookCatalog — in dev on the
   # same host (9091: this process holds 9090), in the compose stack at catalog:9090. Internal network

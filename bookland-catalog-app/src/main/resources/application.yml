@@ -19,6 +19,14 @@ spring:
         max.block.ms: 5000
     consumer:
       auto-offset-reset: earliest
+      properties:
+        # Only a topic's owner creates it (its NewTopic, with its partition count). Left on — the
+        # client's default — a consumer that starts first creates someone else's topic with the
+        # broker's default of 1 partition; the owner then raises it to 3, and the consumer keeps
+        # reading partition 0 alone until its next metadata refresh (metadata.max.age.ms, 5 minutes
+        # by default). Seen in step 6b: the notification service started first. Off, a consumer
+        # waits for the topic to exist.
+        allow.auto.create.topics: false
   # Spring gRPC's security autoconfigurations are off, as in the monolith (see its application.yml):
   # no authentication between services yet, and OAuth2ResourceServerAutoConfiguration fails the
   # context on a Boot properties class this application does not have.
