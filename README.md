@@ -1,720 +1,459 @@
 # Bookland
 
-> REST API for a complete e-commerce bookstore, built with **Java 21**, **Spring Boot 4** and strict **Clean Architecture** principles across 8 isolated domain modules.
+> An online bookstore backend, built as **five Spring Boot services** that talk over **REST, gRPC,
+> Kafka and RabbitMQ** — extracted step by step from a modular monolith, with every module in
+> **Clean Architecture** enforced by tests, and its failure behaviour **measured, not assumed**.
+
+![Java 21](https://img.shields.io/badge/Java-21-007396)
+![Spring Boot 4.0](https://img.shields.io/badge/Spring%20Boot-4.0-6DB33F)
+![Kafka](https://img.shields.io/badge/Apache%20Kafka-4.1-231F20)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-4.1-FF6600)
+![gRPC](https://img.shields.io/badge/gRPC-Spring%20gRPC-244c5a)
+![Tests](https://img.shields.io/badge/tests-450%2B-brightgreen)
 
 ---
 
-## Table of Contents
+## Contents
 
-- [About the Project](#about-the-project)
+- [What this project demonstrates](#what-this-project-demonstrates)
 - [Architecture](#architecture)
-  - [Module Structure](#module-structure)
-  - [Layer Layout (per domain)](#layer-layout-per-domain)
-  - [The Two Controllers](#the-two-controllers)
-  - [Cross-domain Communication](#cross-domain-communication)
-- [Design Patterns](#design-patterns)
-- [Tech Stack](#tech-stack)
-- [Domain Overview](#domain-overview)
-- [API Reference](#api-reference)
-- [Security Model](#security-model)
-- [Error Contract](#error-contract)
-- [Database and Migrations](#database-and-migrations)
-- [Running the Application](#running-the-application)
-  - [Without Docker (dev)](#without-docker-dev)
-  - [With Docker (prod)](#with-docker-prod)
-- [Environment Variables](#environment-variables)
+- [Key flows](#key-flows)
+- [Failure behaviour, measured](#failure-behaviour-measured)
+- [Inside a service: Clean Architecture](#inside-a-service-clean-architecture)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [API overview](#api-overview)
+- [Security](#security)
+- [Error contract](#error-contract)
 - [Testing](#testing)
-- [Future Improvements](#future-improvements)
+- [How it was built](#how-it-was-built)
+- [Known limitations](#known-limitations)
+- [Roadmap](#roadmap)
 
 ---
 
-## About the Project
+## What this project demonstrates
 
-Bookland is a fully functional e-commerce API for an online bookstore. It covers the entire customer journey — from browsing the catalog and managing a wishlist, through checkout and payment processing, to leaving verified reviews.
+Bookland covers a bookstore end to end: catalog and stock, cart and checkout, payments, order
+lifecycle, purchase-verified reviews, wishlist, e-mail notifications, and an OAuth2 login. The
+domain is deliberately ordinary; the point is **how the system holds together when it is split
+into services and things fail**.
 
-The project was built with a deliberate focus on **software architecture and design**, using it as a vehicle to apply and validate enterprise-grade patterns in a real, runnable codebase. Every architectural decision — module isolation, port/adapter boundaries, use-case granularity — was made intentionally, not as boilerplate.
-
-**What it covers:**
-- User registration and an embedded OAuth2/OIDC Authorization Server (authorization code + PKCE, RS256 tokens, single-use refresh rotation)
-- Book catalog with search, filtering, and category browsing
-- Real-time stock management and inventory auditing
-- Shopping cart with price snapshot at add time
-- Checkout flow with integrated payment processing and transactional stock control
-- Order lifecycle management with full status history and admin controls
-- Verified reviews (only customers with a delivered order can review)
-- Wishlist with direct move-to-cart capability
-- Role-based access control (CUSTOMER / ADMIN) with automated admin bootstrap
+| Topic | What is in the code |
+|---|---|
+| **Microservices, extracted from a monolith** | Identity, catalog and notification were carved out of a modular monolith one step at a time, each step shipped and verified before the next. The remaining monolith (orders, payments, reviews, wishlist) still runs as one deployable |
+| **Orchestrated saga** | Checkout reserves stock (catalog), then charges (payments), and compensates on a decline — all over Kafka, with the order's status as the saga state |
+| **Choreographed events** | Cancelling an order publishes `OrderCancelled`; catalog and payments each react on their own |
+| **Transactional outbox + inbox** | Every producing module writes its messages in the same database transaction as the change; every consumer records what it has handled. At-least-once delivery, idempotent effects |
+| **Money handled safely** | Payment gateway calls happen outside any transaction, with an idempotency key per operation; "no answer" is retried with backoff and never treated as a decline |
+| **gRPC between services** | Batched book lookups with a deadline and a Resilience4j circuit breaker per client; contract copies checked by a test |
+| **API gateway** | Spring Cloud Gateway as the single entry point, with explicit timeouts that answer the error contract (502/504) |
+| **OAuth2 / OIDC** | An embedded Spring Authorization Server (authorization code + PKCE, RS256, refresh rotation); every service validates tokens as a resource server |
+| **RabbitMQ as a task queue** | The notification service turns Kafka events into e-mail tasks, with delayed retries (TTL queues + dead-letter exchange), a dead-letter queue, and send-once semantics |
+| **Clean Architecture, enforced** | Four layers per module; the inner three are framework-free, and ArchUnit fails the build otherwise |
+| **Failure testing** | Each service and broker was taken down on purpose and the outcome measured — see [Failure behaviour, measured](#failure-behaviour-measured) |
 
 ---
 
 ## Architecture
 
-### Module Structure
+```mermaid
+flowchart LR
+    client([Client / Swagger UI])
 
-The project is a **multi-module Maven** project. Each domain is an independent module with its own dependencies, tests, and no awareness of sibling modules unless explicitly declared.
+    subgraph edge[Edge]
+        gw[Gateway<br/>:8080]
+    end
 
+    subgraph services[Services]
+        api[API<br/>orders · payments<br/>reviews · wishlist<br/>:8083 · gRPC 9090]
+        cat[Catalog<br/>catalog · inventory<br/>:8082 · gRPC]
+        idp[Identity<br/>user · auth<br/>OAuth2 server :9000]
+        notif[Notification<br/>no HTTP]
+    end
+
+    subgraph infra[Infrastructure]
+        kafka[(Kafka)]
+        rabbit[(RabbitMQ)]
+        pg[(PostgreSQL<br/>one database per service)]
+        smtp[(SMTP · Mailpit)]
+    end
+
+    client -->|REST| gw
+    client -->|login, tokens| idp
+    gw -->|REST| api
+    gw -->|REST| cat
+    api <-->|gRPC| cat
+    api <-->|saga commands, events| kafka
+    cat <-->|saga replies, events| kafka
+    kafka -->|order events| notif
+    notif --> rabbit
+    notif --> smtp
+    api -. JWKS .-> idp
+    cat -. JWKS .-> idp
+    api --- pg
+    cat --- pg
+    idp --- pg
+    notif --- pg
 ```
-bookland/                       ← Parent POM (dependency management)
-│
-│   ── assembly modules: one per deployable service, no business logic ──
-├── bookland-gateway/           ← The entry point (port 8080): routes each path to its service
-├── bookland-app/               ← The API (port 8083): assembles orders, payments, reviews
-│                                 and wishlist; hosts application.yml
-├── bookland-identity-app/      ← The identity service (port 9000): assembles user + auth
-│                                 into a process of its own, with its own database
-├── bookland-catalog-app/       ← The catalog service (port 8082, gRPC 9091 in dev): catalog +
-│                                 inventory, with its own database
-│
-│   ── libraries: the code, packaged as jars that an assembly module includes ──
-├── bookland-web-support/       ← Platform library — the HTTP error contract and
-│                                 Bearer-token validation.
-│                                 Not a domain; not a shared kernel
-│
-├── bookland-user/              ← User identity and profile management
-├── bookland-auth/              ← OAuth2/OIDC Authorization Server + registration
-├── bookland-catalog/           ← Book catalog, search, categories, stock quantity
-├── bookland-inventory/         ← Stock movement ledger and low-stock observability
-├── bookland-orders/            ← Shopping cart, checkout, order lifecycle
-├── bookland-payments/          ← Payment processing (simulated gateway)
-├── bookland-reviews/           ← Purchase-verified book reviews
-└── bookland-wishlist/          ← Customer wishlist with move-to-cart
-```
 
-**Two kinds of module.** A *domain module* (`bookland-user`, `bookland-catalog`, …) is a library: the logic, in four layers, packaged as a jar. An *assembly module* (`bookland-app`, `bookland-identity-app`, `bookland-catalog-app`) is a deployable service: a `main` class, an `application.yml`, the service's migrations and its integration tests — and no business logic. A **service** is therefore an assembly module plus the domain modules it includes: the identity service is `bookland-identity-app` + `bookland-user` + `bookland-auth`, which still run as separate modules in one process, one database.
+| Service | Module(s) | Port | Owns | Talks to others via |
+|---|---|---|---|---|
+| **Gateway** | `bookland-gateway` | 8080 | — | Routes only: `/api/v1/books`, `/categories`, `/inventory`, `/media` → catalog (a book's reviews excepted); the rest of `/api/v1` → API |
+| **API** | `bookland-app` = orders + payments + reviews + wishlist | 8083 (gRPC 9090) | carts, orders, payments, reviews, wishlists | gRPC to catalog (book data); Kafka (saga, events); serves `OrderActivity` over gRPC |
+| **Catalog** | `bookland-catalog-app` = catalog + inventory | 8082 (gRPC 9091 in dev) | books, categories, stock, reservations, cover images | Serves `BookCatalog` over gRPC; Kafka (stock commands, order and rating events) |
+| **Identity** | `bookland-identity-app` = user + auth | 9000 | accounts, OAuth2 authorizations | Issues the tokens; publishes its public keys at `/oauth2/jwks` |
+| **Notification** | `bookland-notification-app` = notification | — | inbox, sent e-mails | Consumes order events (Kafka); its own task queue (RabbitMQ); SMTP |
 
-**How an assembly module picks its modules up — by convention, not by name.** Its `pom.xml` puts the domain modules' jars on the classpath, and its `@SpringBootApplication` class sits in the root package `com.devrenno.bookland`, so component, entity and repository scanning cover every module's subpackage; `@ConfigurationPropertiesScan` finds their `@ConfigurationProperties`. Nothing in the assembly module names a class of the modules it runs — moving the main class into a subpackage would silently leave them all out. The `application.yml` talks to them only through property prefixes (`bookland.oauth2.*` is read by auth, `bookland.admin.*` by user).
+**How the pieces are cut.** Each business area is a *domain module* — a library in four layers.
+A *service* is an *assembly module* (main class, configuration, migrations, integration tests, no
+business logic) plus the domain modules it runs. Moving a module to another service means changing
+which assembly includes it; its code does not change. Each service has its own database and its own
+database role, which cannot connect to another service's database.
 
-**`bookland-web-support` is the one module every other module depends on**, and the "duplicate it per module" rule does not apply to it. It holds the glue that renders the HTTP error contract — `ProblemDetails`, `ProblemDetailWriter`, `ProblemDetailErrorController`, the Spring Security entry points, the single bean-validation advice, the OpenAPI error-response customizer — and the resource-server half of security (`ResourceServerConfig`: the `JwtDecoder` and its validators), so that a service can validate a token without depending on `bookland-auth` and its private key. It exists because that contract has to be **byte-identical across all 8 domains**: duplicated, the shape drifts — one module emitting a `code`, another not; one answering in English, another in whatever language the JVM defaults to.
-
-It is not a shared kernel. Anything with domain meaning is still duplicated per module (`PageQuery`, `PageResult`). This module may never contain a domain type or depend on another `bookland-*` module, and **only `*.infrastructure` packages may import it** — a rule the ArchUnit suite enforces by listing `com.devrenno.bookland.websupport..` next to `org.springframework..` in the framework packages banned from the inner layers. To domain, application and adapters, it *is* a framework. It is packaged separately so the error contract survives a future split into independently deployed services.
+**Who owns what on the wire.** A Kafka topic belongs to the service whose interface it is (an event
+topic to its producer, a command topic to its receiver); consumers write the topic name out instead
+of importing it, and keep their own copy of the payload record. Only a topic's owner creates it. A
+gRPC `.proto` belongs to the server; each client keeps a copy that may differ only in its Java
+package, and a test fails the build on any other difference.
 
 ---
 
-### Layer Layout (per domain)
+## Key flows
 
-Each domain module follows **four** layers, mapping onto Clean Architecture's concentric circles:
+### Checkout — an orchestrated saga
 
-| Layer | Clean Architecture ring |
-|---|---|
-| `domain/` | Entities — enterprise business rules |
-| `application/` | Use Cases — application business rules |
-| `adapters/` | Interface Adapters — controllers, presenters |
-| `infrastructure/` | Frameworks & Drivers |
+`POST /api/v1/cart/checkout` answers **202 Accepted** with the order `PENDING`; the client follows
+the order until it settles.
 
-Ports & Adapters is the **boundary mechanism** used throughout, not a competing style: `port/in` and `port/out` are how each ring is crossed.
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant O as Orders (API)
+    participant K as Kafka
+    participant Cat as Catalog
+    participant P as Payments (API)
+    participant G as Payment gateway
 
-Domain, Application and Adapters are **framework-free** — no Spring, no JPA, no Jackson. Only Infrastructure touches a framework. Lombok is allowed everywhere: it is source-only and leaves no bytecode trace.
-
-```
-com.devrenno.bookland.{domain}/
-│
-├── domain/                  [framework-free]
-│   ├── entity/          ← Pure Java; static create/reconstitute factories,
-│   │                       private constructor, no public setters
-│   ├── valueobject/     ← Immutable value types (Email, UserId, ISBN...)
-│   ├── service/         ← Domain rules needing lookup data — no I/O, no Spring
-│   └── exception/       ← Domain-specific exceptions
-│
-├── application/             [framework-free]
-│   ├── service/         ← Plain-Java *Service implementing port/in.
-│   │                       Private constructor + static create(...) factory
-│   ├── dto/             ← Input commands and query read-models
-│   ├── common/          ← PageQuery / PageResult — framework-free pagination
-│   └── port/
-│       ├── in/          ← Use-case interfaces (CheckoutUseCase, RegisterUserUseCase)
-│       └── out/         ← Outbound ports (persistence, transactions, cross-module)
-│
-├── adapters/                [framework-free]
-│   ├── controller/      ← Internal controller — orchestrates use cases + presenter.
-│   │                       Also the module's composition root
-│   ├── presenter/       ← Domain entity → ViewModel
-│   └── viewmodel/       ← Output DTOs — no Jackson annotations
-│
-└── infrastructure/          [Spring]
-    ├── web/             ← @RestController, request DTOs, MapStruct mappers,
-    │                       @RestControllerAdvice
-    ├── config/          ← Composition-root @Beans calling *Controller.create(ports)
-    ├── persistence/     ← JPA entities, Spring Data repos, persistence adapters
-    ├── adapter/         ← Cross-module adapters implementing this module's out-ports
-    ├── transaction/     ← TransactionAdapter implementing TransactionPort
-    ├── messaging/       ← Kafka producers (implementing out-ports) and @KafkaListener inbound adapters
-    └── security/        ← Token customizer and validators, UserDetails, BCrypt adapter (user/auth only)
+    C->>O: POST /cart/checkout
+    O->>O: claim cart, save order PENDING,<br/>ReserveStock → outbox (one transaction)
+    O-->>C: 202 + Location
+    O->>K: ReserveStock (outbox relay)
+    K->>Cat: reserve all lines or none (inbox, idempotent by order)
+    Cat->>K: StockReserved
+    K->>O: AWAITING_PAYMENT, ChargePayment → outbox
+    K->>P: record charge PENDING (inbox)
+    P->>G: charge, idempotency key charge:{order}<br/>(worker, outside any transaction)
+    G-->>P: approved / declined
+    P->>K: PaymentApproved / PaymentDeclined
+    K->>O: CONFIRMED (cart emptied)<br/>or PAYMENT_FAILED + ReleaseStock (compensation)
 ```
 
-**The dependency rule points inward and is enforced by tests:**
+- **Stock is reserved before anyone is charged.** The reservation is a conditional `UPDATE … WHERE
+  stock_quantity >= :q` per line, all or nothing, recorded per order — so the last copy goes to
+  exactly one customer and a duplicate command is answered from the record.
+- **The order's status is the saga's state.** A reply that arrives in the wrong status is a
+  duplicate or a late answer, and is ignored.
+- **A second checkout while one runs** answers `409 CHECKOUT_IN_PROGRESS` (a conditional update
+  claims the cart).
+- **A gateway that does not answer is not a decline.** The payment stays pending and is retried with
+  a doubling wait and no last attempt — giving up on a charge of unknown outcome could leave a
+  customer charged for a failed order.
 
-```
-infrastructure → adapters → application → domain
+### Cancellation — choreography
+
+Cancelling a `CONFIRMED` order sets it `CANCELLED` and writes `OrderCancelled` to the outbox in the
+same transaction. Orders expects no answer: the catalog gives the reserved units back and payments
+refunds, each idempotently, each on its own.
+
+### Notifications — Kafka in, RabbitMQ in the middle
+
+```mermaid
+flowchart LR
+    o[Orders] -- "OrderConfirmed, OrderShipped, …<br/>(outbox → Kafka)" --> l[Notification<br/>Kafka listener]
+    l -- "inbox +<br/>publish with confirm" --> q[(email queue)]
+    q --> s[Sender] -- SMTP --> m[(Mailpit)]
+    s -- "failed: wait 10 s / 1 min / 5 min" --> w[(wait queues<br/>TTL + DLX)]
+    w --> q
+    s -- "4th failure" --> d[(dead-letter queue)]
 ```
 
-Every module has an `ArchitectureRulesTest` (ArchUnit) that fails the build if an inner layer imports `org.springframework..`, `jakarta.persistence..` or `com.fasterxml.jackson..`, or if the layer direction is violated. There is **no `@UseCase` annotation** — inner classes are never Spring beans and never self-annotate.
+Kafka carries **what happened** (an event several services read); RabbitMQ carries **what to do**
+(one e-mail, one worker, retried later). The e-mail is written when the event arrives — the
+customer's address and name were stored on the order at checkout, so the notification service never
+calls the identity service. The Kafka offset moves only after RabbitMQ confirmed the task. Each
+e-mail has a key (`<order>:<kind>`) checked before sending, so a task delivered twice becomes one
+e-mail.
 
 ---
 
-### The Two Controllers
+## Failure behaviour, measured
 
-The name "controller" is used for two different things, deliberately:
+Every safeguard above was checked by **breaking the real thing** — stopping a container, freezing
+it, sending duplicates by hand — against the full Docker Compose stack, and timing the outcome.
 
-| | **Internal controller** | **API controller** |
+| What failed | What happened | Measured |
 |---|---|---|
-| Package | `adapters/controller` | `infrastructure/web` |
-| Framework | None — plain Java | `@RestController` |
-| Role | Orchestrates `port/in` use cases, calls the Presenter, returns a ViewModel | HTTP adapter: request → internal controller → `ResponseEntity<ViewModel>` |
-| Extra role | **Composition root** — its static `create(ports)` wires domain service + use cases + presenter | — |
-| Knows about | Use cases and the presenter | Only the internal controller — never a `*Service` |
+| **Kafka down** 60 s | Checkout still answered (202) and cancellation (200); every pending step completed once Kafka returned | Checkout 0.12 s during the outage; all done **7.3 s** after Kafka came back |
+| **Payment gateway down** ~70 s | Orders waited in `AWAITING_PAYMENT`; nothing declined, nothing charged twice | Confirmed **54.9 s** after the gateway returned — the price of the backoff |
+| **Duplicate charge command** | One payment, one reply | Gateway charge count unchanged |
+| **Identity service down** | Public reads unaffected; tokens kept validating from the cached public keys | Authenticated requests fine for ~5 min (the key cache), then 500 until it returned |
+| **Catalog service stopped** | Cart still readable, items shown as "Unavailable"; add-to-cart and checkout refused fast | 503 in **~60 ms**; circuit breaker opened after 5 failures and closed by itself |
+| **Catalog service frozen** | The gRPC deadline cut each call | **~2.03 s** per call; a 10-item cart **2.07 s** (one batched call, not ten); **~45 ms** with the breaker open |
+| **A service behind the gateway hanging** | Found: the gateway had **no timeout** and held requests 60–90 s. Fixed: explicit timeouts, answered as `504 UPSTREAM_TIMEOUT` | **2.2 s** (stopped) / **10.2 s** (frozen) |
+| **RabbitMQ down** 7 min | Checkout unaffected; e-mails waited, none lost, none duplicated | Sent as soon as RabbitMQ was healthy again |
+| **SMTP server down** | Four tries (10 s, 1 min, 5 min apart), then the dead-letter queue with the reason; back mid-wait → sent on the next try, once | Intervals as configured |
+| **RabbitMQ restarted** with an e-mail waiting to retry | The task survived (durable queue, persistent message) and its wait kept counting | Sent 60.2 s after its failure, with 14 s of broker downtime inside |
+| **Same order event published twice by hand** | Same id stopped by the inbox; new id stopped by the sent-e-mail record | One e-mail |
 
-Infrastructure creates only the outbound-port adapters (`@Repository` / `@Component`) and exposes **one `@Bean` per module entry point** that calls `*Controller.create(ports)`. A use case consumed by another module must also be exposed as its own `@Bean` — forgetting one fails context startup in the consumer.
-
-**Use cases return domain entities**, not DTOs. Output shaping happens in the Presenter. The exception is a use case whose output needs data from another module: it returns a **query read-model** from `application/dto/`, assembled from the aggregate plus an out-port lookup.
-
-> One deliberate deviation from canonical Clean Architecture: the use case *returns* its result and the internal controller then calls the Presenter, rather than the use case pushing through an output boundary into an injected presenter. In a synchronous HTTP context the output-port indirection buys nothing but ceremony, so it was dropped.
-
----
-
-### Cross-domain Communication
-
-Modules communicate exclusively through **use-case interfaces** — never by importing another module's services, repositories or JPA entities. A consumer depends on the source module's `port/in` and receives its **domain entities**, mapping them into its own types. The catalog is the exception since step 5: other modules read it over **gRPC** (each keeping a copy of the catalog's `.proto`), with a deadline and a circuit breaker per client, so the catalog can leave the process without touching their inner layers.
-
-```
-bookland-auth
-    ├── UserLookupPort          → GetUserByEmailUseCase
-    │                             + GetUserByIdUseCase               (user)
-    └── UserRegistrationPort    → RegisterUserUseCase                (user)
-
-bookland-orders
-    ├── BookInfoPort            → gRPC BookCatalog.GetBooks           (catalog, batch)
-    ├── CheckoutCommandPort     → orders_outbox → relay → Kafka
-    │                             bookland.catalog.stock-commands    (catalog's StockCommandListener)
-    │                             bookland.payments.payment-commands (payments' PaymentCommandListener)
-    │                             replies come back on *-replies     (orders' SagaReplyListener)
-    └── OrderEventPort          → orders_outbox → relay → Kafka
-                                  bookland.orders.order-events       (OrderCancelled → catalog releases
-                                                                       the stock, payments refunds)
-
-bookland-inventory
-    ├── BookStockAdjustmentPort → AdjustBookStockUseCase             (catalog)
-    └── LowStockBooksPort       → GetLowStockBooksUseCase            (catalog)
-
-bookland-reviews
-    ├── PurchaseVerificationPort → VerifyPurchaseUseCase             (orders)
-    ├── BookExistsPort           → gRPC BookCatalog.GetBooks          (catalog)
-    ├── BookRatingEventPort      → reviews_outbox (same transaction as the review)
-    │                              → relay → Kafka topic bookland.reviews.book-rating-changed
-    │                              → catalog's BookRatingChangedListener
-    (the author's name comes from the access token's name claim and is stored on the review)
-
-bookland-wishlist
-    ├── CartAddPort             → AddCartItemUseCase                 (orders)
-    └── WishlistBookInfoPort    → gRPC BookCatalog.GetBooks           (catalog, batch)
-
-bookland-catalog
-    └── ActiveOrderCheckPort    → gRPC OrderActivity.HasActiveOrders (orders) — a book
-                                  cannot be removed while it sits in an active order
-```
-
-Note the last one: the adapter can live on either side. `ActiveOrderCheckPort` is declared by catalog and implemented in `bookland-orders`, inverting the dependency so catalog stays a leaf module.
+Several of these experiments **found real bugs** that the test suite had not: the gateway without
+timeouts, a payment outage that left no trace in the logs, a consumer creating another service's
+Kafka topic with the wrong partition count, and an e-mail outage longer than five minutes silently
+moving events to a dead-letter topic. Each was fixed and pinned by a test.
 
 ---
 
-## Design Patterns
+## Inside a service: Clean Architecture
 
-| Pattern | Where Applied |
+Every domain module has the same four layers, and dependencies only point inward:
+
+```
+infrastructure  →  adapters  →  application  →  domain
+   (Spring)        (plain Java)   (plain Java)    (plain Java)
+```
+
+| Layer | Holds |
 |---|---|
-| **Ports & Adapters** | The boundary mechanism throughout — all I/O behind `port/in` and `port/out` interfaces |
-| **The Dependency Rule** | `infrastructure → adapters → application → domain`, asserted by an ArchUnit `layeredArchitecture` rule per module |
-| **Rich Domain Model** | Entities own their invariants: private constructors, `create`/`reconstitute` factories, no public setters |
-| **Use Case per Class** | One `*Service` per use case (e.g. `CheckoutService`, `CancelOrderService`) |
-| **Composition Root** | `*Controller.create(ports)` wires each module's graph by hand; no `@UseCase`, no self-annotating beans |
-| **Presenter / ViewModel** | Use cases return domain entities; presenters shape them into Jackson-free ViewModels |
-| **Value Object** | `Email`, `UserId`, `ISBN` — immutable, self-validating types |
-| **Aggregate** | `Order` owns `OrderItem` and `StatusTransition`; `Cart` owns `CartItem` |
-| **Repository Pattern** | All persistence behind `*PersistencePort` interfaces |
-| **Adapter Pattern** | Cross-domain and infrastructure adapters implement out-ports |
-| **Dependency Inversion across modules** | `ActiveOrderCheckPort` is declared by catalog and implemented by orders, keeping catalog a leaf |
-| **Read Model (query-side DTO)** | `CartView`, `WishlistView`, `LowStockBook` — assembled in the application layer from the aggregate plus a cross-module lookup |
-| **Graceful Degradation** | A cart or wishlist item whose book left the catalog renders as `"Unavailable"` / `available: false` instead of failing the whole response |
-| **Framework-free Transactions** | `TransactionPort.inTransaction(Supplier<T>)`, implemented with `TransactionTemplate`; no `@Transactional` on application services |
-| **Framework-free Pagination** | `PageQuery` / `PageResult<T>` per module; adapters translate to and from Spring's `PageRequest` / `Page` |
-| **Domain Event (implicit)** | Status transitions recorded as `StatusTransition` history in `Order` |
-| **Idempotent Bootstrap** | `AdminBootstrap` guarantees exactly one admin on every startup |
-| **Soft Delete** | Books are deactivated, never deleted — invisible outside the catalog, still reachable by admin write flows. User accounts likewise: `DELETE` deactivates, and the e-mail stays taken |
-| **Optimistic Price Snapshot** | Cart freezes unit price at add time; Order freezes price, title and cover at checkout |
-| **Append-only Ledger** | `InventoryEntry` — insert-only, no updates, full audit trail |
-| **Token Rotation** | Refresh tokens are single-use; each refresh issues a new pair |
-| **Executable Architecture** | ArchUnit rules per module fail the build on a framework import in an inner layer |
+| `domain/` | Entities with private constructors and `create` / `reconstitute` factories, value objects, domain services, exceptions |
+| `application/` | One class per use case (`port/in`), the outbound ports it needs (`port/out`: persistence, messaging, other services, transactions) |
+| `adapters/` | The internal controller (orchestrates use cases, and is the module's composition root) and presenters → view models |
+| `infrastructure/` | `@RestController`s, JPA, Kafka/RabbitMQ listeners and producers, gRPC clients and servers, outbox/inbox, Spring configuration |
+
+- **No framework in the inner layers** — no Spring, JPA or Jackson. An `ArchitectureRulesTest`
+  (ArchUnit) in every module fails the build on a violation or on a dependency pointing outward.
+- **Wired by hand.** Inner classes are never Spring beans; each module exposes one `@Bean` that calls
+  `*Controller.create(ports)`. A use case can be unit-tested with `new`.
+- **Transactions without `@Transactional`**: a `TransactionPort` implemented with
+  `TransactionTemplate`, so an application service states its transaction boundary in plain Java.
+- **Use cases return domain entities**; presenters shape them for HTTP.
 
 ---
 
-## Tech Stack
+## Tech stack
 
-| Layer | Technology |
+| Area | Technology |
 |---|---|
-| Language | Java 21 |
-| Framework | Spring Boot 4.0.6 |
-| Build | Apache Maven (multi-module) |
-| Persistence | Spring Data JPA + Hibernate |
-| Database (dev) | H2 (in-memory) |
-| Database (prod) | PostgreSQL 16 |
-| Schema migrations | Flyway 11 (`spring-boot-starter-flyway`) — owns the schema in dev and prod |
-| File storage | Local filesystem behind `ImageStoragePort` (swappable for S3/GCS) |
-| Authentication | Spring Authorization Server (OAuth2 + OIDC) — RS256; every module is a Resource Server |
-| Object Mapping | MapStruct |
-| Boilerplate reduction | Lombok |
-| API Documentation | SpringDoc OpenAPI 3 (Swagger UI) |
-| Testing | JUnit 5 + Mockito + AssertJ |
-| Architecture testing | ArchUnit — one `ArchitectureRulesTest` per module |
-| Containerization | Docker + Docker Compose |
-| Code style | Conventional Commits |
+| Language / framework | Java 21, Spring Boot 4.0.6 (Spring Framework 7) |
+| Build | Maven multi-module (15 modules) |
+| Persistence | Spring Data JPA, Hibernate, PostgreSQL 16 (H2 in PostgreSQL mode for dev), Flyway |
+| Messaging | Apache Kafka 4.1 (KRaft) via Spring Kafka; RabbitMQ 4.1 via Spring AMQP |
+| Service-to-service | gRPC (Spring gRPC, protobuf), Resilience4j circuit breaker |
+| Edge | Spring Cloud Gateway (Server WebMVC) |
+| Security | Spring Authorization Server (OAuth2 + OIDC, RS256), Spring Security resource servers |
+| E-mail | Spring Mail (JavaMail), Mailpit in development |
+| API docs | springdoc-openapi (Swagger UI) |
+| Mapping / boilerplate | MapStruct, Lombok |
+| Testing | JUnit 5, Mockito, AssertJ, Awaitility, ArchUnit, embedded Kafka, in-process gRPC |
+| Runtime | Docker, Docker Compose (services, PostgreSQL, Kafka, Redpanda Console, RabbitMQ, Mailpit) |
 
 ---
 
-## Domain Overview
+## Getting started
 
-### User
-Manages customer identity and profile. Stores hashed passwords, name, email, role (`CUSTOMER` / `ADMIN`), and active status. Exposes use-case interfaces consumed by the Auth and Reviews modules.
+### Option A — the whole stack in Docker (production profile)
 
-**Deleting an account deactivates it.** The row stays, so the e-mail can never be registered again by someone else; to every lookup by id the account is gone (404), the login refuses it, and a refresh token issued before the deletion answers `invalid_grant`. An admin account cannot be deleted (409), since `AdminBootstrap` would otherwise find it deactivated and leave the system without an admin.
-
-### Auth
-Hosts an **OAuth2 Authorization Server with OIDC** (Spring Authorization Server). Login is `authorization_code` + PKCE at `/oauth2/authorize` and `/oauth2/token`, which issue an access token (15 minutes), an `id_token` and a refresh token (7 days, single-use rotation). Every other module is a Resource Server, verifying those tokens against the public key published at `/oauth2/jwks`. Registration stays in this module as `POST /api/v1/auth/register`, because it is business logic rather than authentication.
-
-### Catalog
-The source of truth for book data and stock quantity. Supports full-text search, filtering by category, price range, and average rating. Exposes stock adjustment and low-stock query use cases consumed by Inventory and Orders. ISBNs are normalised to their canonical 13-digit form on the way in.
-
-Cover images are uploaded as `multipart/form-data` and stored through `ImageStoragePort`; the adapter writes the bytes to disk and returns a public `/media/covers/...` path. `MultipartFile` never crosses the web layer — the API controller extracts `byte[]` + filename + content type into a framework-free command.
-
-**Book removal is a soft delete.** `GetBookByIdUseCase` — the in-port every other module reads books through — filters out inactive books, so a removed book cannot be fetched (404), added to a cart or wishlist (404), or checked out (409). Admin write flows bypass it and still see inactive books. On a `BookViewModel`, `available` means `active && stockQuantity > 0`.
-
-### Inventory
-An admin-facing audit ledger for manual stock adjustments. Records every delta with `previousQuantity`, `newQuantity`, `reason`, and `adjustedBy`. Does not store stock itself — that lives in Catalog. The low-stock endpoint enriches Catalog data with the timestamp of the last recorded manual movement.
-
-### Orders
-Manages the full purchase lifecycle:
-- **Cart** — one per customer, with real-time stock validation and price snapshotting
-- **Checkout** — an **orchestrated saga** over Kafka. `POST /cart/checkout` answers **202 Accepted** with the order `PENDING`; orders then asks the catalog to **reserve the stock** (all lines or none), **then** asks payments to **charge**, and on a decline asks the catalog to **release the reservation** (the compensation). Each module talks only through its own outbox and inbox; the client follows `GET /orders/{id}` until the order is `CONFIRMED`, `REJECTED` or `PAYMENT_FAILED`. The cart stays until the order is confirmed, and a second checkout while one runs answers `409 CHECKOUT_IN_PROGRESS`
-- **Order lifecycle** — `PENDING → AWAITING_PAYMENT → CONFIRMED → SHIPPED → DELIVERED`, or `REJECTED` (no stock) / `PAYMENT_FAILED` (declined, with `statusReason`) / `CANCELLED`
-- **Cancellation** — only from `CONFIRMED` (refused while the checkout is still running); the order is `CANCELLED` in the response, and the `OrderCancelled` event it publishes makes the catalog release the order's stock reservation and payments refund it, a moment later
-
-#### Stock under concurrency
-
-A single transaction buys atomicity, not isolation — the two are separate guarantees and only the first one follows from wrapping the work in a transaction. Stock therefore moves only through **relative UPDATEs** evaluated by the database, never through a read-modify-write in Java.
-
-Checkout consumes units with a conditional decrement:
-
-```sql
-UPDATE books SET stock_quantity = stock_quantity - :quantity
- WHERE id = :id AND active = true AND stock_quantity >= :quantity
-```
-
-`BookPersistencePort.tryDecrementSellableStock` returns whether that statement matched a row. Zero rows means the units are gone, which `CheckoutService` reports as `CartItemUnavailableException` (409) rather than confirming an order the catalog cannot fulfil.
-
-Cancellation returns them with the mirror statement, deliberately **without** the `active` filter — a delisted book must not be *sold*, but units coming back from a cancelled order are still units, and dropping them would leave the count wrong for good if the book is ever relisted:
-
-```sql
-UPDATE books SET stock_quantity = stock_quantity + :quantity WHERE id = :id
-```
-
-The asymmetry in the return types follows the same logic. A decrement has a guard that can legitimately fail, so it answers `boolean`; an increment has none, so it only reports whether the book existed at all, and `IncrementBookStockService` turns a miss into `BookNotFoundException` rather than discarding the units silently.
-
-**Three operations, not two.** Inventory's admin correction carries a *signed* delta, so `AdjustBookStockService` routes it to whichever relative UPDATE matches the sign. Its decrement is a third statement — the same guard against going negative, but again without the `active` filter, because admin write flows deliberately still reach delisted books and refusing to correct their count would strand it. Only selling requires the book to be active. The signature and the errors are unchanged from the read-modify-write version it replaces, `InsufficientStockException` (422) included, so nothing downstream noticed.
-
-`AdjustInventoryService` also gained a `TransactionPort`, and both halves of that change matter:
-
-- **The ledger and the stock now commit together.** Before, a failure to save the audit entry left the stock already changed and unrecorded.
-- **`previousQuantity` is derived, not read.** It used to call `getCurrentStock` and *then* adjust — two statements with a window between them, so the recorded "previous" could be a value this adjustment never started from, and the audit trail disagreed with the stock it existed to explain. Subtracting the delta from the result is exact, because the adjustment applied that delta atomically and the row lock it took is still held. `getCurrentStock` was removed from `BookStockAdjustmentPort` entirely — leaving it there is an invitation to reintroduce the bug.
-
-**Why not the alternatives.** The obvious read-modify-write — load the book, subtract in Java, save — is what this replaced, and it cannot hold the invariant no matter how the transaction is configured: two checkouts both read `stock=1`, both compute `0`, and both write the absolute value `0`. One unit is sold twice, silently, because a domain guard on the entity only ever sees the snapshot its own transaction read. A row lock does not save it either, since the value written is a constant computed before the lock was taken. `@Version` (optimistic locking) would protect every write to `books` rather than just this one, but it surfaces the conflict as an exception *after* the payment is approved, forcing a retry that re-charges or a compensating refund — and it turns a popular title into a retry storm. `PESSIMISTIC_WRITE` is correct but would hold the row lock across the payment gateway call, which sits inside the same transaction. The conditional `UPDATE` needs no version column, no migration, no retry, and no lock held over network I/O.
-
-**Where the guard is enforced.** In the SQL predicates, and only there. `Book` deliberately exposes **no method to move stock** — the old `Book.adjustStock`, which computed `stockQuantity + delta` in memory and threw when the result went negative, was deleted rather than left as dead code: it read like the safe way to change stock and was the exact read-modify-write this section is about, so keeping it around was a trap regardless of any warning attached to it. The invariant is now stated once, by the party that can evaluate it in the same statement that writes.
-
-The one absolute write left is `Book.update`, the admin edit that *sets* a stock quantity outright rather than moving it. It overwrites by intent — the admin is asserting a count, not a change — so it has no relative form and needs no guard.
-
-**Why three in-ports.** `DecrementBookStockUseCase` and `IncrementBookStockUseCase` are separate from `AdjustBookStockUseCase` because Orders never applies a signed adjustment — it consumes or returns a known number of units, and running out of stock mid-race is an expected outcome rather than an error, so it answers `boolean` instead of throwing. Inventory is the opposite: an admin submits a delta whose direction the caller does not know in advance, and a correction that would go negative is a genuine mistake worth a 422.
-
-**Reserved before charged.** The checkout no longer decrements per book after the payment: it asks the catalog to **reserve the order's units** (`ReserveStockForOrderUseCase`), all lines or none, before charging. A checkout that loses the race for the last copies now fails at the reservation, with nobody charged. The reservation is a row per order (`stock_reservations`), which is what makes reserving and releasing **idempotent by order id** — a repeated request answers from the row, and a failed reservation is recorded too, so a late duplicate cannot reserve for an order that was already rejected. Partial reservations are undone by putting back the lines already taken rather than by a rollback, so it behaves the same inside the checkout's transaction today and inside a message listener's once the saga is asynchronous.
-
-All of it is pinned by `StockConcurrencyIntegrationTest` (bookland-app), which races twenty checkouts for five copies, twenty cancellations returning a unit each, and twenty admin corrections of +1, all against the real database — a mocked persistence port would have passed against the broken implementation.
-
-### Payments
-Simulated payment gateway supporting `CREDIT_CARD`, `DEBIT_CARD`, `PAYPAL`, and `PIX`. It approves up to `bookland.payments.simulated.decline-above` (default 1000.00) and declines above it, so the checkout's compensation can be triggered on purpose. One payment per order (`payments.order_id` is unique). Charges and refunds arrive as messages and are first **recorded** (`PENDING`, `REFUND_PENDING`); a scheduled worker then takes them to the gateway with an **idempotency key** per operation, so a retry after a lost answer never charges or refunds twice. A gateway that does not answer delays the payment (retried with a doubling wait, attempts and last error kept on the row) instead of losing it; a refund the gateway refuses ends `REFUND_FAILED`. Payments statuses: `PENDING`, `APPROVED`, `DECLINED`, `REFUND_PENDING`, `REFUNDED`, `REFUND_FAILED`. Messages a consumer cannot apply go to that module's dead-letter topic (`<topic>.<module>.DLT`) instead of being dropped.
-
-### Reviews
-Purchase-verified review system. Before creating a review, the service verifies (via `PurchaseVerificationPort → VerifyPurchaseUseCase` in Orders) that the customer has a `DELIVERED` order containing that book. On creation and on moderation, the book's new average rating is written to a transactional outbox together with the review and relayed to Kafka as a `BookRatingChanged` event that Catalog consumes — so the rating updates a moment after the response, not within it — and the author's display name is stored on the review — so listing reviews never asks the User module, and a review keeps the name its author had when writing it.
-
-### Wishlist
-Customer wishlist with atomic **move-to-cart** — removes the item from the wishlist and adds it to the cart in a single operation, reusing the cart's stock validation.
-
----
-
-## API Reference
-
-All endpoints are documented interactively at **`/swagger-ui.html`** when the application is running.
-
-**Every date on the wire is an instant in UTC** — ISO-8601 ending in `Z` (`2026-08-05T18:17:49.755549Z`), never a local date-time. A client parses it with `Instant.parse` / `new Date(...)` and renders it in the viewer's own zone; no field anywhere in the API requires the reader to guess which zone it was written in. Columns are `timestamptz`, entities hold `Instant`, and `TimestampRulesTest` fails the build on a surviving `LocalDateTime`.
-
-### Authentication — `/api/v1/auth`
-
-| Method | Path | Access | Description |
-|---|---|---|---|
-| `POST` | `/register` | Public | Register — answers 201 with the account (`id`, `email`, `name`, `role`), no token, and signs the caller in to the Authorization Server |
-
-There is no login, refresh or logout endpoint under `/api/v1/auth`. Those are protocol endpoints of the Authorization Server:
-
-| Endpoint | Purpose |
-|---|---|
-| `GET /oauth2/authorize` | Start the authorization code flow (PKCE required); redirects to `/login` when there is no session |
-| `POST /oauth2/token` | Exchange the code (`grant_type=authorization_code`) or refresh (`grant_type=refresh_token`, single-use) |
-| `GET /oauth2/jwks` | Public key that verifies the tokens |
-| `GET /userinfo` | OIDC claims of the caller |
-| `GET /connect/logout` | End the Authorization Server session |
-| `GET /.well-known/openid-configuration` | Discovery document |
-
-### Users — `/api/v1/users`
-
-| Method | Path | Access | Description |
-|---|---|---|---|
-| `GET` | `/{id}` | Authenticated | Get user profile |
-| `PUT` | `/{id}` | Authenticated | Update user name |
-| `DELETE` | `/{id}` | Authenticated | Deactivate own account — login and refresh stop working, the e-mail stays taken; an admin account answers 409 |
-
-### Catalog — `/api/v1/books`, `/api/v1/categories`
-
-| Method | Path | Access | Description |
-|---|---|---|---|
-| `GET` | `/books` | Public | Search/filter books (q, category, price, sort, page) |
-| `GET` | `/books/{bookId}` | Public | Get book details |
-| `GET` | `/categories` | Public | List all categories |
-| `GET` | `/categories/{categoryId}/books` | Public | List books by category |
-| `POST` | `/books` | Admin | Create book |
-| `PATCH` | `/books/{bookId}` | Admin | Update book |
-| `POST` | `/books/{bookId}/cover` | Admin | Upload cover image (`multipart/form-data`, part `file`) |
-| `DELETE` | `/books/{bookId}` | Admin | Remove book (soft delete) |
-
-### Inventory — `/api/v1/books/{bookId}/inventory`, `/api/v1/inventory`
-
-| Method | Path | Access | Description |
-|---|---|---|---|
-| `PATCH` | `/books/{bookId}/inventory` | Admin | Adjust stock with reason |
-| `GET` | `/books/{bookId}/inventory/history` | Admin | Paginated adjustment history |
-| `GET` | `/inventory/low-stock?threshold=5` | Admin | Books below stock threshold |
-
-### Cart & Checkout — `/api/v1/cart`
-
-| Method | Path | Access | Description |
-|---|---|---|---|
-| `GET` | `/cart` | Authenticated | View cart. A customer who never added anything gets an empty cart with `id` and `updatedAt` null — reading does not create one; the first item added does |
-| `POST` | `/cart/items` | Authenticated | Add item to cart |
-| `PATCH` | `/cart/items/{bookId}` | Authenticated | Update item quantity |
-| `DELETE` | `/cart/items/{bookId}` | Authenticated | Remove item |
-| `POST` | `/cart/checkout` | Authenticated | Start the checkout (requires `paymentMethod`). **202** with the order `PENDING` and a `Location`; poll the order for the outcome |
-
-### Orders — `/api/v1/orders`, `/api/v1/admin/orders`
-
-| Method | Path | Access | Description |
-|---|---|---|---|
-| `GET` | `/orders?page=&size=` | Authenticated | Order history, newest first |
-| `GET` | `/orders/{orderId}` | Authenticated | Get order details |
-| `DELETE` | `/orders/{orderId}` | Authenticated | Cancel order |
-| `GET` | `/admin/orders?status=&page=&size=` | Admin | All orders, newest first |
-| `GET` | `/admin/orders/{orderId}` | Admin | Get any order's details |
-| `GET` | `/admin/orders/customer/{customerId}?page=&size=` | Admin | Orders of a given customer, newest first |
-| `PATCH` | `/admin/orders/{orderId}/status` | Admin | Update order status |
-
-**Order listings are not client-sortable.** Every route above is served newest
-first (`createdAt` descending, ties broken by `id` so paging cannot drop or
-repeat a row); the only pagination parameters are `page` and `size`. There is no
-`sort` parameter — a request carrying one is answered normally with the standard
-order, not rejected, because unknown query parameters are ignored API-wide.
-
-### Payments — `/api/v1/payments`
-
-| Method | Path | Access | Description |
-|---|---|---|---|
-| `GET` | `/payments/order/{orderId}` | Owner | Get the payment for your own order |
-
-There is no refund endpoint. A refund is one half of a cancellation — issuing it on its own left
-the order `CONFIRMED` and the stock never returned, which is the mirror of the admin-cancellation
-bug fixed earlier. Refunding is reached through `PATCH /admin/orders/{orderId}/status` → `CANCELLED`,
-which announces `OrderCancelled` via `OrderCancellation`; the catalog and payments each give back
-their half.
-
-### Reviews — `/api/v1/books/{bookId}/reviews`
-
-| Method | Path | Access | Description |
-|---|---|---|---|
-| `GET` | `/books/{bookId}/reviews` | Public | List reviews (paginated) |
-| `POST` | `/books/{bookId}/reviews` | Authenticated | Submit review (purchase verified) |
-| `DELETE` | `/books/{bookId}/reviews/{reviewId}` | Admin | Moderate (remove) review |
-
-### Wishlist — `/api/v1/wishlist`
-
-| Method | Path | Access | Description |
-|---|---|---|---|
-| `GET` | `/wishlist` | Authenticated | View wishlist |
-| `POST` | `/wishlist/items` | Authenticated | Add book to wishlist |
-| `DELETE` | `/wishlist/items/{bookId}` | Authenticated | Remove from wishlist |
-| `POST` | `/wishlist/items/{bookId}/move-to-cart` | Authenticated | Move item to cart |
-
----
-
-## Security Model
-
-- **Authorization Server + Resource Server** — `bookland-auth` issues the tokens; the API validates them as a resource server, statelessly, against the public key
-- **Access token** — short-lived (15 min default), RS256, `aud = bookland-api`; carries `sub` (the user id, never the e-mail), `email` and `role`
-- **`id_token`** — addressed to the client, not the API; refused as a Bearer credential
-- **Refresh token** — long-lived (7 days), single-use with rotation, stored in `oauth2_authorization`. A refresh looks the account up again: a deleted account is `invalid_grant`, and the new token carries the role the account has now
-- **Role-based access** — `CUSTOMER` for standard routes, `ADMIN` for management endpoints; the `role` claim becomes a `ROLE_*` authority checked by `hasRole()` rules in `ApiSecurityConfig`
-- **Admin bootstrap** — `AdminBootstrap` runs on every startup and idempotently ensures the configured admin account exists, driven by environment variables in production
-- **Password hashing** — BCrypt; registration hashes through `PasswordEncoderPort`, and the login checks the password through Spring's `DaoAuthenticationProvider`
-
-**Each module declares its own access rules**, next to the controllers they protect, as an `AuthorizationRules` bean — so a module extracted into a service takes its rules with it. A module lists only what departs from the default (its public routes, and admin routes outside `/api/v1/admin`); `ApiSecurityConfig` applies them all, then the default: the whole `/api/v1/admin/**` prefix is admin-only, so a new back-office controller is closed by default, and everything else requires authentication. Rules of different modules are written so they can never match the same request, which makes their order irrelevant. `AccessMatrixIntegrationTest` pins who may call every route and fails the build on a new route nobody classified.
-
-A handler that needs the caller declares an **`AuthenticatedUser`** parameter, resolved from the token's `sub` — never a path variable, `Principal` or `SecurityContextHolder`.
-
-**Known limitation — ending a session does not invalidate the access token.** `/connect/logout` (OIDC) ends the Authorization Server session and the refresh token stops working, so the session cannot be extended past the current access token. But the access token is stateless: nothing is looked up when it is validated, so it keeps working until it expires. A user who signed out stays authenticable for up to the access-token TTL — which is why that TTL is 15 minutes and not hours. This is the standard trade-off of stateless JWT, and the standard mitigation is exactly this: keep the access token short and let rotation do the rest. Making logout immediate requires server-side state on every request — a revocation list keyed by token id, listed under [Future Improvements](#future-improvements) as part of the Redis item.
-
-**Public routes:** `POST /api/v1/auth/register`, the Authorization Server's own endpoints (`/oauth2/**`, `/login`, `/.well-known/**`), `GET /api/v1/books/**`, `GET /api/v1/categories/**`, `GET /media/**` (stored cover images), `/error`, `/h2-console/**`, `/swagger-ui/**`, `/api-docs/**`. Everything else requires authentication; `/api/v1/admin/**` and all catalog/inventory writes require `ROLE_ADMIN`.
-
-Note that "public" no longer means a bad token is ignored. The resource server refuses an unusable Bearer token wherever one is presented, so `GET /api/v1/books` with an expired token answers 401 rather than serving the catalogue. The exceptions are the routes that are not the API at all — `/error`, `/media/**`, the console and the API document — which sit on a chain without a resource server precisely so that a stale token cannot turn a 500 into a 401.
-
-**`/error` is public on purpose and must stay that way.** Boot registers the security chain for the `ERROR` dispatch too, so when an unhandled exception makes the container forward to `/error`, an authenticated `/error` answers the *forward* with `401 TOKEN_MISSING`. The real 500 never reaches the client — it arrives disguised as an expired session, which makes the client refresh its token and then log the user out over a server-side bug.
-
----
-
-## Error Contract
-
-> Full reference: **[`docs/error-contract.md`](docs/error-contract.md)** — every code, every status, and how a client should react to each.
-
-Every error response in the API is `application/problem+json` ([RFC 7807](https://www.rfc-editor.org/rfc/rfc7807)), in English, carrying one extension member on top of the standard ones:
-
-```json
-{
-  "detail": "The access token has expired",
-  "instance": "/api/v1/cart",
-  "status": 401,
-  "title": "Unauthorized",
-  "code": "TOKEN_EXPIRED"
-}
-```
-
-**`code` is the contract; `detail` is not.** `detail` is prose meant for a banner and may be reworded at any time — a client branches on `code`, which only changes with a breaking release.
-
-**401 and 403 mean different things and are never conflated.** A 401 says the credential is missing or no longer good (`TOKEN_MISSING`, `TOKEN_EXPIRED`, `TOKEN_INVALID`) — refresh, then retry. A 403 says the credential is fine but the role is not (`INSUFFICIENT_ROLE`) — refreshing is pointless. And **not every 403 is about a role**: `ORDER_ACCESS_DENIED` and `PURCHASE_REQUIRED` are business 403s that say nothing about the caller's authorities, which is exactly why the status alone is not enough to branch on.
-
-**A rejected payload carries an `errors` map** — field name → the messages that field broke, always as arrays — so each message renders next to its own input:
-
-```json
-{
-  "status": 400,
-  "code": "VALIDATION_ERROR",
-  "detail": "Validation failed for 2 fields: email, password",
-  "errors": {
-    "email": ["must be a well-formed email address"],
-    "password": ["must contain at least one number", "size must be between 8 and 72"]
-  }
-}
-```
-
-Messages never name their own field (the key already does) and are always English, whatever the server's locale or the request's `Accept-Language`.
-
-**Business rules are not validation errors** — they carry `detail`, no `errors` map, and a code owned by the module that owns the rule (`ISBN_ALREADY_EXISTS`, `INSUFFICIENT_STOCK`, `CHECKOUT_IN_PROGRESS`, …). **A 5xx never echoes the exception message**: `detail` is always `"The server failed to process the request"`, because the exception's own text carries stack traces, SQL and column names. The cause goes to the log, never to the client.
-
-The contract is published in `GET /api-docs` — a `ProblemDetail` schema, a `ValidationProblemDetail` schema, a `default` error response on every operation and an explicit `400` wherever a request takes input — so a client generates its error type rather than hand-writing it.
-
-None of this is documentation-only. `AuthErrorContractIntegrationTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest` and `OpenApiErrorContractIntegrationTest` lock each half of it against the running application; the glue itself lives in [`bookland-web-support`](#module-structure), out of reach of every inner layer.
-
----
-
-## Database and Migrations
-
-**Flyway owns the schema in both profiles.** Migrations live in `bookland-app/src/main/resources/db/migration` and run at startup, before Hibernate.
-
-```
-V20260726164500__init_schema.sql            ← 15 tables, FKs, indexes
-V20260726164600__reference_categories.sql   ← category reference data
-V20260730120000__timestamps_with_time_zone.sql
-                                            ← every timestamp column → timestamptz
-V20260810093000__oauth2_authorization_server_schema.sql
-                                            ← the Authorization Server's three oauth2_* tables
-V20260810210000__drop_refresh_tokens.sql    ← the hand-rolled refresh token table, retired
-V20261003120000__reviews_customer_name.sql  ← author name stored on the review, backfilled from users
-```
-
-Versions are **timestamps**, not sequential numbers, so parallel branches cannot collide on the same version.
-
-`ddl-auto` stays on `validate` in prod — deliberately. Flyway creates the schema; Hibernate then verifies it matches the entity mapping and refuses to start if it does not. A migration forgotten after an entity change fails the boot instead of surfacing as a runtime error.
-
-**Dev runs the same migrations.** H2 is opened in PostgreSQL compatibility mode (`MODE=PostgreSQL`) so it accepts the same SQL, which means every migration is exercised on every dev boot rather than being tried for the first time in production.
-
-| | dev | prod |
-|---|---|---|
-| Database | H2 (in-memory, PostgreSQL mode) | PostgreSQL 16 |
-| Schema owner | **Flyway** | **Flyway** |
-| `ddl-auto` | `validate` | `validate` |
-| Seed data | migration + `AdminBootstrap` + `DevCustomerSeeder` + `DevDataLoader` | migration + `AdminBootstrap` |
-
-Both bootstrap runners are **idempotent** — they check before inserting. This matters because the in-memory database survives a `spring-boot-devtools` restart (`DB_CLOSE_DELAY=-1` keeps it alive for the life of the JVM) and Flyway, unlike `create-drop`, does not wipe it.
-
-> Foreign keys exist only **within** a module. Columns that reference another module (`cart_items.book_id`, `orders.customer_id`, `payments.order_id`, …) are indexed `uuid` values with no referential constraint — mirroring the absence of JPA relationships across module boundaries. Integrity is enforced in the application layer.
-
----
-
-## Running the Application
-
-### Without Docker (dev)
-
-**Requirements:** Java 21, Maven 3.9+
+**Requires:** Docker with Compose.
 
 ```bash
-# Clone the repository
-git clone https://github.com/conradrenno/Bookland-API.git
-cd bookland
-
-# Start the Kafka broker, then the two processes (dev profile, H2 in memory, seeds loaded)
-docker compose up -d kafka redpanda-console
-./mvnw spring-boot:run -pl bookland-identity-app   # identity service: users, login, tokens
-./mvnw spring-boot:run -pl bookland-catalog-app    # catalog service: books, categories, stock
-./mvnw spring-boot:run -pl bookland-app            # the API
+cp .env.example .env      # fill in the secrets — the file explains each one, including how to
+                          # generate the RSA key pair that signs the tokens
+docker compose up --build
 ```
 
-Clients call the gateway on `http://localhost:8080` (start it too: `./mvnw spring-boot:run -pl bookland-gateway`), which routes books, categories, inventory and cover images to the catalog service (`http://127.0.0.1:8082`) and everything else — a book's reviews included — to the API (`http://localhost:8083`). The identity service is on `http://127.0.0.1:9000`. Each service has its own in-memory database.
+| What | Where |
+|---|---|
+| API, through the gateway | http://localhost:8080 |
+| Swagger UI — API / catalog / identity | http://127.0.0.1:8083/swagger-ui.html · http://127.0.0.1:8082/swagger-ui.html · http://127.0.0.1:9000/swagger-ui.html |
+| Kafka UI (Redpanda Console) | http://localhost:8081 |
+| RabbitMQ management | http://localhost:15672 (`bookland` / `bookland` unless set in `.env`) |
+| Mailpit (every e-mail sent) | http://localhost:8025 |
 
-**Dev credentials (seeded automatically):**
+The production profile seeds only the admin account from `.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`);
+books are created through the API.
 
-| Role | Email | Password |
+### Option B — run the services from source (dev profile, seeded data)
+
+**Requires:** Java 21 and Docker (for the brokers).
+
+```bash
+docker compose up -d kafka redpanda-console rabbitmq mailpit
+./mvnw clean install -DskipTests
+
+./mvnw spring-boot:run -pl bookland-identity-app      # :9000
+./mvnw spring-boot:run -pl bookland-catalog-app       # :8082
+./mvnw spring-boot:run -pl bookland-app               # :8083
+./mvnw spring-boot:run -pl bookland-gateway           # :8080
+./mvnw spring-boot:run -pl bookland-notification-app
+```
+
+Each service uses its own in-memory H2 database, migrated by Flyway, with sample books and two users:
+
+| Role | E-mail | Password |
 |---|---|---|
 | Admin | admin@bookland.com | admin1234 |
 | Customer | joao@bookland.com | joao1234 |
 
-**Dev endpoints:**
-
-| Tool | URL |
-|---|---|
-| Swagger UI (API) | http://127.0.0.1:8083/swagger-ui.html |
-| Swagger UI (identity: register, users) | http://127.0.0.1:9000/swagger-ui.html |
-| Swagger UI (catalog: books, categories, inventory) | http://127.0.0.1:8082/swagger-ui.html |
-| H2 Console | http://localhost:8083/h2-console (`jdbc:h2:mem:booklanddb`), http://localhost:9000/h2-console (`jdbc:h2:mem:identitydb`) and http://localhost:8082/h2-console (`jdbc:h2:mem:catalogdb`) |
-| OpenAPI JSON | http://localhost:8083/api-docs, http://localhost:9000/api-docs and http://localhost:8082/api-docs |
-
-> To use Swagger's **Authorize** button, open it at `127.0.0.1`, not `localhost`: the Authorization Server rejects `localhost` redirect URIs (RFC 8252). The login runs on the identity service (`127.0.0.1:9000`); the API's UI then exchanges the code with a `fetch` to `127.0.0.1:9000/oauth2/token`, a cross-origin call the identity service allows for the API's and the catalog's Swagger origins (`http://127.0.0.1:8083`, `http://127.0.0.1:8082`) only. Swagger is served by each service on its own port, not through the gateway. The dialog asks for the client id and secret (`bookland-web` / `bookland-web-secret` in dev), then sends you through the login page.
+**Calling the API from Swagger.** Open a Swagger UI at `127.0.0.1` (not `localhost` — the
+Authorization Server only accepts loopback IPs as redirect URIs, per RFC 8252), click **Authorize**,
+enter the client `bookland-web` / `bookland-web-secret` (dev), and log in on the identity service's
+page.
 
 ---
 
-### With Docker (prod)
+## API overview
 
-**Requirements:** Docker, Docker Compose
+Full, interactive documentation is in each service's Swagger UI. Every date on the wire is a UTC
+instant (`2026-08-05T18:17:49.755Z`).
 
-```bash
-# Copy and configure environment variables
-cp .env.example .env   # edit with your values
-
-# Build and start all services (API, identity service, catalog service, PostgreSQL, Kafka, Redpanda Console)
-docker compose up --build
-```
-
-Clients call the gateway on `http://localhost:8080`; behind it the API runs on `8083` and the catalog service on `8082`, the identity service on `http://127.0.0.1:9000`, sharing one PostgreSQL 16 instance but not a database: `docker/postgres/initdb` gives each service a role of its own that owns its database and cannot connect to the others' (`bookland` / `identity` / `catalog`), **only when the data volume is empty** — after adding a service, recreate it with `docker compose down -v`. The API and the catalog talk gRPC on 9090 inside the compose network; that port is not published. Each service's Flyway creates its own schema on first boot.
-
-Two volumes persist across restarts: `bookland-pgdata` (database) and `bookland-covers` (uploaded cover images).
-
-To stop and wipe both volumes:
-
-```bash
-docker-compose down -v
-```
-
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and fill in the values before running with Docker.
-
-| Variable | Required | Description |
+| Area | Endpoints | Access |
 |---|---|---|
-| `POSTGRES_USER` | Prod | PostgreSQL **superuser** — administration only; no service connects with it |
-| `POSTGRES_PASSWORD` | Prod | Its password |
-| `APP_DB_USER` / `APP_DB_PASSWORD` | Prod | The API's own role: owns the `bookland` database, cannot connect to `identity`. Created on the volume's first start |
-| `IDENTITY_DB_USER` / `IDENTITY_DB_PASSWORD` | Prod | The identity service's role: owns the `identity` database, cannot connect to `bookland` |
-| `CATALOG_DB_USER` / `CATALOG_DB_PASSWORD` | Prod | The catalog service's role: owns the `catalog` database, cannot connect to the others |
-| `OAUTH2_ISSUER` | Prod | The URL clients actually reach the identity service on (`http://127.0.0.1:9000`). Published in its discovery document and written into the `iss` claim; the API checks the same value, and a mismatch is only noticed at validation time |
-| `OAUTH2_CORS_ALLOWED_ORIGINS` | Optional | Browser origins allowed to call the token endpoint (compose default: the API's and the catalog's Swagger UIs, `http://127.0.0.1:8083,http://127.0.0.1:8082`) |
-| `OAUTH2_JWK_PRIVATE_KEY` | Prod | RSA private key, base64 of the PKCS#8 DER, single-line. **The secret of the whole system** — whoever holds it mints admin tokens |
-| `OAUTH2_JWK_PUBLIC_KEY` | Prod | RSA public key, base64 of the X.509 DER. Published at `/oauth2/jwks`; publishing it is the point |
-| `OAUTH2_CLIENT_ID` | Prod | Client id of the one registered client |
-| `OAUTH2_CLIENT_SECRET` | Prod | Its secret, in plain text — `ClientBootstrap` BCrypts it before it reaches the table |
-| `OAUTH2_CLIENT_REDIRECT_URIS` | Prod | Comma-separated — one per Swagger UI (8083, 9000 and 8082). Must be loopback IPs rather than `localhost`, which the server rejects (RFC 8252) |
-| `OAUTH2_ACCESS_TOKEN_TTL_MINUTES` | Optional | Access token TTL (default: 15). Raising it widens the window after sign-out — see [Security Model](#security-model) |
-| `OAUTH2_REFRESH_TOKEN_TTL_DAYS` | Optional | Refresh token TTL (default: 7) |
-| `ADMIN_EMAIL` | Prod | Bootstrap admin email |
-| `ADMIN_PASSWORD` | Prod | Bootstrap admin password |
-| `OAUTH2_JWK_SET_URI` | Injected | Where the API fetches the identity service's public keys; compose sets `http://identity:9000/oauth2/jwks` (the service name, unlike the issuer) |
-| `DB_URL` | Injected | JDBC URL. `docker-compose.yml` sets it per service (`.../bookland`, `.../identity`) — the service name on the compose network. Not set in `.env`; the `application.yml` default (`localhost:5432`) covers running the app from the host |
-| `STORAGE_COVERS_LOCATION` | Optional | Where cover images are written (default `/var/bookland/covers`). Mount a volume so uploads survive restarts |
+| **Accounts** (identity) | `POST /api/v1/auth/register` · `GET/PUT/DELETE /api/v1/users/{id}` (own account; delete deactivates) | Public / owner |
+| **Login** (identity) | `/oauth2/authorize`, `/oauth2/token`, `/oauth2/jwks`, `/userinfo`, `/connect/logout`, `/.well-known/openid-configuration` | Protocol endpoints |
+| **Catalog** | `GET /api/v1/books` (search, filter, sort, page) · `GET /books/{id}` · `GET /categories` · `GET /categories/{id}/books` | Public |
+| | `POST /books` · `PATCH /books/{id}` · `POST /books/{id}/cover` · `DELETE /books/{id}` (soft delete) | Admin |
+| **Inventory** | `PATCH /api/v1/books/{id}/inventory` · `GET /books/{id}/inventory/history` · `GET /inventory/low-stock` | Admin |
+| **Cart** | `GET /api/v1/cart` · `POST /cart/items` · `PATCH/DELETE /cart/items/{bookId}` · `POST /cart/checkout` → **202** | Customer |
+| **Orders** | `GET /api/v1/orders` · `GET /orders/{id}` · `DELETE /orders/{id}` (cancel) | Owner |
+| | `GET /api/v1/admin/orders` · `GET /admin/orders/{id}` · `GET /admin/orders/customer/{id}` · `PATCH /admin/orders/{id}/status` | Admin |
+| **Payments** | `GET /api/v1/payments/order/{orderId}` | Owner |
+| **Reviews** | `GET /api/v1/books/{id}/reviews` (newest first) · `POST` (requires a delivered order with the book) | Public / customer |
+| | `DELETE /api/v1/books/{id}/reviews/{reviewId}` (moderation) | Admin |
+| **Wishlist** | `GET /api/v1/wishlist` · `POST /wishlist/items` · `DELETE /wishlist/items/{bookId}` · `POST /wishlist/items/{bookId}/move-to-cart` | Customer |
 
-Generate the RSA key pair (base64 of the DER, single-line):
-```bash
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform DER -out k.der
-openssl pkcs8 -topk8 -nocrypt -inform DER -in k.der -outform DER -out private.der
-openssl rsa -in k.der -inform DER -pubout -outform DER -out public.der
-openssl base64 -A -in private.der    # OAUTH2_JWK_PRIVATE_KEY
-openssl base64 -A -in public.der     # OAUTH2_JWK_PUBLIC_KEY
+Order lifecycle: `PENDING → AWAITING_PAYMENT → CONFIRMED → SHIPPED → DELIVERED`, or `REJECTED` (no
+stock), `PAYMENT_FAILED` (declined, with the reason), `CANCELLED` (only from `CONFIRMED`). The
+simulated payment gateway declines amounts above 1000.00, so the compensation path can be triggered
+on purpose.
+
+---
+
+## Security
+
+- **Login is OAuth2 authorization code + PKCE** against the identity service; it issues a 15-minute
+  RS256 access token (`aud = bookland-api`), an `id_token` and a single-use refresh token. A refresh
+  re-reads the account, so a deactivated account or a changed role takes effect at the next refresh.
+- **Every service is a resource server**, validating tokens against the identity service's public
+  keys; only the identity service holds the private key.
+- **`sub` is the user id, never the e-mail.** Identity travels in the token (`sub`, `email`, `name`,
+  `role`); no service asks the identity service who the caller is.
+- **Each module declares its own access rules**, next to its controllers; `/api/v1/admin/**` is
+  admin-only by default. An `AccessMatrixIntegrationTest` in each service with an API (API, catalog,
+  identity) pins who may call every route and fails the build on a route nobody classified.
+- **401 and 403 never mix**: a missing, expired or invalid token is 401 with a code that says which;
+  a valid token without the role is 403 `INSUFFICIENT_ROLE`.
+
+---
+
+## Error contract
+
+Every error is `application/problem+json` (RFC 7807) with a machine-readable `code`, in English:
+
+```json
+{
+  "status": 409,
+  "title": "Conflict",
+  "detail": "A checkout is already in progress for customer 6f1c…",
+  "instance": "/api/v1/cart/checkout",
+  "code": "CHECKOUT_IN_PROGRESS"
+}
 ```
+
+Validation errors add an `errors` map (field → messages); a 5xx never echoes the exception's text.
+The full list of codes, and how a client should react to each, is in
+**[docs/error-contract.md](docs/error-contract.md)**. The contract is also published in each
+service's OpenAPI document, and contract tests lock it against the running application.
 
 ---
 
 ## Testing
 
 ```bash
-# Run all tests across all modules
-./mvnw test
-
-# Run tests for a specific module
-./mvnw test -pl bookland-orders
-
-# Run a single test class
-./mvnw test -pl bookland-auth -Dtest=BooklandTokenCustomizerTest
+./mvnw test                                   # everything (no Docker needed)
+./mvnw test -pl bookland-orders               # one module
+./mvnw test -pl bookland-app -Dtest=CheckoutSagaIntegrationTest
 ```
 
-**Inside a domain module** the tests are plain JUnit 5 + Mockito + AssertJ against mocked ports — no Spring context, no database, no `@WebMvcTest` slices. `TransactionPort` is faked with a pass-through implementation rather than mocked. That is what the manual composition root buys: a use case is constructed with `new`, so testing it needs no framework.
+**450+ tests**, of four kinds:
 
-**The contract tests live in `bookland-app`** — the only module with every other module on the classpath, and therefore the only place the real filter chain, the real advices and the real database exist at once. These do boot Spring (`@SpringBootTest`) and do hit H2.
+- **Unit tests** of domain and application services against mocked ports — plain JUnit, no Spring.
+- **Architecture tests** (ArchUnit) in every module, plus rules across each service: no framework in
+  the inner layers, no catalog types outside the catalog, no identity types outside identity, no
+  `LocalDateTime` on the wire.
+- **Integration tests** per service, with the real Spring context and database, an embedded Kafka
+  broker and in-process gRPC: the whole checkout saga, cancellation, payment safety (outages,
+  duplicates, dead letters), stock races (twenty concurrent draws on five copies; two customers
+  racing for the last one), the error
+  contract, the access matrix, the published OpenAPI document. Other services are replaced by fakes
+  at the gRPC/Kafka boundary; RabbitMQ and SMTP by doubles at their ports.
+- **End-to-end runs and failure experiments** against the Docker Compose stack (see above).
 
-Four kinds of test:
-- **Unit tests** — domain services, application services and internal controllers, in isolation
-- **Architecture tests** — one `ArchitectureRulesTest` per module (ArchUnit): fails the build if `domain`, `application` or `adapters` import Spring, JPA, Jackson or `bookland-web-support`, or if the inward dependency direction is broken. Two more live in `bookland-app`, where the whole classpath is visible: `WebLayerRulesTest` fails a handler that returns a non-200 without `@ResponseStatus` (springdoc would publish the wrong status), and `TimestampRulesTest` fails any surviving `LocalDateTime` field
-- **Contract tests** — `@SpringBootTest` against the assembled application: they pin what a client actually receives (error bodies, status codes, the published OpenAPI document, date formats, ordering) rather than what a mock was told to return
-- **Context test** — `BooklandApplicationTests` boots the full Spring context, validating every composition root and cross-module `@Bean`
-
-| Module | Test classes |
-|---|---|
-| user | `UserDomainServiceTest`, `RegisterUserServiceTest`, `UserControllerTest`, `ArchitectureRulesTest` |
-| auth | `RegisterServiceTest`, `AuthControllerTest`, `BooklandTokenCustomizerTest`, `ArchitectureRulesTest` |
-| catalog | `CreateBookServiceTest`, `GetBookByIdServiceTest`, `RemoveBookServiceTest`, `AdjustBookStockServiceTest`, `DecrementBookStockServiceTest`, `IncrementBookStockServiceTest`, `CatalogControllerTest`, `ISBNTest`, `ArchitectureRulesTest` |
-| orders | `CheckoutServiceTest`, `CancelOrderServiceTest`, `UpdateOrderStatusServiceTest`, `CheckActiveOrdersServiceTest`, `GetCartServiceTest`, `ArchitectureRulesTest` |
-| payments | `ProcessPaymentServiceTest`, `GetPaymentByOrderIdServiceTest`, `ArchitectureRulesTest` |
-| reviews | `CreateReviewServiceTest`, `ListReviewsServiceTest`, `ArchitectureRulesTest` |
-| inventory | `AdjustInventoryServiceTest`, `ArchitectureRulesTest` |
-| wishlist | `AddWishlistItemServiceTest`, `ArchitectureRulesTest` |
-| app | `BooklandApplicationTests`, `AuthorizationCodeFlowIntegrationTest`, `AuthErrorContractIntegrationTest`, `AuthenticatedUserArgumentResolverTest`, `BusinessErrorContractIntegrationTest`, `ValidationErrorContractIntegrationTest`, `OpenApiErrorContractIntegrationTest`, `TimestampContractIntegrationTest`, `OrderHistoryOrderingIntegrationTest`, `ReviewAuthorNameIntegrationTest`, `AccessMatrixIntegrationTest`, `StockConcurrencyIntegrationTest`, `ProblemDetailErrorControllerTest`, `WebLayerRulesTest`, `TimestampRulesTest` |
-| web-support | — (exercised entirely through the app's contract tests) |
+A habit throughout: a guard is not considered tested until the test has been seen to **fail with the
+guard removed**. That habit caught, among others, a retry test that passed for the wrong reason
+(Spring's `ExponentialBackOff` limits the sum of its waits, not wall-clock time).
 
 ---
 
-## Future Improvements
+## How it was built
 
-The roadmap includes:
+The project started as a modular monolith and was migrated in six planned steps, each one shipped,
+tested and measured before the next:
 
-- **BFF (Backend for Frontend)** — the Authorization Server is in place; the next step on the client side is a BFF that holds the tokens server-side, so the browser never touches them
-- **Event-driven cross-domain communication** — replace in-process port calls with domain events via a message broker (e.g. Kafka or RabbitMQ), enabling true decoupling and eventual consistency between modules
-- **Notification domain** — email/push notifications triggered by domain events (order confirmed, shipped, review approved)
-- **Elasticsearch integration** — replace JPA-based book search with a dedicated search index for full-text, faceted, and relevance-ranked queries
-- **Redis caching** — cache catalog reads and session-adjacent data (cart preview). Also the natural home for an **access-token revocation list**, which is what would make logout immediate instead of bounded by the 15-minute TTL (see [Security Model](#security-model)) — the trade is a lookup on every authenticated request, so it buys immediacy at the cost of the statelessness that makes the filter free today
-- **Admin promotion endpoint** — `PATCH /api/v1/admin/users/{id}/role` to promote users without direct database access
-- **CI/CD pipeline** — GitHub Actions workflow with test, build, Docker push, and deploy stages
-- **Rate limiting** — per-IP and per-user throttling on auth and checkout endpoints
-- **Reservation expiry** — stock is now reserved before charging (see [Stock under concurrency](#stock-under-concurrency)); what is missing is a TTL, so that a reservation whose checkout never finished is released instead of held forever
+1. **Preparation** — token validation moved to a shared platform module; access rules split per module.
+2. **Kafka + transactional outbox** — first with a deliberate experiment showing an event lost without it.
+3. **Identity service** extracted, with its own database.
+4. **Checkout saga and choreographed cancellation**, plus payment idempotency and dead-letter topics.
+5. **gRPC and the catalog service**, then the API gateway.
+6. **Notification service** with RabbitMQ — retries, dead-letter queue, send-once.
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/). The architecture rules
+and conventions the code follows are written down in [`CLAUDE.md`](CLAUDE.md).
+
+---
+
+## Known limitations
+
+Deliberate simplifications and known gaps, stated plainly:
+
+- **One instance per background worker.** Outbox relays and the payment worker assume a single
+  instance; running replicas would need row claiming (`FOR UPDATE SKIP LOCKED`) or leader election.
+- **Stock reservations do not expire.** A checkout that never finishes keeps its units reserved.
+- **One PostgreSQL server** hosts every service's database (separate databases and roles) — an
+  infrastructure shortcut, not a shared schema.
+- **No authentication between services** on gRPC and Kafka; they rely on the internal network.
+- **Logout does not revoke an access token**; it stays valid until it expires (15 minutes).
+  Refresh-token reuse is refused but not treated as theft (no revocation of the token family), and
+  old authorizations are not purged.
+- **Dead-letter topics and queues are not reprocessed automatically** — a person inspects them.
+- **Inventory history lists manual stock adjustments**; sales and cancellations appear as stock
+  reservations, not as history entries.
+- **Not built:** category management, password or e-mail change, an admin back-office for accounts
+  and payments.
+- **Lab infrastructure:** Kafka and RabbitMQ run without persistent volumes in Compose; there is no
+  CI pipeline, no tracing or metrics, and no deployment beyond Docker Compose.
+
+---
+
+## Roadmap
+
+- CI with GitHub Actions (build, tests, images)
+- Observability: OpenTelemetry traces across HTTP, gRPC and Kafka; metrics and dashboards
+- Testcontainers for PostgreSQL and RabbitMQ in the test suite
+- Reservation expiry, and worker claiming for horizontal scaling
+- A BFF holding tokens server-side, and GraphQL at the edge
 
 ---
 
 <div align="center">
-  Built with care by <a href="https://github.com/conradrenno">conradrenno</a>
+  Built by <a href="https://github.com/conradrenno">conradrenno</a>
 </div>
