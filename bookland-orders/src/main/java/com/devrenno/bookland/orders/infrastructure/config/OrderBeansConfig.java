@@ -43,9 +43,10 @@ public class OrderBeansConfig {
     public CheckoutSagaUseCase checkoutSagaUseCase(OrderPersistencePort orderPersistencePort,
                                                    CartPersistencePort cartPersistencePort,
                                                    CheckoutCommandPort checkoutCommandPort,
+                                                   OrderEventPort orderEventPort,
                                                    TransactionPort transactionPort) {
         return CheckoutSagaService.create(orderPersistencePort, cartPersistencePort, checkoutCommandPort,
-                transactionPort);
+                orderEventPort, transactionPort);
     }
 
     @Bean

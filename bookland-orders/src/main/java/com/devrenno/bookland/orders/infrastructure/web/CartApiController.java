@@ -4,6 +4,7 @@ import com.devrenno.bookland.orders.adapters.controller.OrdersController;
 import com.devrenno.bookland.orders.adapters.viewmodel.CartViewModel;
 import com.devrenno.bookland.orders.adapters.viewmodel.OrderViewModel;
 import com.devrenno.bookland.orders.application.dto.AddCartItemCommand;
+import com.devrenno.bookland.orders.application.dto.CheckoutCommand;
 import com.devrenno.bookland.orders.application.dto.UpdateCartItemCommand;
 import com.devrenno.bookland.orders.infrastructure.web.dto.AddCartItemRequest;
 import com.devrenno.bookland.orders.infrastructure.web.dto.CheckoutRequest;
@@ -71,7 +72,8 @@ public class CartApiController {
             @Valid @RequestBody CheckoutRequest request,
             AuthenticatedUser caller
     ) {
-        OrderViewModel order = ordersController.checkout(caller.id(), request.paymentMethod());
+        OrderViewModel order = ordersController.checkout(
+                new CheckoutCommand(caller.id(), caller.email(), caller.name(), request.paymentMethod()));
         return ResponseEntity.accepted().location(URI.create("/api/v1/orders/" + order.id())).body(order);
     }
 }

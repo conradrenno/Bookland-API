@@ -41,6 +41,10 @@ public class OrdersKafkaConfig {
     public static final String RESERVE_STOCK = "ReserveStock";
     public static final String RELEASE_STOCK = "ReleaseStock";
     public static final String CHARGE_PAYMENT = "ChargePayment";
+    public static final String ORDER_CONFIRMED = "OrderConfirmed";
+    public static final String ORDER_PAYMENT_FAILED = "OrderPaymentFailed";
+    public static final String ORDER_REJECTED = "OrderRejected";
+    public static final String ORDER_SHIPPED = "OrderShipped";
     public static final String ORDER_CANCELLED = "OrderCancelled";
 
     static final String STOCK_RESERVED = "StockReserved";

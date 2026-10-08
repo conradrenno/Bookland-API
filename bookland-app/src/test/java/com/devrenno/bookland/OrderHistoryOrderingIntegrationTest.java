@@ -123,7 +123,7 @@ class OrderHistoryOrderingIntegrationTest {
      */
     private Order persist(UUID customerId, Instant createdAt) {
         Order order = Order.reconstitute(
-                UUID.randomUUID(), customerId,
+                UUID.randomUUID(), customerId, "reader@bookland.com", "Reader",
                 List.of(OrderItem.of(UUID.randomUUID(), "Test Book", null, 1, BigDecimal.TEN)),
                 OrderStatus.AWAITING_PAYMENT, null, null, BigDecimal.TEN,
                 List.of(), createdAt, createdAt);

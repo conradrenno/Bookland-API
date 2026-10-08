@@ -71,7 +71,7 @@ class CancelOrderServiceTest {
 
         assertThatThrownBy(() -> service.execute(order.getId(), customerId))
                 .isInstanceOf(OrderCancellationNotAllowedException.class);
-        verify(orderEventPort, never()).orderCancelled(any());
+        verifyNoInteractions(orderEventPort);
     }
 
     @Test
@@ -84,7 +84,7 @@ class CancelOrderServiceTest {
         Order result = service.execute(order.getId(), customerId);
 
         assertThat(result).isNotNull();
-        verify(orderEventPort).orderCancelled(order.getId());
+        verify(orderEventPort).orderCancelled(order);
     }
 
     @Test
@@ -106,7 +106,7 @@ class CancelOrderServiceTest {
         assertThatThrownBy(() -> service.execute(order.getId(), otherCustomer))
                 .isInstanceOf(OrderAccessDeniedException.class);
 
-        verify(orderEventPort, never()).orderCancelled(any());
+        verifyNoInteractions(orderEventPort);
     }
 
     @Test
@@ -118,13 +118,13 @@ class CancelOrderServiceTest {
         assertThatThrownBy(() -> service.execute(order.getId(), customerId))
                 .isInstanceOf(OrderCancellationNotAllowedException.class);
 
-        verify(orderEventPort, never()).orderCancelled(any());
+        verifyNoInteractions(orderEventPort);
     }
 
     private Order buildOrder(UUID customerId, OrderStatus status) {
         OrderItem item = OrderItem.of(bookId, "Clean Code", "/media/covers/clean-code.jpg", 2, BigDecimal.valueOf(29.90));
         return Order.reconstitute(
-                UUID.randomUUID(), customerId, List.of(item), status, null, null,
+                UUID.randomUUID(), customerId, "reader@bookland.com", "Reader", List.of(item), status, null, null,
                 BigDecimal.valueOf(59.80), List.of(),
                 Instant.now(), Instant.now()
         );

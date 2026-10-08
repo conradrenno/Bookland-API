@@ -30,9 +30,9 @@ public class UpdateOrderStatusService implements UpdateOrderStatusUseCase {
     /**
      * The admin back-office drives the same state machine the customer does, and CONFIRMED → CANCELLED
      * is one of its legal moves — so this path owes the same compensation the customer's cancellation
-     * does. It runs inside a transaction because a cancellation is two writes, the order and the
-     * {@code OrderCancelled} event in the outbox: the event must not leave for an order still
-     * CONFIRMED, nor the order be cancelled with no event to give its stock and money back.
+     * does, and CONFIRMED → SHIPPED the same notice to the customer. It runs inside a transaction
+     * because a transition is two writes, the order and its event in the outbox: the event must not
+     * leave for a change that did not commit, nor the change commit with no event to announce it.
      */
     @Override
     public Order execute(UpdateOrderStatusCommand command) {
@@ -43,7 +43,7 @@ public class UpdateOrderStatusService implements UpdateOrderStatusUseCase {
             OrderStatus previousStatus = order.getStatus();
             order.transitionStatus(command.newStatus(), command.adminId());
 
-            OrderCancellation.announce(order, previousStatus, command.newStatus(), orderEventPort);
+            OrderEvents.announce(order, previousStatus, orderEventPort);
 
             return orderPersistencePort.save(order);
         });

@@ -37,7 +37,7 @@ public class CancelOrderService implements CancelOrderUseCase {
             OrderStatus previousStatus = order.getStatus();
             order.cancel(customerId);
 
-            OrderCancellation.announce(order, previousStatus, order.getStatus(), orderEventPort);
+            OrderEvents.announce(order, previousStatus, orderEventPort);
 
             return orderPersistencePort.save(order);
         });

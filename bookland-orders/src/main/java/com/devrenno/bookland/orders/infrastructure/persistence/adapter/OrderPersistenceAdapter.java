@@ -87,6 +87,8 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
         OrderJpaEntity entity = OrderJpaEntity.builder()
                 .id(order.getId())
                 .customerId(order.getCustomerId())
+                .customerEmail(order.getCustomerEmail())
+                .customerName(order.getCustomerName())
                 .totalAmount(order.getTotalAmount())
                 .status(order.getStatus().name())
                 .statusReason(order.getStatusReason())
@@ -182,7 +184,7 @@ public class OrderPersistenceAdapter implements OrderPersistencePort, PurchaseVe
                 .toList();
 
         return Order.reconstitute(
-                entity.getId(), entity.getCustomerId(), items,
+                entity.getId(), entity.getCustomerId(), entity.getCustomerEmail(), entity.getCustomerName(), items,
                 OrderStatus.valueOf(entity.getStatus()), entity.getStatusReason(),
                 entity.getPaymentMethod() == null ? null : PaymentMethod.valueOf(entity.getPaymentMethod()),
                 entity.getTotalAmount(),

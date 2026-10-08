@@ -1,6 +1,7 @@
 package com.devrenno.bookland.orders.application.service;
 
 import com.devrenno.bookland.orders.application.dto.BookInfo;
+import com.devrenno.bookland.orders.application.dto.CheckoutCommand;
 import com.devrenno.bookland.orders.application.dto.StockLine;
 import com.devrenno.bookland.orders.application.port.in.CheckoutUseCase;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
@@ -12,7 +13,6 @@ import com.devrenno.bookland.orders.domain.entity.Cart;
 import com.devrenno.bookland.orders.domain.entity.CartItem;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
-import com.devrenno.bookland.orders.domain.entity.PaymentMethod;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
 import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
 import com.devrenno.bookland.orders.domain.exception.CheckoutInProgressException;
@@ -59,7 +59,8 @@ public class CheckoutService implements CheckoutUseCase {
      * is refused — two sagas for one cart would both charge the customer.
      */
     @Override
-    public Order execute(UUID customerId, PaymentMethod paymentMethod) {
+    public Order execute(CheckoutCommand command) {
+        UUID customerId = command.customerId();
         return transactionPort.inTransaction(() -> {
             Cart cart = cartPersistencePort.findByCustomerId(customerId)
                     .orElseThrow(() -> new CartNotFoundException(customerId));
@@ -67,7 +68,8 @@ public class CheckoutService implements CheckoutUseCase {
                 throw new CartNotFoundException(customerId);
             }
 
-            Order order = Order.fromCart(customerId, orderItemsOf(cart), paymentMethod);
+            Order order = Order.fromCart(customerId, command.customerEmail(), command.customerName(),
+                    orderItemsOf(cart), command.paymentMethod());
 
             if (!cartPersistencePort.claimForCheckout(customerId, order.getId())) {
                 throw new CheckoutInProgressException(customerId);

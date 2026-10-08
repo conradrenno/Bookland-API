@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -34,6 +35,14 @@ public class Order {
 
     private final UUID id;
     private final UUID customerId;
+    /**
+     * Who to write to about this order, as the customer's access token carried them at checkout —
+     * frozen there on purpose, like the author's name on a review: the services that tell the
+     * customer about the order never ask the identity service. Null on orders older than the column.
+     */
+    private final String customerEmail;
+    /** The customer's display name at checkout; null when the token carried none. */
+    private final String customerName;
     private final List<OrderItem> items;
     private OrderStatus status;
     /** Why the checkout did not complete (REJECTED, PAYMENT_FAILED); null otherwise. */
@@ -48,11 +57,13 @@ public class Order {
     private final Instant createdAt;
     private Instant updatedAt;
 
-    private Order(UUID id, UUID customerId, List<OrderItem> items, OrderStatus status, String statusReason,
-                  PaymentMethod paymentMethod, BigDecimal totalAmount, List<StatusTransition> statusHistory,
-                  Instant createdAt, Instant updatedAt) {
+    private Order(UUID id, UUID customerId, String customerEmail, String customerName, List<OrderItem> items,
+                  OrderStatus status, String statusReason, PaymentMethod paymentMethod, BigDecimal totalAmount,
+                  List<StatusTransition> statusHistory, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.customerId = customerId;
+        this.customerEmail = customerEmail;
+        this.customerName = customerName;
         this.items = items;
         this.status = status;
         this.statusReason = statusReason;
@@ -63,20 +74,23 @@ public class Order {
         this.updatedAt = updatedAt;
     }
 
-    public static Order fromCart(UUID customerId, List<OrderItem> items, PaymentMethod paymentMethod) {
+    public static Order fromCart(UUID customerId, String customerEmail, String customerName,
+                                 List<OrderItem> items, PaymentMethod paymentMethod) {
+        Objects.requireNonNull(customerEmail, "customerEmail");
         BigDecimal total = items.stream()
                 .map(OrderItem::subtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         Instant now = Instant.now();
-        return new Order(UUID.randomUUID(), customerId, new ArrayList<>(items),
+        return new Order(UUID.randomUUID(), customerId, customerEmail, customerName, new ArrayList<>(items),
                 OrderStatus.PENDING, null, paymentMethod, total, new ArrayList<>(), now, now);
     }
 
-    public static Order reconstitute(UUID id, UUID customerId, List<OrderItem> items, OrderStatus status,
-                                     String statusReason, PaymentMethod paymentMethod, BigDecimal totalAmount,
+    public static Order reconstitute(UUID id, UUID customerId, String customerEmail, String customerName,
+                                     List<OrderItem> items, OrderStatus status, String statusReason,
+                                     PaymentMethod paymentMethod, BigDecimal totalAmount,
                                      List<StatusTransition> statusHistory, Instant createdAt, Instant updatedAt) {
-        return new Order(id, customerId, new ArrayList<>(items), status, statusReason, paymentMethod, totalAmount,
-                new ArrayList<>(statusHistory), createdAt, updatedAt);
+        return new Order(id, customerId, customerEmail, customerName, new ArrayList<>(items), status, statusReason,
+                paymentMethod, totalAmount, new ArrayList<>(statusHistory), createdAt, updatedAt);
     }
 
     public void cancel(UUID requesterId) {

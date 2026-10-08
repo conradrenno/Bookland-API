@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -75,12 +76,15 @@ class UpdateOrderStatusServiceTest {
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId));
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        verify(orderEventPort).orderCancelled(order.getId());
+        verify(orderEventPort).orderCancelled(order);
     }
 
-    /** Shipping is not a cancellation: CONFIRMED as the previous status must not be enough to compensate. */
+    /**
+     * Shipping is not a cancellation: CONFIRMED as the previous status must not be enough to
+     * compensate. It is announced as what it is, for the customer to be told.
+     */
     @Test
-    void execute_shouldNotCompensate_whenAdminShipsConfirmedOrder() {
+    void execute_shouldAnnounceTheShipmentAndNotCompensate_whenAdminShipsConfirmedOrder() {
         Order order = buildOrder(OrderStatus.CONFIRMED);
 
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
@@ -90,7 +94,22 @@ class UpdateOrderStatusServiceTest {
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.SHIPPED, adminId));
 
         assertThat(result.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+        verify(orderEventPort).orderShipped(order);
         verify(orderEventPort, never()).orderCancelled(any());
+    }
+
+    /** Nobody is told about a delivery: the shipment was the customer's last notice. */
+    @Test
+    void execute_shouldAnnounceNothing_whenAdminMarksTheOrderDelivered() {
+        Order order = buildOrder(OrderStatus.SHIPPED);
+
+        when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderPersistencePort.save(any())).thenReturn(order);
+
+        service.execute(new UpdateOrderStatusCommand(order.getId(), OrderStatus.DELIVERED, adminId));
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERED);
+        verifyNoInteractions(orderEventPort);
     }
 
     /** The back office cannot cancel mid-checkout either: the transition does not exist. */
@@ -103,7 +122,7 @@ class UpdateOrderStatusServiceTest {
         assertThatThrownBy(() -> service.execute(
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId)))
                 .isInstanceOf(InvalidOrderStatusTransitionException.class);
-        verify(orderEventPort, never()).orderCancelled(any());
+        verifyNoInteractions(orderEventPort);
     }
 
     @Test
@@ -116,7 +135,7 @@ class UpdateOrderStatusServiceTest {
                 new UpdateOrderStatusCommand(order.getId(), OrderStatus.CANCELLED, adminId)))
                 .isInstanceOf(InvalidOrderStatusTransitionException.class);
 
-        verify(orderEventPort, never()).orderCancelled(any());
+        verifyNoInteractions(orderEventPort);
         verify(orderPersistencePort, never()).save(any());
     }
 
@@ -133,7 +152,7 @@ class UpdateOrderStatusServiceTest {
     private Order buildOrder(OrderStatus status) {
         OrderItem item = OrderItem.of(bookId, "Clean Code", "/media/covers/clean-code.jpg", 2, BigDecimal.valueOf(29.90));
         return Order.reconstitute(
-                UUID.randomUUID(), customerId, List.of(item), status, null, null,
+                UUID.randomUUID(), customerId, "reader@bookland.com", "Reader", List.of(item), status, null, null,
                 BigDecimal.valueOf(59.80), List.of(),
                 Instant.now(), Instant.now()
         );

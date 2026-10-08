@@ -1,6 +1,7 @@
 package com.devrenno.bookland.orders.application.service;
 
 import com.devrenno.bookland.orders.application.dto.BookInfo;
+import com.devrenno.bookland.orders.application.dto.CheckoutCommand;
 import com.devrenno.bookland.orders.application.dto.StockLine;
 import com.devrenno.bookland.orders.application.port.out.BookInfoPort;
 import com.devrenno.bookland.orders.application.port.out.CatalogUnavailableException;
@@ -78,10 +79,12 @@ class CheckoutServiceTest {
         when(cartPersistencePort.claimForCheckout(eq(customerId), any())).thenReturn(true);
         when(orderPersistencePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Order order = service.execute(customerId, PaymentMethod.PIX);
+        Order order = service.execute(checkout());
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
         assertThat(order.getPaymentMethod()).isEqualTo(PaymentMethod.PIX);
+        assertThat(order.getCustomerEmail()).isEqualTo("reader@bookland.com");
+        assertThat(order.getCustomerName()).isEqualTo("Reader");
         verify(cartPersistencePort).claimForCheckout(customerId, order.getId());
         verify(checkoutCommandPort).requestStockReservation(order.getId(), List.of(new StockLine(bookId, 2)));
         verify(checkoutCommandPort, never()).requestPayment(any(), any(), any(), any());
@@ -94,7 +97,7 @@ class CheckoutServiceTest {
         givenACartOf(2, 10);
         when(cartPersistencePort.claimForCheckout(eq(customerId), any())).thenReturn(false);
 
-        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.PIX))
+        assertThatThrownBy(() -> service.execute(checkout()))
                 .isInstanceOf(CheckoutInProgressException.class);
 
         verify(orderPersistencePort, never()).save(any());
@@ -105,7 +108,7 @@ class CheckoutServiceTest {
     void execute_shouldFailAtOnce_whenStockIsVisiblyShort() {
         givenACartOf(5, 2);
 
-        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.PIX))
+        assertThatThrownBy(() -> service.execute(checkout()))
                 .isInstanceOf(CartItemUnavailableException.class);
 
         verify(cartPersistencePort, never()).claimForCheckout(any(), any());
@@ -118,7 +121,7 @@ class CheckoutServiceTest {
         givenACartOf(1, 10);
         when(bookInfoPort.findBookInfos(List.of(bookId))).thenThrow(new CatalogUnavailableException("down", null));
 
-        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.PIX))
+        assertThatThrownBy(() -> service.execute(checkout()))
                 .isInstanceOf(CatalogUnavailableException.class);
 
         verify(cartPersistencePort, never()).claimForCheckout(any(), any());
@@ -129,7 +132,7 @@ class CheckoutServiceTest {
     void execute_shouldThrowCartNotFound_whenCartDoesNotExist() {
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.execute(customerId, PaymentMethod.PIX))
+        assertThatThrownBy(() -> service.execute(checkout()))
                 .isInstanceOf(CartNotFoundException.class);
     }
 
@@ -139,5 +142,9 @@ class CheckoutServiceTest {
                 Instant.now(), Instant.now())));
         when(bookInfoPort.findBookInfos(List.of(bookId))).thenReturn(Map.of(bookId,
                 new BookInfo(bookId, "Clean Code", null, BigDecimal.valueOf(29.90), stock)));
+    }
+
+    private CheckoutCommand checkout() {
+        return new CheckoutCommand(customerId, "reader@bookland.com", "Reader", PaymentMethod.PIX);
     }
 }

@@ -25,6 +25,12 @@ public class OrderJpaEntity {
     @Column(name = "customer_id", nullable = false)
     private UUID customerId;
 
+    @Column(name = "customer_email", updatable = false)
+    private String customerEmail;
+
+    @Column(name = "customer_name", updatable = false)
+    private String customerName;
+
     @Column(nullable = false)
     private String status;
 

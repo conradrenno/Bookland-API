@@ -2,6 +2,7 @@ package com.devrenno.bookland.orders.application.service;
 
 import com.devrenno.bookland.orders.application.port.out.CartPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.CheckoutCommandPort;
+import com.devrenno.bookland.orders.application.port.out.OrderEventPort;
 import com.devrenno.bookland.orders.application.port.out.OrderPersistencePort;
 import com.devrenno.bookland.orders.application.port.out.TransactionPort;
 import com.devrenno.bookland.orders.domain.entity.Order;
@@ -34,6 +35,7 @@ class CheckoutSagaServiceTest {
     @Mock private OrderPersistencePort orderPersistencePort;
     @Mock private CartPersistencePort cartPersistencePort;
     @Mock private CheckoutCommandPort checkoutCommandPort;
+    @Mock private OrderEventPort orderEventPort;
 
     private final TransactionPort transactionPort = new TransactionPort() {
         @Override
@@ -54,7 +56,8 @@ class CheckoutSagaServiceTest {
 
     @BeforeEach
     void setUp() {
-        saga = CheckoutSagaService.create(orderPersistencePort, cartPersistencePort, checkoutCommandPort, transactionPort);
+        saga = CheckoutSagaService.create(orderPersistencePort, cartPersistencePort, checkoutCommandPort,
+                orderEventPort, transactionPort);
     }
 
     @Test
@@ -65,6 +68,7 @@ class CheckoutSagaServiceTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
         verify(checkoutCommandPort).requestPayment(order.getId(), customerId, order.getTotalAmount(), PaymentMethod.PIX);
+        verifyNoInteractions(orderEventPort);
     }
 
     @Test
@@ -77,6 +81,7 @@ class CheckoutSagaServiceTest {
         assertThat(order.getStatusReason()).contains(bookId.toString());
         verify(cartPersistencePort).releaseCheckoutClaim(customerId);
         verifyNoInteractions(checkoutCommandPort);
+        verify(orderEventPort).orderRejected(order);
     }
 
     @Test
@@ -88,6 +93,7 @@ class CheckoutSagaServiceTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
         verify(cartPersistencePort).deleteByCustomerId(customerId);
         verifyNoInteractions(checkoutCommandPort);
+        verify(orderEventPort).orderConfirmed(order);
     }
 
     /** The compensation: the declined order asks the catalog for the reserved stock back. */
@@ -102,6 +108,7 @@ class CheckoutSagaServiceTest {
         verify(checkoutCommandPort).requestStockRelease(order.getId());
         verify(cartPersistencePort).releaseCheckoutClaim(customerId);
         verify(cartPersistencePort, never()).deleteByCustomerId(any());
+        verify(orderEventPort).orderPaymentFailed(order);
     }
 
     /**
@@ -115,7 +122,7 @@ class CheckoutSagaServiceTest {
         assertThat(saga.onStockReserved(order.getId())).isFalse();
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
-        verifyNoInteractions(checkoutCommandPort, cartPersistencePort);
+        verifyNoInteractions(checkoutCommandPort, cartPersistencePort, orderEventPort);
         verify(orderPersistencePort, never()).save(any());
     }
 
@@ -125,11 +132,11 @@ class CheckoutSagaServiceTest {
         when(orderPersistencePort.findById(orderId)).thenReturn(Optional.empty());
 
         assertThat(saga.onPaymentApproved(orderId)).isFalse();
-        verifyNoInteractions(checkoutCommandPort, cartPersistencePort);
+        verifyNoInteractions(checkoutCommandPort, cartPersistencePort, orderEventPort);
     }
 
     private Order orderIn(OrderStatus status) {
-        Order order = Order.reconstitute(UUID.randomUUID(), customerId,
+        Order order = Order.reconstitute(UUID.randomUUID(), customerId, "reader@bookland.com", "Reader",
                 List.of(OrderItem.of(bookId, "Clean Code", null, 2, BigDecimal.valueOf(29.90))),
                 status, null, PaymentMethod.PIX, BigDecimal.valueOf(59.80), List.of(), Instant.now(), Instant.now());
         when(orderPersistencePort.findById(order.getId())).thenReturn(Optional.of(order));

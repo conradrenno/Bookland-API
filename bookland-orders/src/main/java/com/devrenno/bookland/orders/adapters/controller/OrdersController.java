@@ -8,6 +8,7 @@ import com.devrenno.bookland.orders.adapters.viewmodel.OrderViewModel;
 import com.devrenno.bookland.orders.application.common.PageQuery;
 import com.devrenno.bookland.orders.application.common.PageResult;
 import com.devrenno.bookland.orders.application.dto.AddCartItemCommand;
+import com.devrenno.bookland.orders.application.dto.CheckoutCommand;
 import com.devrenno.bookland.orders.application.dto.UpdateCartItemCommand;
 import com.devrenno.bookland.orders.application.dto.UpdateOrderStatusCommand;
 import com.devrenno.bookland.orders.application.port.in.AddCartItemUseCase;
@@ -37,7 +38,6 @@ import com.devrenno.bookland.orders.application.service.RemoveCartItemService;
 import com.devrenno.bookland.orders.application.service.UpdateCartItemService;
 import com.devrenno.bookland.orders.application.service.UpdateOrderStatusService;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
-import com.devrenno.bookland.orders.domain.entity.PaymentMethod;
 
 import java.util.UUID;
 
@@ -116,8 +116,8 @@ public class OrdersController {
         return presenter.present(removeCartItemUseCase.execute(customerId, bookId));
     }
 
-    public OrderViewModel checkout(UUID customerId, PaymentMethod paymentMethod) {
-        return presenter.present(checkoutUseCase.execute(customerId, paymentMethod));
+    public OrderViewModel checkout(CheckoutCommand command) {
+        return presenter.present(checkoutUseCase.execute(command));
     }
 
     public OrderViewModel getOrderById(UUID orderId, UUID requesterId, boolean isAdmin) {

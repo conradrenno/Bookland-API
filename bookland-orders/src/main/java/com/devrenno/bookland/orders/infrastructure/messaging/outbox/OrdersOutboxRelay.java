@@ -48,10 +48,18 @@ public class OrdersOutboxRelay {
         }
     }
 
+    /**
+     * Every type the outbox may hold. A type missing here does not just lose its own message: the
+     * relay stops at the first failure, so it holds back every message behind it, forever.
+     */
     private static final Map<String, String> TOPICS = Map.of(
             OrdersKafkaConfig.RESERVE_STOCK, OrdersKafkaConfig.STOCK_COMMANDS_TOPIC,
             OrdersKafkaConfig.RELEASE_STOCK, OrdersKafkaConfig.STOCK_COMMANDS_TOPIC,
             OrdersKafkaConfig.CHARGE_PAYMENT, OrdersKafkaConfig.PAYMENT_COMMANDS_TOPIC,
+            OrdersKafkaConfig.ORDER_CONFIRMED, OrdersKafkaConfig.ORDER_EVENTS_TOPIC,
+            OrdersKafkaConfig.ORDER_PAYMENT_FAILED, OrdersKafkaConfig.ORDER_EVENTS_TOPIC,
+            OrdersKafkaConfig.ORDER_REJECTED, OrdersKafkaConfig.ORDER_EVENTS_TOPIC,
+            OrdersKafkaConfig.ORDER_SHIPPED, OrdersKafkaConfig.ORDER_EVENTS_TOPIC,
             OrdersKafkaConfig.ORDER_CANCELLED, OrdersKafkaConfig.ORDER_EVENTS_TOPIC);
 
     private String topicOf(OrdersOutboxJpaEntity row) {

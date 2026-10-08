@@ -3,6 +3,7 @@ package com.devrenno.bookland.orders.infrastructure.messaging;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,7 +30,19 @@ final class SagaMessages {
                          BigDecimal amount, String method) {
     }
 
-    record OrderCancelled(UUID messageId, String type, UUID orderId) {
+    /**
+     * Every event on the order-events topic has this shape; {@code type} says which one it is. It
+     * carries the order as it stands after the change, so a consumer needs nothing else: the catalog
+     * and payments read only {@code orderId}, the notification service the customer and the items.
+     * {@code customerEmail} and {@code customerName} are null for orders placed before they were
+     * stored; {@code reason} is set for REJECTED and PAYMENT_FAILED.
+     */
+    record OrderEvent(UUID messageId, String type, UUID orderId, UUID customerId, String customerEmail,
+                      String customerName, String status, String reason, BigDecimal totalAmount,
+                      List<OrderEventItem> items, Instant occurredAt) {
+    }
+
+    record OrderEventItem(UUID bookId, String title, int quantity, BigDecimal unitPrice) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
