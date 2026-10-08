@@ -7,6 +7,7 @@ import com.devrenno.bookland.notification.domain.valueobject.EmailMessage;
 import com.devrenno.bookland.notification.infrastructure.messaging.EmailTaskCodec;
 import com.devrenno.bookland.notification.infrastructure.messaging.EmailTaskListener;
 import com.devrenno.bookland.notification.infrastructure.messaging.EmailTaskRedelivery;
+import org.springframework.amqp.AmqpConnectException;
 import org.springframework.amqp.core.Message;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>{@link InMemoryEmailQueue} — the RabbitMQ queue. It encodes the task with the real codec and
  *       hands the message straight to the real {@link EmailTaskListener}, so everything but the
  *       broker itself runs. It can be told to refuse the next tasks, as an unreachable broker
- *       would.</li>
+ *       would, or to fail as a bug would.</li>
  *   <li>{@link InMemoryRedelivery} — the wait queues and the dead-letter queue. A retry is delivered
  *       again at once, with the try number the real one would carry, and its delay recorded instead
  *       of waited; a task given up is kept in a list.</li>
@@ -61,21 +62,30 @@ public class NotificationTestDoubles {
         private final EmailTaskCodec codec;
         private final ObjectProvider<EmailTaskListener> listener;
         private final AtomicInteger refusals = new AtomicInteger();
+        private final AtomicInteger bugs = new AtomicInteger();
 
         InMemoryEmailQueue(EmailTaskCodec codec, ObjectProvider<EmailTaskListener> listener) {
             this.codec = codec;
             this.listener = listener;
         }
 
-        /** The next {@code times} tasks fail as a publish without the broker's confirmation would. */
+        /** The next {@code times} tasks fail as an unreachable broker does: with an {@code AmqpException}. */
         public void refuseNext(int times) {
             refusals.set(times);
+        }
+
+        /** The next {@code times} tasks fail with an exception that is not the broker's — a bug. */
+        public void failNextWithBug(int times) {
+            bugs.set(times);
         }
 
         @Override
         public void enqueue(EmailTask task) {
             if (refusals.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
-                throw new IllegalStateException("Simulated: the broker did not confirm the task");
+                throw new AmqpConnectException(new java.net.ConnectException("Simulated: broker unreachable"));
+            }
+            if (bugs.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
+                throw new IllegalStateException("Simulated: a bug in handling the event");
             }
             listener.getObject().on(codec.toMessage(task));
         }

@@ -131,6 +131,44 @@ class OrderEventNotificationIntegrationTest {
         assertThat(inboxHas(messageId)).isTrue();
     }
 
+    /**
+     * Measured in 6d: with a time limit on every failure, a RabbitMQ outage longer than the limit sent
+     * each event of the outage to the dead-letter topic, and those emails were never sent. The broker
+     * being unreachable is now waited out with no last attempt — here well past the (scaled-down)
+     * limit that still applies to other failures.
+     */
+    @Test
+    @DisplayName("RabbitMQ unreachable past the time limit: still waited out, the email is sent, nothing dead-lettered")
+    void brokerOutageHasNoTimeLimit() {
+        String to = uniqueAddress();
+        UUID orderId = UUID.randomUUID();
+        // The limit counts the waits handed out (10, 20, 40, then 50 ms each), not the clock: 30
+        // refusals add up to ~1.4 s of waiting, past the 1 s that dead-letters any other failure.
+        // Each retry round trip takes ~0.5 s here (seen in the test log), hence the longer await.
+        queue.refuseNext(30);
+
+        publish(event(UUID.randomUUID(), "OrderConfirmed", orderId, to));
+
+        await().atMost(Duration.ofSeconds(60)).untilAsserted(() -> assertThat(mailSender.sentTo(to)).hasSize(1));
+        assertThat(deadLetterRecord(orderId.toString(), Duration.ofSeconds(2))).isNull();
+    }
+
+    /** Anything that is not the broker — a bug — keeps the limit, so one bad event cannot stall the partition. */
+    @Test
+    @DisplayName("any other failure past the time limit: the event goes to the dead-letter topic, no email")
+    void otherFailuresKeepTheTimeLimit() {
+        String to = uniqueAddress();
+        UUID orderId = UUID.randomUUID();
+        queue.failNextWithBug(1000);
+
+        publish(event(UUID.randomUUID(), "OrderConfirmed", orderId, to));
+
+        ConsumerRecord<String, String> kept = awaitRecord(TOPIC + ".notification.DLT", orderId.toString());
+        queue.failNextWithBug(0);
+        assertThat(kept.value()).contains(orderId.toString());
+        assertThat(mailSender.sentTo(to)).isEmpty();
+    }
+
     @Test
     @DisplayName("a payload that is not JSON goes to this service's dead-letter topic")
     void unreadableEventGoesToTheDeadLetterTopic() {
@@ -233,6 +271,16 @@ class OrderEventNotificationIntegrationTest {
     }
 
     private ConsumerRecord<String, String> awaitRecord(String topic, String key) {
+        ConsumerRecord<String, String> found = deadLetterRecordIn(topic, key, WAIT);
+        return found != null ? found : fail("No record with key " + key + " in " + topic);
+    }
+
+    /** The order's record in this service's dead-letter topic, or null if none shows up within {@code wait}. */
+    private ConsumerRecord<String, String> deadLetterRecord(String key, Duration wait) {
+        return deadLetterRecordIn(TOPIC + ".notification.DLT", key, wait);
+    }
+
+    private ConsumerRecord<String, String> deadLetterRecordIn(String topic, String key, Duration wait) {
         Map<String, Object> props = Map.of(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, broker.getBrokersAsString(),
                 ConsumerConfig.GROUP_ID_CONFIG, "dead-letter-reader-" + UUID.randomUUID(),
@@ -241,7 +289,7 @@ class OrderEventNotificationIntegrationTest {
                 ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         try (Consumer<String, String> consumer = new KafkaConsumer<>(props)) {
             consumer.subscribe(List.of(topic));
-            Instant deadline = Instant.now().plus(WAIT);
+            Instant deadline = Instant.now().plus(wait);
             while (Instant.now().isBefore(deadline)) {
                 for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
                     if (key.equals(record.key())) {
@@ -250,6 +298,6 @@ class OrderEventNotificationIntegrationTest {
                 }
             }
         }
-        return fail("No record with key " + key + " in " + topic);
+        return null;
     }
 }
