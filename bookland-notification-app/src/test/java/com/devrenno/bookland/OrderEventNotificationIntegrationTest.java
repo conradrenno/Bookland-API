@@ -1,6 +1,7 @@
 package com.devrenno.bookland;
 
 import com.devrenno.bookland.NotificationTestDoubles.InMemoryEmailQueue;
+import com.devrenno.bookland.NotificationTestDoubles.InMemoryRedelivery;
 import com.devrenno.bookland.NotificationTestDoubles.RecordingMailSender;
 import com.devrenno.bookland.notification.domain.valueobject.EmailMessage;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -26,7 +27,9 @@ import static org.assertj.core.api.Assertions.fail;
 import static org.awaitility.Awaitility.await;
 
 /**
- * The order events as orders publishes them, in through Kafka, out as emails. The events are written
+ * The order events as orders publishes them, in through Kafka, out as emails — including what
+ * happens when the mail server fails: the waits between tries, the dead-letter queue, and the
+ * duplicate task that only {@code sent_emails} can catch. The events are written
  * by hand here with every field orders writes ({@code OrderEventsIntegrationTest} in bookland-app pins
  * that side), including the ones this service ignores.
  */
@@ -39,6 +42,7 @@ class OrderEventNotificationIntegrationTest {
     @Autowired private KafkaTemplate<String, String> kafkaTemplate;
     @Autowired private RecordingMailSender mailSender;
     @Autowired private InMemoryEmailQueue queue;
+    @Autowired private InMemoryRedelivery redelivery;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private EmbeddedKafkaBroker broker;
 
@@ -138,6 +142,61 @@ class OrderEventNotificationIntegrationTest {
         assertThat(kept.value()).isEqualTo("not json at all");
     }
 
+    @Test
+    @DisplayName("the mail server fails twice: the task waits 10 s, then 1 min, and the third try sends it")
+    void mailServerOutageIsRetried() {
+        String to = uniqueAddress();
+        UUID orderId = UUID.randomUUID();
+        mailSender.failNext(to, 2);
+
+        publish(event(UUID.randomUUID(), "OrderConfirmed", orderId, to));
+
+        awaitOneEmailTo(to);
+        assertThat(redelivery.waitsOf(orderId + ":CONFIRMED"))
+                .containsExactly(Duration.ofSeconds(10), Duration.ofMinutes(1));
+        assertThat(redelivery.deadLettersOf(orderId + ":CONFIRMED")).isEmpty();
+        assertThat(sentEmailRecorded(orderId + ":CONFIRMED")).isTrue();
+    }
+
+    @Test
+    @DisplayName("the mail server never answers: four tries, three waits, then the dead-letter queue — nothing recorded as sent")
+    void mailServerThatNeverAnswersEndsInTheDeadLetterQueue() {
+        String to = uniqueAddress();
+        UUID orderId = UUID.randomUUID();
+        String key = orderId + ":CONFIRMED";
+        mailSender.failNext(to, 100);
+
+        publish(event(UUID.randomUUID(), "OrderConfirmed", orderId, to));
+
+        await().atMost(WAIT).untilAsserted(() -> assertThat(redelivery.deadLettersOf(key)).hasSize(1));
+        assertThat(redelivery.waitsOf(key))
+                .containsExactly(Duration.ofSeconds(10), Duration.ofMinutes(1), Duration.ofMinutes(5));
+        Map<String, Object> headers = redelivery.deadLettersOf(key).get(0).getMessageProperties().getHeaders();
+        assertThat(headers).containsEntry("x-bookland-attempt", 4);
+        assertThat((String) headers.get("x-bookland-last-error")).contains("mail server unreachable");
+        assertThat(mailSender.sentTo(to)).isEmpty();
+        assertThat(sentEmailRecorded(key)).isFalse();
+    }
+
+    /**
+     * Two events with different message ids for the same order and kind get past the inbox — the case
+     * of a task queued, then the process crashing before the inbox committed. The email's key is what
+     * stops the second one.
+     */
+    @Test
+    @DisplayName("the same email queued twice: sent once, the second task dropped by sent_emails")
+    void duplicateTaskIsSentOnce() {
+        String to = uniqueAddress();
+        UUID orderId = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+
+        publish(event(UUID.randomUUID(), "OrderConfirmed", orderId, to));
+        publish(event(second, "OrderConfirmed", orderId, to));
+
+        await().atMost(WAIT).untilAsserted(() -> assertThat(inboxHas(second)).isTrue());
+        assertThat(mailSender.sentTo(to)).hasSize(1);
+    }
+
     private EmailMessage awaitOneEmailTo(String to) {
         await().atMost(WAIT).untilAsserted(() -> assertThat(mailSender.sentTo(to)).hasSize(1));
         return mailSender.sentTo(to).get(0);
@@ -161,6 +220,11 @@ class OrderEventNotificationIntegrationTest {
 
     private static String uniqueAddress() {
         return "reader-" + UUID.randomUUID() + "@bookland.com";
+    }
+
+    private boolean sentEmailRecorded(String key) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from sent_emails where email_key = ?", Integer.class, key) == 1;
     }
 
     private boolean inboxHas(UUID messageId) {

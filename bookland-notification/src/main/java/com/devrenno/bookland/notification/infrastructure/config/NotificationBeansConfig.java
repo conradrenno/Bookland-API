@@ -4,6 +4,7 @@ import com.devrenno.bookland.notification.application.port.in.NotifyOrderEventUs
 import com.devrenno.bookland.notification.application.port.in.SendEmailUseCase;
 import com.devrenno.bookland.notification.application.port.out.EmailTaskQueuePort;
 import com.devrenno.bookland.notification.application.port.out.MailSenderPort;
+import com.devrenno.bookland.notification.application.port.out.SentEmailPort;
 import com.devrenno.bookland.notification.application.service.NotifyOrderEventService;
 import com.devrenno.bookland.notification.application.service.SendEmailService;
 import com.devrenno.bookland.notification.domain.service.OrderEmailComposer;
@@ -25,7 +26,7 @@ public class NotificationBeansConfig {
 
     /** Driven by the EmailTaskListener (RabbitMQ). */
     @Bean
-    public SendEmailUseCase sendEmailUseCase(MailSenderPort mailSenderPort) {
-        return SendEmailService.create(mailSenderPort);
+    public SendEmailUseCase sendEmailUseCase(MailSenderPort mailSenderPort, SentEmailPort sentEmailPort) {
+        return SendEmailService.create(mailSenderPort, sentEmailPort);
     }
 }

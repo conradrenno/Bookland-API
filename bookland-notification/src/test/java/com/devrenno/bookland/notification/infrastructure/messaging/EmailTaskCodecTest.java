@@ -36,4 +36,17 @@ class EmailTaskCodecTest {
         assertThat(message.getMessageProperties().getMessageId()).isEqualTo("order-1:SHIPPED");
         assertThat(message.getMessageProperties().getHeaders()).doesNotContainKey("__TypeId__");
     }
+
+    @Test
+    void aFreshTaskIsTryOne_andACopyCarriesTheNextTryAndTheError() {
+        Message message = codec.toMessage(new EmailTask("order-1:SHIPPED", "a@b.c", "s", "b"));
+
+        Message retry = codec.withAttempt(message, 2, "MailSendException: " + "x".repeat(600));
+
+        assertThat(codec.attemptOf(message)).isEqualTo(1);
+        assertThat(codec.attemptOf(retry)).isEqualTo(2);
+        assertThat((String) retry.getMessageProperties().getHeaders().get("x-bookland-last-error")).hasSize(500);
+        assertThat(codec.fromMessage(retry)).isEqualTo(codec.fromMessage(message));
+        assertThat(retry.getMessageProperties().getDeliveryMode()).isEqualTo(MessageDeliveryMode.PERSISTENT);
+    }
 }

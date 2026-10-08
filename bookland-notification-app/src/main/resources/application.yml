@@ -50,6 +50,11 @@ bookland:
   notification:
     mail:
       from: ${MAIL_FROM:Bookland <no-reply@bookland.local>}
+    retry:
+      # The wait before each new try of a failed email, then the dead-letter queue. Each delay is a
+      # queue on the broker named after it (….email.wait-10s): changing one declares a new queue,
+      # and the old one stays on the broker until deleted.
+      delays: ${NOTIFICATION_RETRY_DELAYS:10s,1m,5m}
 
 ---
 spring:
