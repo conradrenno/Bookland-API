@@ -22,6 +22,8 @@ COPY bookland-reviews/pom.xml bookland-reviews/
 COPY bookland-inventory/pom.xml bookland-inventory/
 COPY bookland-wishlist/pom.xml bookland-wishlist/
 COPY bookland-payments/pom.xml bookland-payments/
+COPY bookland-notification/pom.xml bookland-notification/
+COPY bookland-notification-app/pom.xml bookland-notification-app/
 
 RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 

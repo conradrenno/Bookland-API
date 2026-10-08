@@ -21,6 +21,7 @@
         <module>bookland-app</module>
         <module>bookland-identity-app</module>
         <module>bookland-catalog-app</module>
+        <module>bookland-notification-app</module>
         <module>bookland-gateway</module>
         <module>bookland-web-support</module>
         <module>bookland-user</module>
@@ -31,6 +32,7 @@
         <module>bookland-inventory</module>
         <module>bookland-wishlist</module>
         <module>bookland-payments</module>
+        <module>bookland-notification</module>
     </modules>
 
     <properties>
@@ -106,6 +108,11 @@
             <dependency>
                 <groupId>com.devrenno</groupId>
                 <artifactId>bookland-payments</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.devrenno</groupId>
+                <artifactId>bookland-notification</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

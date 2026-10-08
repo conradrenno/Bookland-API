@@ -114,6 +114,59 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # The notification service: emails the customer about their orders. Reads the order events from
+  # Kafka, queues one task per email on RabbitMQ, sends it to Mailpit. No HTTP API, no port.
+  notification:
+    build:
+      context: .
+      dockerfile: bookland-notification-app/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Its own database and role (created by docker/postgres/initdb on the volume's first start).
+      DB_URL: jdbc:postgresql://postgres:5432/notification
+      DB_USER: ${NOTIFICATION_DB_USER:-notification}
+      DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-bookland}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-bookland}
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # The task queue of the notification service. 5672 is AMQP (published so a service run from the
+  # host reaches it); 15672 is the management UI — queues, messages, consumers. No volume: queues and
+  # their messages live in the container, so they survive stop/start but not `docker compose down`.
+  rabbitmq:
+    image: rabbitmq:4.1.4-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      # Not guest: the image lets guest log in only from inside the container.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-bookland}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-bookland}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # A fake mail server: accepts every email over SMTP (1025) and shows it on a web page (8025)
+  # instead of delivering it. Nothing leaves the machine.
+  mailpit:
+    image: axllent/mailpit:v1.27.7
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   # Single-node KRaft broker (no ZooKeeper): this one process is both broker and controller.
   # Same version as the Kafka client in Boot's BOM. No volume: topics and consumer offsets live in
   # the container, so they survive stop/start but not `docker compose down`.
@@ -162,14 +215,16 @@ services:
       POSTGRES_DB: bookland
       POSTGRES_USER: ${POSTGRES_USER:-bookland}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookland}
-      # Read by docker/postgres/initdb, which creates one role per service and the identity and
-      # catalog databases.
+      # Read by docker/postgres/initdb, which creates one role per service and the identity, catalog
+      # and notification databases.
       APP_DB_USER: ${APP_DB_USER:-bookland_app}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD}
       IDENTITY_DB_USER: ${IDENTITY_DB_USER:-identity}
       IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
       CATALOG_DB_USER: ${CATALOG_DB_USER:-catalog}
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD}
+      NOTIFICATION_DB_USER: ${NOTIFICATION_DB_USER:-notification}
+      NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
     volumes:
       - bookland-pgdata:/var/lib/postgresql/data
       # Runs only when the data volume is empty — after `docker compose down -v`.
