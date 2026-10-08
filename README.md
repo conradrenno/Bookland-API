@@ -10,6 +10,7 @@
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-4.1-FF6600)
 ![gRPC](https://img.shields.io/badge/gRPC-Spring%20gRPC-244c5a)
 ![Tests](https://img.shields.io/badge/tests-450%2B-brightgreen)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 ---
 
@@ -451,6 +452,12 @@ Deliberate simplifications and known gaps, stated plainly:
 - Testcontainers for PostgreSQL and RabbitMQ in the test suite
 - Reservation expiry, and worker claiming for horizontal scaling
 - A BFF holding tokens server-side, and GraphQL at the edge
+
+---
+
+## License
+
+[MIT](LICENSE)
 
 ---
 
