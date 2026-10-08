@@ -4,11 +4,14 @@ import com.devrenno.bookland.reviews.application.common.PageQuery;
 import com.devrenno.bookland.reviews.application.common.PageResult;
 import com.devrenno.bookland.reviews.application.port.out.ReviewPersistencePort;
 import com.devrenno.bookland.reviews.domain.entity.Review;
+import com.devrenno.bookland.reviews.domain.exception.DuplicateReviewException;
 import com.devrenno.bookland.reviews.infrastructure.persistence.entity.ReviewJpaEntity;
 import com.devrenno.bookland.reviews.infrastructure.persistence.repository.ReviewJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -19,11 +22,38 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ReviewPersistenceAdapter implements ReviewPersistencePort {
 
+    /** Newest first; the id breaks ties so a page boundary never repeats or drops a review. */
+    private static final Sort NEWEST_FIRST = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
+
+    private static final String ONE_LIVE_REVIEW_INDEX = "uk_reviews_live_review";
+
     private final ReviewJpaRepository reviewRepository;
 
+    /**
+     * Flushed at once so the database's answer arrives here, inside the caller's transaction: two
+     * reviews of one book by one customer submitted together both pass the service's check, and the
+     * unique index refuses the second — reported as the same {@link DuplicateReviewException} the
+     * check would have thrown, a 409 instead of a 500.
+     */
     @Override
     public Review save(Review review) {
-        return toDomain(reviewRepository.save(toEntity(review)));
+        try {
+            return toDomain(reviewRepository.saveAndFlush(toEntity(review)));
+        } catch (DataIntegrityViolationException e) {
+            if (isOneLiveReviewViolation(e)) {
+                throw new DuplicateReviewException(review.getCustomerId(), review.getBookId());
+            }
+            throw e;
+        }
+    }
+
+    private static boolean isOneLiveReviewViolation(DataIntegrityViolationException e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause.getMessage() != null && cause.getMessage().toLowerCase().contains(ONE_LIVE_REVIEW_INDEX)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -39,7 +69,7 @@ public class ReviewPersistenceAdapter implements ReviewPersistencePort {
     @Override
     public PageResult<Review> findByBookId(UUID bookId, PageQuery pageQuery) {
         Page<Review> page = reviewRepository
-                .findByBookIdAndDeletedFalse(bookId, PageRequest.of(pageQuery.page(), pageQuery.size()))
+                .findByBookIdAndDeletedFalse(bookId, PageRequest.of(pageQuery.page(), pageQuery.size(), NEWEST_FIRST))
                 .map(this::toDomain);
         return new PageResult<>(
                 page.getContent(), page.getNumber(), page.getSize(),
@@ -62,6 +92,7 @@ public class ReviewPersistenceAdapter implements ReviewPersistencePort {
                 .comment(review.getComment())
                 .createdAt(review.getCreatedAt())
                 .deleted(review.isDeleted())
+                .liveCustomerId(review.isDeleted() ? null : review.getCustomerId())
                 .build();
     }
 

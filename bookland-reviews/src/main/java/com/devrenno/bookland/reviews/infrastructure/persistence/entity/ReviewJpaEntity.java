@@ -39,4 +39,12 @@ public class ReviewJpaEntity {
 
     @Column(nullable = false)
     private boolean deleted;
+
+    /**
+     * The customer while the review is live, null once a moderator removed it: what the unique index
+     * {@code uk_reviews_live_review (book_id, live_customer_id)} is on, so a customer has at most one
+     * live review per book and can review again after a removal. Derived here, never by the domain.
+     */
+    @Column(name = "live_customer_id")
+    private UUID liveCustomerId;
 }

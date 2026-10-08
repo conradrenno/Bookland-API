@@ -253,7 +253,7 @@ an error response: the outcome is the order's `status`, read with `GET /api/v1/o
 | The stock ran out while the checkout ran | `REJECTED` | the books that were unavailable |
 | The payment was declined (the reserved stock is given back) | `PAYMENT_FAILED` | the decline reason |
 
-What still fails synchronously, before anything starts: an empty or missing cart (`CART_NOT_FOUND`),
+What still fails synchronously, before anything starts: an empty or missing cart (`CART_EMPTY`, 409),
 stock that is visibly short already (`CART_ITEM_UNAVAILABLE`, 409) and a checkout already in progress
 (`CHECKOUT_IN_PROGRESS`, 409). **`PAYMENT_DECLINED` (402) is retired**: a decline is now
 `PAYMENT_FAILED` on the order.
