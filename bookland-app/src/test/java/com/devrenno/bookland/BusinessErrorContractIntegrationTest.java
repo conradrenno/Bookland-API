@@ -55,6 +55,20 @@ class BusinessErrorContractIntegrationTest {
                 .andExpect(jsonPath("$.title").value("Not Found"));
     }
 
+    /** A fresh customer has no cart at all: checkout is a conflict with the cart's state, not a 404. */
+    @Test
+    @DisplayName("checkout with nothing in the cart: 409 CART_EMPTY")
+    void checkoutOfAnEmptyCart() throws Exception {
+        mockMvc.perform(post("/api/v1/cart/checkout")
+                        .header("Authorization", "Bearer " + tokens().forRole("CUSTOMER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"paymentMethod": "PIX"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CART_EMPTY"));
+    }
+
     /**
      * There used to be a case here for INVALID_CREDENTIALS on POST /api/v1/auth/login. Both the code
      * and the route are gone: checking a password is now the Authorization Server's form login, which

@@ -147,7 +147,8 @@ routes.
 | catalog | `INVALID_IMAGE` | 422 |
 | catalog | `FILE_TOO_LARGE` | 413 |
 | catalog | `ORDERS_UNAVAILABLE` | 503 — orders could not say whether the book has active orders; the removal is refused, not done unchecked |
-| orders | `CART_NOT_FOUND` | 404 |
+| orders | `CART_NOT_FOUND` | 404 — changing an item of a cart that does not exist |
+| orders | `CART_EMPTY` | 409 — checkout with an empty or missing cart (it used to answer `CART_NOT_FOUND`, 404) |
 | orders | `ORDER_NOT_FOUND` | 404 |
 | orders | `BOOK_NOT_IN_CART` | 404 |
 | orders | `ORDER_ACCESS_DENIED` | 403 |
@@ -160,7 +161,7 @@ routes.
 | payments | `PAYMENT_ACCESS_DENIED` | 403 |
 | payments | `REFUND_NOT_ALLOWED` | 409 |
 | reviews | `REVIEW_NOT_FOUND` | 404 |
-| reviews | `DUPLICATE_REVIEW` | 409 |
+| reviews | `DUPLICATE_REVIEW` | 409 — also when two submissions race past the check: the database's unique index (one live review per customer and book) refuses the second |
 | reviews | `REVIEW_ALREADY_DELETED` | 409 |
 | reviews | `PURCHASE_REQUIRED` | 403 |
 | wishlist | `WISHLIST_ITEM_NOT_FOUND` | 404 |

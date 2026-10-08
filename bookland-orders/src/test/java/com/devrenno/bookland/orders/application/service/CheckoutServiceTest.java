@@ -15,7 +15,7 @@ import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderStatus;
 import com.devrenno.bookland.orders.domain.entity.PaymentMethod;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
-import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
+import com.devrenno.bookland.orders.domain.exception.CartEmptyException;
 import com.devrenno.bookland.orders.domain.exception.CheckoutInProgressException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -129,11 +129,22 @@ class CheckoutServiceTest {
     }
 
     @Test
-    void execute_shouldThrowCartNotFound_whenCartDoesNotExist() {
+    void execute_shouldRefuseAsEmpty_whenCartDoesNotExist() {
         when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.execute(checkout()))
-                .isInstanceOf(CartNotFoundException.class);
+                .isInstanceOf(CartEmptyException.class);
+        verifyNoInteractions(checkoutCommandPort);
+    }
+
+    @Test
+    void execute_shouldRefuseAsEmpty_whenCartHasNoItems() {
+        when(cartPersistencePort.findByCustomerId(customerId)).thenReturn(Optional.of(Cart.reconstitute(
+                UUID.randomUUID(), customerId, List.of(), Instant.now(), Instant.now())));
+
+        assertThatThrownBy(() -> service.execute(checkout()))
+                .isInstanceOf(CartEmptyException.class);
+        verifyNoInteractions(checkoutCommandPort);
     }
 
     private void givenACartOf(int quantity, int stock) {

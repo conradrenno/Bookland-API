@@ -14,7 +14,7 @@ import com.devrenno.bookland.orders.domain.entity.CartItem;
 import com.devrenno.bookland.orders.domain.entity.Order;
 import com.devrenno.bookland.orders.domain.entity.OrderItem;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
-import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
+import com.devrenno.bookland.orders.domain.exception.CartEmptyException;
 import com.devrenno.bookland.orders.domain.exception.CheckoutInProgressException;
 
 import java.util.ArrayList;
@@ -63,9 +63,9 @@ public class CheckoutService implements CheckoutUseCase {
         UUID customerId = command.customerId();
         return transactionPort.inTransaction(() -> {
             Cart cart = cartPersistencePort.findByCustomerId(customerId)
-                    .orElseThrow(() -> new CartNotFoundException(customerId));
+                    .orElseThrow(() -> new CartEmptyException(customerId));
             if (cart.getItems().isEmpty()) {
-                throw new CartNotFoundException(customerId);
+                throw new CartEmptyException(customerId);
             }
 
             Order order = Order.fromCart(customerId, command.customerEmail(), command.customerName(),

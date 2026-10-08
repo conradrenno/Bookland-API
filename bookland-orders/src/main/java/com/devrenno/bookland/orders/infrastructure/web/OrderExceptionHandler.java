@@ -4,6 +4,7 @@ import com.devrenno.bookland.orders.application.port.out.CatalogUnavailableExcep
 import com.devrenno.bookland.orders.domain.exception.BookNotFoundException;
 import com.devrenno.bookland.orders.domain.exception.BookNotInCartException;
 import com.devrenno.bookland.orders.domain.exception.CartItemUnavailableException;
+import com.devrenno.bookland.orders.domain.exception.CartEmptyException;
 import com.devrenno.bookland.orders.domain.exception.CartNotFoundException;
 import com.devrenno.bookland.orders.domain.exception.CheckoutInProgressException;
 import com.devrenno.bookland.orders.domain.exception.InvalidOrderStatusTransitionException;
@@ -18,6 +19,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class OrderExceptionHandler {
+
+    @ExceptionHandler(CartEmptyException.class)
+    public ProblemDetail handleCartEmpty(CartEmptyException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "CART_EMPTY");
+    }
 
     @ExceptionHandler(CartNotFoundException.class)
     public ProblemDetail handleCartNotFound(CartNotFoundException ex) {
