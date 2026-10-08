@@ -50,7 +50,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @IdentityIntegrationTest
 class AuthorizationCodeFlowIntegrationTest {
 
-    private static final String REDIRECT_URI = "http://127.0.0.1:8080/authorized";
+    /** The Next.js BFF's callback: the redirect a real client of this server uses. */
+    private static final String REDIRECT_URI = "http://127.0.0.1:3000/api/auth/callback";
+    private static final String POST_LOGOUT_REDIRECT_URI = "http://127.0.0.1:3000/";
     private static final String PASSWORD = "senha1234";
 
     @Autowired
@@ -106,6 +108,49 @@ class AuthorizationCodeFlowIntegrationTest {
         String location = result.getResponse().getHeader("Location");
         assertThat(location).startsWith(REDIRECT_URI).contains("code=");
         assertThat(location).doesNotContain("/login");
+    }
+
+    /**
+     * A code is only ever sent to an address registered for the client. Anything else — here the
+     * API's old address, which used to be registered — is refused outright, with no redirect at all:
+     * redirecting the error would itself hand the browser to the unregistered address.
+     */
+    @Test
+    @DisplayName("an unregistered redirect_uri is refused without redirecting")
+    void unregisteredRedirectIsRefused() throws Exception {
+        Registration registration = register();
+        String authorize = authorizeUri(challengeFor("a".repeat(64)))
+                .replace(REDIRECT_URI, "http://127.0.0.1:8080/authorized");
+
+        MvcResult result = mockMvc.perform(get(authorize).session(registration.session()))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        assertThat(result.getResponse().getHeader("Location")).isNull();
+    }
+
+    /**
+     * The BFF signs out by sending the browser to the OIDC logout endpoint with the id_token as a
+     * hint; the server ends its session and sends the browser back to the BFF's home page — only
+     * because that address is registered as a post-logout redirect.
+     */
+    @Test
+    @DisplayName("OIDC logout sends the browser back to the BFF")
+    void logoutReturnsToTheBff() throws Exception {
+        Registration registration = register();
+        String verifier = "c".repeat(64);
+        JsonNode tokens = exchange(authorize(registration.session(), challengeFor(verifier)), verifier);
+
+        // In the query string, as a browser sends it: on a GET the endpoint reads the query string
+        // only, so request parameters set any other way are not seen at all.
+        String logout = "/connect/logout?id_token_hint=" + tokens.get("id_token").asText()
+                + "&post_logout_redirect_uri=" + POST_LOGOUT_REDIRECT_URI;
+
+        MvcResult result = mockMvc.perform(get(logout).session(registration.session()))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+
+        assertThat(result.getResponse().getHeader("Location")).isEqualTo(POST_LOGOUT_REDIRECT_URI);
     }
 
     /**

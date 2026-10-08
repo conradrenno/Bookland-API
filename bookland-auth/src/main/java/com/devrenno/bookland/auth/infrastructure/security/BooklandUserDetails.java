@@ -123,4 +123,23 @@ public final class BooklandUserDetails implements UserDetails, CredentialsContai
     public boolean isEnabled() {
         return enabled;
     }
+
+    /**
+     * Equal when they are the same account: the user id, the project's identity. Not a nicety —
+     * Spring's {@code SessionRegistry} keys sessions by the principal object, and the Authorization
+     * Server looks the login session up again at the code exchange with the principal rebuilt from
+     * the stored authorization, a different instance. Without this the lookup found nothing, the
+     * id_token went out with no {@code sid}, and OIDC logout refused every signed-in user
+     * ({@code invalid_token} on {@code sid}). Spring's own {@code User} compares by username; the
+     * e-mail is not an identifier here.
+     */
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof BooklandUserDetails that && userId.equals(that.userId);
+    }
+
+    @Override
+    public int hashCode() {
+        return userId.hashCode();
+    }
 }

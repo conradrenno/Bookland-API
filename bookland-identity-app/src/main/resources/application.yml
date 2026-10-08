@@ -111,8 +111,9 @@ bookland:
       client-name: Bookland Web
       # Loopback IP, not "localhost" — the server rejects the literal hostname (RFC 8252).
       redirect-uris:
-        - http://127.0.0.1:8080/authorized
-        - http://127.0.0.1:8080/login/oauth2/code/bookland-web
+        # The Next.js BFF (Bookland-web): it runs the authorization code flow server-side and keeps
+        # the tokens in httpOnly cookies.
+        - http://127.0.0.1:3000/api/auth/callback
         # Where the Swagger UI sends the browser back to. It reports this URL from the host the
         # page was loaded on, so the API document must be opened at 127.0.0.1 and not localhost —
         # the server rejects the literal hostname, and the redirect page talks to its opener
@@ -122,8 +123,9 @@ bookland:
         - http://127.0.0.1:9000/swagger-ui/oauth2-redirect.html
         # The catalog service's document (step 5b), on its own port until the gateway (5c).
         - http://127.0.0.1:8082/swagger-ui/oauth2-redirect.html
+      # Where /connect/logout may send the browser back to: the BFF's home page.
       post-logout-redirect-uris:
-        - http://127.0.0.1:8080/
+        - http://127.0.0.1:3000/
       # Without "openid" the server issues no id_token at all.
       scopes:
         - openid

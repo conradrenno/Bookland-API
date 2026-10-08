@@ -4,10 +4,15 @@ import com.devrenno.bookland.auth.adapters.viewmodel.RegisteredUserViewModel;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.FactorGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Signs the caller in immediately after registration, by writing the session the Authorization
@@ -37,9 +42,14 @@ public class RegistrationSessionEstablisher {
         BooklandUserDetails principal =
                 new BooklandUserDetails(user.id(), user.email(), user.name(), null, user.role(), true);
 
+        // The password factor, as a form login would record it: the caller proved it by choosing the
+        // password. The Authorization Server reads the id_token's auth_time from this authority —
+        // and, once the session is found for the sid claim, refuses to issue one without it.
+        List<GrantedAuthority> authorities = new ArrayList<>(principal.getAuthorities());
+        authorities.add(FactorGrantedAuthority.fromAuthority(FactorGrantedAuthority.PASSWORD_AUTHORITY));
+
         SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(new UsernamePasswordAuthenticationToken(
-                principal, null, principal.getAuthorities()));
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, authorities));
 
         SecurityContextHolder.setContext(context);
 
