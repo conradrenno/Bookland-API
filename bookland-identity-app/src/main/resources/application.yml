@@ -89,6 +89,8 @@ bookland:
     # is sent to.
     issuer: http://127.0.0.1:9000
     api-audience: bookland-api
+    # The Next.js BFF. The login page links back to it for "create an account" and "back to the store".
+    storefront-url: http://127.0.0.1:3000
     # The API's Swagger UI exchanges the code with a fetch from http://127.0.0.1:8083 (the API's own
     # port since the gateway took 8080 in step 5c) — another origin than this server's.
     cors-allowed-origins:
@@ -165,6 +167,8 @@ bookland:
     # document and lands in the iss claim, and a mismatch is only noticed at validation time.
     issuer: ${OAUTH2_ISSUER}
     api-audience: ${OAUTH2_API_AUDIENCE:bookland-api}
+    # The storefront the login page links back to.
+    storefront-url: ${OAUTH2_STOREFRONT_URL:http://127.0.0.1:3000}
     # Comma-separated; the origin of the API's Swagger UI. Empty allows none.
     cors-allowed-origins: ${OAUTH2_CORS_ALLOWED_ORIGINS:}
     jwk:

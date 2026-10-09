@@ -51,6 +51,16 @@
             <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
         </dependency>
 
+        <!--
+            A página de login do Authorization Server, com a identidade visual da loja. É a única
+            página HTML do serviço; o Thymeleaf entra por ela, e viaja com o módulo auth junto com o
+            servidor de autorização que a usa.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

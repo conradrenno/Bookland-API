@@ -145,9 +145,15 @@ public class AuthorizationServerConfig {
      * The login form, on its own chain because the API chain matches everything and is stateless —
      * a form login there would have nowhere to keep the result.
      *
-     * <p>Spring Security's generated page is deliberate for now. Seeing the default form appear is
-     * the proof that the authorization code flow reached the authentication step; a styled page
-     * belongs with the BFF, which is what will own the login experience.
+     * <p>The page is ours ({@code LoginPageController} and the {@code login} template), dressed as
+     * the storefront; the processing is still the framework's. Naming a login page is what turns
+     * off the generated one: {@code GET /login} then reaches the controller, while
+     * {@code POST /login} stays with {@code UsernamePasswordAuthenticationFilter}, failures still
+     * land on {@code /login?error}, and the fields are still {@code username} and {@code password}.
+     *
+     * <p>It cannot live in the BFF: the password has to be typed on this origin, which is the point
+     * of the authorization code flow, and a form on another origin could not carry this session's
+     * CSRF token.
      */
     @Bean
     @Order(2)
@@ -155,7 +161,7 @@ public class AuthorizationServerConfig {
         return http
                 .securityMatcher("/login", "/login/**")
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
-                .formLogin(Customizer.withDefaults())
+                .formLogin(form -> form.loginPage("/login"))
                 .build();
     }
 

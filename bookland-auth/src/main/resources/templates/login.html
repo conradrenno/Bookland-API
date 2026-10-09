@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<!--
+  Login form of the Authorization Server, dressed as the storefront (bookland-web).
+
+  The palette, typefaces and card mirror the Next.js front's `globals.css` and `AuthCard`; when the
+  front's look changes, this page has to follow by hand. Everything is inline on purpose: the login
+  chain only serves /login and /login/**, so a separate stylesheet would need a route of its own.
+
+  The form is Spring Security's: it posts `username`, `password` and the CSRF token back to /login,
+  and a failure comes back as /login?error.
+-->
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Entrar · Bookland</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600&family=Source+Sans+3:wght@400;500;600&display=swap">
+  <style>
+    :root {
+      color-scheme: light;
+      --background: #faf6f1;
+      --foreground: #2b211b;
+      --card: #fffcf7;
+      --primary: #a8492f;
+      --primary-foreground: #faf6f1;
+      --muted-foreground: #6b5d4f;
+      --destructive: #9b3b2e;
+      --success: #3f6b4a;
+      --border: #ddd0be;
+      --ring: #a8492f;
+      --field: #ffffff;
+      --radius: 0.5rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --background: #1c1712;
+        --foreground: #ede4d8;
+        --card: #241d17;
+        --primary: #a8492f;
+        --primary-foreground: #fdf7f0;
+        --muted-foreground: #b3a594;
+        --destructive: #e07a63;
+        --success: #5e9268;
+        --border: #3a2f26;
+        --ring: #c9754f;
+        --field: #2b241d;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      padding: 3rem 1rem;
+      background: var(--background);
+      color: var(--foreground);
+      font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; }
+
+    .brand {
+      font-family: "Fraunces", ui-serif, Georgia, serif;
+      font-size: 1.875rem;
+      letter-spacing: -0.025em;
+      text-decoration: none;
+      transition: color 150ms;
+    }
+    .brand:hover { color: var(--primary); }
+
+    main { width: 100%; max-width: 28rem; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 1.4);
+      padding: 1.5rem;
+      box-shadow: 0 1px 2px rgb(43 33 27 / 0.05);
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "Fraunces", ui-serif, Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+    }
+
+    .description { margin: 0.375rem 0 1.5rem; color: var(--muted-foreground); font-size: 0.875rem; }
+
+    form { display: grid; gap: 1rem; }
+
+    .field { display: grid; gap: 0.375rem; }
+
+    label { font-size: 0.875rem; font-weight: 500; }
+
+    input[type="email"], input[type="password"] {
+      height: 2.5rem;
+      width: 100%;
+      padding: 0 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--field);
+      color: var(--foreground);
+      font: inherit;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 150ms, box-shadow 150ms;
+    }
+    input:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+    }
+
+    .alert {
+      margin: 0;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+    }
+    .alert-error {
+      color: var(--destructive);
+      background: color-mix(in oklch, var(--destructive) 10%, transparent);
+      border: 1px solid color-mix(in oklch, var(--destructive) 40%, transparent);
+    }
+    .alert-info {
+      color: var(--success);
+      background: color-mix(in oklch, var(--success) 10%, transparent);
+      border: 1px solid color-mix(in oklch, var(--success) 40%, transparent);
+    }
+
+    button {
+      height: 2.25rem;
+      margin-top: 0.5rem;
+      border: 0;
+      border-radius: var(--radius);
+      background: var(--primary);
+      color: var(--primary-foreground);
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 150ms;
+    }
+    button:hover { background: color-mix(in oklch, var(--primary) 80%, transparent); }
+    button:focus-visible { outline: 3px solid color-mix(in oklch, var(--ring) 50%, transparent); outline-offset: 2px; }
+
+    .footer { margin: 1.5rem 0 0; text-align: center; font-size: 0.875rem; color: var(--muted-foreground); }
+    .footer a { color: var(--primary); font-weight: 500; text-underline-offset: 4px; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    .back { font-size: 0.875rem; color: var(--muted-foreground); text-underline-offset: 4px; text-decoration: none; }
+    .back:hover { color: var(--primary); text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <a class="brand" th:href="${storefrontUrl} + '/'" href="http://127.0.0.1:3000/">Bookland</a>
+
+  <main>
+    <section class="card" aria-labelledby="login-title">
+      <h1 id="login-title">Entrar</h1>
+      <p class="description">Bem-vindo de volta à sua livraria.</p>
+
+      <form method="post" action="/login">
+        <!-- Generic on purpose: saying which of the two was wrong would let anyone find out which
+             e-mails have an account. -->
+        <p class="alert alert-error" role="alert" th:if="${param.error}">E-mail ou senha incorretos.</p>
+        <p class="alert alert-info" role="status" th:if="${param.logout}">Você saiu da sua conta.</p>
+
+        <div class="field">
+          <label for="username">E-mail</label>
+          <input id="username" name="username" type="email" autocomplete="email" required autofocus>
+        </div>
+
+        <div class="field">
+          <label for="password">Senha</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+
+        <button type="submit">Entrar</button>
+      </form>
+
+      <p class="footer">
+        Não tem conta?
+        <a th:href="${storefrontUrl} + '/register'" href="http://127.0.0.1:3000/register">Criar conta</a>
+      </p>
+    </section>
+  </main>
+
+  <a class="back" th:href="${storefrontUrl} + '/'" href="http://127.0.0.1:3000/">Voltar à loja</a>
+</body>
+</html>

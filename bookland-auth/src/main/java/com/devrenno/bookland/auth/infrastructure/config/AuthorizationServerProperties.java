@@ -37,6 +37,12 @@ public class AuthorizationServerProperties {
     private String apiAudience = "bookland-api";
 
     /**
+     * Where the storefront lives — the Next.js BFF. The login page links back to it ("create an
+     * account", "back to the store"): registering happens there, not here.
+     */
+    private String storefrontUrl = "http://127.0.0.1:3000";
+
+    /**
      * Browser origins allowed to call the token endpoint cross-origin — the API's Swagger UI, which
      * is served by another process. Empty allows none.
      */
