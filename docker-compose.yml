@@ -73,6 +73,9 @@ services:
       # Asked before removing a book: does it have active orders?
       ORDERS_GRPC_ADDRESS: static://app:9090
       STORAGE_COVERS_LOCATION: /var/bookland/covers
+      # The ten sample books (DevDataLoader), so the demo starts with a catalog. Idempotent by ISBN;
+      # set it to false for an empty catalog.
+      SEED_SAMPLE_BOOKS: ${SEED_SAMPLE_BOOKS:-true}
     volumes:
       - bookland-covers:/var/bookland/covers
     depends_on:

@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -16,12 +16,15 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Sample books for local development. Lives in the catalog, the module it uses, so it travels with
+ * Sample books, for local development and the compose demo. Switched on by
+ * {@code bookland.catalog.sample-books.enabled} rather than by the dev profile, so the prod-profile
+ * stack can start with a catalog too (compose: {@code SEED_SAMPLE_BOOKS}, on by default); left unset,
+ * nothing is seeded. Lives in the catalog, the module it uses, so it travels with
  * the catalog when it leaves the monolith — as the identity seeds ({@code DevCustomerSeeder},
  * {@code AdminBootstrap}) travelled with the user module.
  */
 @Component
-@Profile("dev")
+@ConditionalOnProperty(name = "bookland.catalog.sample-books.enabled", havingValue = "true")
 @Order(2)
 public class DevDataLoader implements ApplicationRunner {
 
@@ -145,7 +148,7 @@ public class DevDataLoader implements ApplicationRunner {
                 BigDecimal.valueOf(39.90), 30, CAT_INFANTIL,
                 "https://covers.openlibrary.org/b/isbn/9788532530783-L.jpg"));
 
-        log.info("[DEV] Books seeded — {} created, {} already present", created, TOTAL_BOOKS - created);
+        log.info("[SEED] Sample books — {} created, {} already present", created, TOTAL_BOOKS - created);
     }
 
     /** Returns 1 when the book was created, 0 when the catalog already had it. */

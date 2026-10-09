@@ -105,6 +105,9 @@ bookland:
     jwk-set-uri: http://127.0.0.1:9000/oauth2/jwks
   storage:
     covers-location: ./bookland-data/covers
+  catalog:
+    sample-books:
+      enabled: true
 
 ---
 spring:
@@ -134,3 +137,8 @@ bookland:
     jwk-set-uri: ${OAUTH2_JWK_SET_URI}
   storage:
     covers-location: ${STORAGE_COVERS_LOCATION:/var/bookland/covers}
+  # Off unless asked for: the compose stack turns it on (SEED_SAMPLE_BOOKS) so the demo starts with
+  # a catalog. Idempotent, by ISBN.
+  catalog:
+    sample-books:
+      enabled: ${SEED_SAMPLE_BOOKS:false}
